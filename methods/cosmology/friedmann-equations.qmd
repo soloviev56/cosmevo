@@ -1,0 +1,399 @@
+---
+title: "Уравнения Фридмана"
+topic: friedmann-equations
+order: 2
+description: "Уравнения Эйнштейна для метрики ФЛРУ; уравнение непрерывности и уравнение состояния; доли Ω_i; модель ΛCDM, эпохи равенства и начало ускорения; возраст Вселенной и численное решение для a(t)"
+---
+
+Метрика ФЛРУ (тема «Метрика Фридмана–Леметра–Робертсона–Уокера»)
+оставляет неизвестной одну функцию — масштабный фактор $a(t)$. Её
+определяют уравнения Эйнштейна: в однородной Вселенной они сводятся к
+двум обыкновенным дифференциальным уравнениям, связывающим темп
+расширения с плотностью энергии и давлением. Из них следуют история
+расширения, возраст Вселенной и смена эпох — излучения, вещества и
+тёмной энергии, — на фоне которых происходит вся космическая эволюция.
+
+## Уравнения Эйнштейна для однородной Вселенной
+
+По симметрии тензор энергии-импульса однородной изотропной среды имеет
+вид идеальной жидкости. В сопутствующей системе (соглашения — на
+странице [Конвенции](/conventions.qmd))
+$$
+T^\mu{}_\nu = \mathrm{diag}(\rho, -p, -p, -p),
+$$
+где $\rho(t)$ — плотность энергии, $p(t)$ — давление. Космологическую
+постоянную включаем в $\rho$ и $p$ как вакуумную компоненту с
+$p_\Lambda = -\rho_\Lambda$. Вычислим тензор Эйнштейна
+$G^\mu{}_\nu$ метрики ФЛРУ модулем `cosmevo.gr` и приравняем
+$8\pi G\,T^\mu{}_\nu$:
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import numpy as np
+import sympy as sp
+from astropy.cosmology import Planck18
+
+from cosmevo.gr import einstein, frw_metric
+
+g, x, a = frw_metric()
+t = x[0]
+k = sp.Symbol("kappa", real=True)
+rho, p = sp.Function("rho")(t), sp.Function("p")(t)
+Gn = sp.Symbol("G", positive=True)
+
+G_mixed = sp.simplify(g.inv() * einstein(g, x))       # G^μ_ν
+eq_tt = sp.Eq(G_mixed[0, 0], 8 * sp.pi * Gn * rho)
+eq_rr = sp.Eq(G_mixed[1, 1], -8 * sp.pi * Gn * p)
+print("G^t_t =", sp.simplify(G_mixed[0, 0]))
+print("G^r_r =", sp.simplify(G_mixed[1, 1]))
+print("G^θ_θ = G^r_r:", sp.simplify(G_mixed[2, 2] - G_mixed[1, 1]) == 0)
+```
+
+Недиагональные компоненты равны нулю, три пространственные
+совпадают — симметрия оставляет два независимых уравнения. Это
+**уравнения Фридмана**:
+$$
+H^2 \equiv \left(\frac{\dot a}{a}\right)^2 = \frac{8\pi G}{3}\rho - \frac{\kappa}{a^2},
+\qquad
+\frac{\ddot a}{a} = -\frac{4\pi G}{3}(\rho + 3p).
+$$
+Второе получается вычитанием первого из пространственного
+уравнения $2\ddot a/a + H^2 + \kappa/a^2 = -8\pi Gp$. Проверим, что
+SymPy приводит к тем же формулам:
+
+```{python}
+adot, addot = sp.diff(a, t), sp.diff(a, t, 2)
+H2 = sp.solve(eq_tt, adot**2)[0] / a**2
+acc = sp.solve(eq_rr.subs(adot**2, H2 * a**2), addot)[0] / a
+print("H² =", sp.simplify(H2))
+print("ä/a =", sp.factor(sp.simplify(acc)))
+```
+
+**Уравнение непрерывности.** Продифференцируем первое уравнение по
+времени и подставим второе:
+
+```{python}
+# d/dt [a² H² − (8πG/3) ρ a² + κ] = 0 при выполненном втором уравнении
+first = adot**2 - sp.Rational(8, 3) * sp.pi * Gn * rho * a**2 + k
+d_first = sp.diff(first, t).subs(addot, a * (-sp.Rational(4, 3) * sp.pi * Gn * (rho + 3 * p)))
+rho_dot = sp.solve(d_first, sp.diff(rho, t))[0]
+print("ρ̇ =", sp.factor(sp.simplify(rho_dot)))
+```
+
+$$
+\dot\rho + 3H(\rho + p) = 0 .
+$$
+Это первое начало термодинамики $\dd(\rho a^3) = -p\,\dd(a^3)$ для
+сопутствующего объёма; в ОТО оно — следствие тождества Бьянки
+$\nabla_\mu G^\mu{}_\nu = 0$ и поэтому не независимо от уравнений
+Фридмана [У]{.status}.
+
+Ньютоновское прочтение первого уравнения (Милн, Маккри, 1934): пробная
+частица на границе однородного шара радиуса $R = a\chi$ имеет энергию
+$\frac12\dot R^2 - \frac{GM}{R} = \text{const}$, что совпадает с первым
+уравнением при $\kappa \propto -\text{const}$. Второе уравнение
+ньютоновского аналога не имеет: в ОТО гравитирует не только плотность
+энергии, но и давление, и при $p < -\rho/3$ расширение ускоряется.
+
+## Уравнение состояния и доли компонент
+
+::: {#def-eos}
+**Уравнение состояния** компоненты — отношение $w = p/\rho$. Для
+нерелятивистского вещества $w = 0$, для излучения $w = 1/3$, для
+космологической постоянной $w = -1$.
+:::
+
+Если компоненты не обмениваются энергией, уравнение непрерывности
+выполняется для каждой в отдельности, и при постоянном $w$
+$$
+\rho \propto a^{-3(1+w)}: \qquad
+\rho_m \propto a^{-3},\quad \rho_r \propto a^{-4},\quad \rho_\Lambda = \text{const}.
+$$
+Излучение убывает быстрее вещества на один множитель $a$: число фотонов
+в сопутствующем объёме сохраняется, а энергия каждого падает как $1/a$
+(тема «Метрика ФЛРУ»).
+
+::: {#def-omega}
+**Доли компонент**: $\Omega_i = \rho_{i,0}/\rho_c$, где
+$\rho_c = 3H_0^2/(8\pi G)$ — критическая плотность;
+$\Omega_\kappa = -\kappa/H_0^2$. Первое уравнение Фридмана сегодня
+даёт $\sum_i \Omega_i + \Omega_\kappa = 1$, а в любой момент
+$$
+H^2(a) = H_0^2\left[\Omega_r a^{-4} + \Omega_m a^{-3} + \Omega_\kappa a^{-2} + \Omega_\Lambda\right].
+$$
+:::
+
+Решения для одной компоненты при $\kappa = 0$:
+
+```{python}
+H0s, w_ = sp.symbols("H_0 w", positive=True)
+af = sp.Function("a")
+for name, w in [("вещество", sp.Integer(0)), ("излучение", sp.Rational(1, 3))]:
+    # ȧ = H₀ a^{−(1+3w)/2}: решение a = (t/t₀)^{2/(3(1+w))}
+    n = sp.Rational(2, 3) / (1 + w)
+    t0 = n / H0s
+    a_sol = (t / t0) ** n
+    resid = sp.simplify(sp.diff(a_sol, t) - H0s * a_sol ** (-(1 + 3 * w) * sp.Rational(1, 2)))
+    print(f"{name}: a ∝ t^{n},  t₀ = {t0},  невязка {resid}")
+a_L = sp.exp(H0s * t)
+print("Λ: a = e^{H₀t}, невязка", sp.simplify(sp.diff(a_L, t) - H0s * a_L))
+```
+
+## Модель ΛCDM
+
+Опорная космология пособия — Planck 2018 в реализации
+`astropy.cosmology.Planck18`. Для собственных расчётов возьмём
+трёхкомпонентную модель: излучение (фотоны и три сорта безмассовых
+нейтрино, $\Omega_r = \Omega_\gamma[1 + \frac78(\frac4{11})^{4/3}N_{\rm eff}]$),
+вещество и космологическая постоянная, $\Omega_\kappa = 0$. Масса
+нейтрино 0,06 эВ, учтённая в `Planck18`, в простой модели отнесена к
+веществу.
+
+```{python}
+Om_g, N_eff = Planck18.Ogamma0, Planck18.Neff
+Om_r = Om_g * (1 + 7 / 8 * (4 / 11) ** (4 / 3) * N_eff)
+Om_L = Planck18.Ode0
+Om_m = 1 - Om_r - Om_L
+H0 = Planck18.H0
+
+def E(a):
+    """H(a)/H₀ для плоской модели излучение + вещество + Λ."""
+    return np.sqrt(Om_r / a**4 + Om_m / a**3 + Om_L)
+
+print(f"Ω_r = {Om_r:.3e},  Ω_m = {Om_m:.4f},  Ω_Λ = {Om_L:.4f}")
+z_eq = Om_m / Om_r - 1                           # ρ_m = ρ_r
+z_mL = (Om_L / Om_m) ** (1 / 3) - 1              # ρ_m = ρ_Λ
+z_acc = (2 * Om_L / Om_m) ** (1 / 3) - 1         # ä = 0: ρ_m = 2ρ_Λ
+print(f"равенство излучения и вещества: z = {z_eq:.0f}")
+print(f"равенство вещества и Λ:         z = {z_mL:.3f}")
+print(f"начало ускорения (ä = 0):       z = {z_acc:.3f}")
+```
+
+Ускорение началось раньше, чем тёмная энергия стала преобладать:
+условие $\ddot a = 0$ — это $\rho_m + \rho_r = 2\rho_\Lambda$ (из
+$\rho + 3p = 0$), а не $\rho_m = \rho_\Lambda$.
+
+**Возраст Вселенной.** Из $\dd t = \dd a/(aH)$
+$$
+t(a) = \frac{1}{H_0}\int_0^a \frac{\dd a'}{a' E(a')} .
+$$
+
+```{python}
+from scipy.integrate import quad, solve_ivp
+
+t_H = (1 / H0).to(u.Gyr).value                   # хаббловское время 1/H₀
+
+def age(a_end=1.0):
+    return t_H * quad(lambda a: 1 / (a * E(a)), 0, a_end, epsabs=0, epsrel=1e-10)[0]
+
+t0 = age()
+print(f"1/H₀ = {t_H:.3f} млрд лет")
+print(f"возраст (наша модель): {t0:.3f} млрд лет")
+print(f"возраст (Planck18):    {Planck18.age(0).to(u.Gyr).value:.3f} млрд лет")
+print(f"возраст при z_acc:     {age(1 / (1 + z_acc)):.2f} млрд лет")
+print(f"при z_eq:              {age(1 / (1 + z_eq)) * 1e9:.0f} лет")
+```
+
+Простая модель отличается от `Planck18` на сотые доли процента — разница
+от массивных нейтрино. Для плоской модели вещества с $\Lambda$ (без
+излучения) интеграл берётся точно:
+$$
+t_0 = \frac{2}{3H_0\sqrt{\Omega_\Lambda}}\,
+\operatorname{arsinh}\sqrt{\frac{\Omega_\Lambda}{\Omega_m}} .
+$$
+
+```{python}
+aa, OL, Om = sp.symbols("a Omega_Lambda Omega_m", positive=True)
+t_exact = 2 / (3 * sp.sqrt(OL)) * sp.asinh(sp.sqrt(OL / Om) * aa ** sp.Rational(3, 2))
+integrand = 1 / (aa * sp.sqrt(Om / aa**3 + OL))
+print("d t/da − 1/(aE) =", sp.simplify(sp.diff(t_exact, aa) - integrand))
+t0_exact = t_H * float(t_exact.subs({aa: 1, OL: Om_L, Om: Om_m + Om_r}))
+print(f"t₀ (вещество + Λ, точно) = {t0_exact:.3f} млрд лет")
+```
+
+**История масштабного фактора.** Решим уравнение
+$\dot a = H_0\,aE(a)$ численно, начав с малого $a$ в эпоху излучения,
+где $a \approx (2\sqrt{\Omega_r}H_0t)^{1/2}$:
+
+```{python}
+#| label: fig-friedmann
+#| fig-cap: "Сверху: масштабный фактор a(t) модели ΛCDM (Planck 2018) и асимптотики. Снизу: доли компонент Ω_i(t) = ρ_i/ρ_полн; вертикальные линии — равенство излучения и вещества, начало ускорения и сегодняшний день. Шкала времени логарифмическая."
+import matplotlib.pyplot as plt
+from scipy.optimize import brentq
+
+a_init = 1e-8
+t_init = a_init**2 / (2 * math.sqrt(Om_r)) * t_H
+sol = solve_ivp(lambda tt, y: [y[0] * E(y[0]) / t_H], [t_init, 60],
+                [a_init], method="LSODA", rtol=1e-10, atol=1e-20, dense_output=True)
+tt = np.logspace(math.log10(t_init), math.log10(60), 600)
+aa_t = sol.sol(tt)[0]
+t_today = brentq(lambda tq: sol.sol(tq)[0] - 1, 1, 30)
+rho_parts = np.array([Om_r / aa_t**4, Om_m / aa_t**3, Om_L * np.ones_like(aa_t)])
+frac = rho_parts / rho_parts.sum(axis=0)
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True,
+                               gridspec_kw={"height_ratios": [3, 2]})
+ax1.loglog(tt, aa_t, "k", lw=1.5, label="ΛCDM")
+ax1.loglog(tt, (2 * math.sqrt(Om_r) * tt / t_H) ** 0.5, ":", color="tab:orange",
+           label=r"излучение: $a \propto t^{1/2}$")
+ax1.loglog(tt, (1.5 * math.sqrt(Om_m) * tt / t_H) ** (2 / 3), "--", color="tab:blue",
+           label=r"вещество: $a \propto t^{2/3}$")
+ax1.set(ylim=(1e-5, 30), ylabel="a(t)")
+ax1.legend(loc="upper left", fontsize=9)
+for f, name, col in zip(frac, ["излучение", "вещество", "Λ"],
+                        ["tab:orange", "tab:blue", "tab:green"]):
+    ax2.semilogx(tt, f, color=col, label=name)
+for zz, label in [(z_eq, "равенство\nизл. и вещ."), (z_acc, "начало\nускорения"),
+                  (0, "сегодня")]:
+    tz = age(1 / (1 + zz))
+    for ax in (ax1, ax2):
+        ax.axvline(tz, color="0.6", lw=0.7)
+    right = label == "сегодня"
+    ax1.text(tz * (1.15 if right else 0.8), 2e-5, label, fontsize=8, color="0.35",
+             ha="left" if right else "right", va="bottom")
+ax2.set(xlabel="t, млрд лет", ylabel=r"$\Omega_i(t)$", xlim=(1e-6, 60), ylim=(0, 1.05))
+ax2.legend(loc="center", fontsize=9)
+for ax in (ax1, ax2):
+    ax.grid(alpha=0.2)
+fig.tight_layout()
+print(f"a = 1 при t = {t_today:.3f} млрд лет (численное решение ОДУ)")
+```
+
+## Физика и наблюдательный статус
+
+- Уравнения Фридмана — следствие ОТО и симметрии [У]{.status}. Их
+  проверки — согласие расстояний по сверхновым, барионных акустических
+  осцилляций и реликтового излучения в рамках одной модели $H(a)$.
+- Плоская модель ΛCDM с шестью параметрами описывает реликтовое
+  излучение, крупномасштабную структуру и содержание лёгких элементов
+  [У]{.status}. Сегодня $\Omega_\kappa$ совместима с нулём с точностью
+  около $2\cdot10^{-3}$ (Planck 2018 с БАО).
+- Природа тёмной энергии неизвестна. Что это космологическая
+  постоянная ($w = -1$ точно) — гипотеза [Г]{.status}. По данным DESI
+  (выпуск DR2, 2025 г.) в сочетании с реликтовым излучением и
+  сверхновыми эволюционирующая тёмная энергия предпочтительнее $\Lambda$
+  на уровне 2,8–4,2σ в зависимости от выборки сверхновых; по данным на
+  2025 г. это не считается открытием (тема «Меняется ли тёмная
+  энергия?»).
+- Измерения $H_0$ по цефеидам и сверхновым дают
+  $73{,}0 \pm 1{,}0$ км·с⁻¹·Мпк⁻¹ (Рисс и соавторы, 2022), против
+  $67{,}4 \pm 0{,}5$ из реликтового излучения в ΛCDM: расхождение около
+  5σ [У]{.status}; его причина — систематика или новая физика —
+  не установлена [Г]{.status} (тема «Горячая Вселенная —
+  наблюдательные основания»).
+
+## Итоги
+
+- Уравнения Эйнштейна для метрики ФЛРУ и идеальной жидкости:
+  $H^2 = \frac{8\pi G}{3}\rho - \frac{\kappa}{a^2}$,
+  $\frac{\ddot a}{a} = -\frac{4\pi G}{3}(\rho + 3p)$; уравнение
+  непрерывности $\dot\rho + 3H(\rho + p) = 0$ из них следует.
+- При $w = \text{const}$: $\rho \propto a^{-3(1+w)}$; вещество —
+  $a \propto t^{2/3}$, излучение — $t^{1/2}$, $\Lambda$ — $e^{Ht}$.
+- ΛCDM (Planck18): равенство излучения и вещества при $z \approx 3400$
+  (через 51 тыс. лет), ускорение с $z \approx 0{,}64$ (7,6 млрд лет),
+  равенство вещества и Λ при $z \approx 0{,}30$; возраст 13,79 млрд лет.
+- Давление гравитирует: при $p < -\rho/3$ расширение ускоряется.
+
+## Упражнения
+
+1. Найдите возраст плоской Вселенной с одной компонентой $w = \text{const}$
+   через $H_0$. Каким он был бы для пыли при $H_0 = 67{,}66$
+   км·с⁻¹·Мпк⁻¹? А при $H_0 = 73{,}0$?
+2. Найдите $z_{\rm eq}$ и возраст в момент равенства излучения и вещества,
+   если бы нейтрино не было ($N_{\rm eff} = 0$). Как изменится $z_{\rm eq}$?
+3. Покажите, что $\ddot a = 0$ при $\Omega_m(1+z)^3 = 2\Omega_\Lambda$
+   (без излучения), и найдите возраст Вселенной в момент начала
+   ускорения в долях нынешнего.
+4. Статическая вселенная Эйнштейна: пыль и $\Lambda$, $\dot a = \ddot a = 0$.
+   Найдите связь $\rho_m$, $\Lambda$ и $\kappa/a^2$. Почему решение
+   неустойчиво?
+5. Решите численно уравнение для $a(t)$ в будущем ($t > t_0$). Через
+   сколько лет масштабный фактор удвоится? Чему равно асимптотическое
+   хаббловское время $1/(H_0\sqrt{\Omega_\Lambda})$?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $t_0 = \dfrac{2}{3(1+w)H_0}$; для пыли $t_0 = 2/(3H_0) = 9{,}63$ млрд
+   лет, при $H_0 = 73{,}0$ — 8,93 млрд лет. Это меньше возраста старейших
+   звёзд ($\approx 12$–13 млрд лет), поэтому модель Эйнштейна–де Ситтера
+   отвергнута ещё до открытия ускорения.
+2. Без нейтрино $\Omega_r = \Omega_\gamma$: $z_{\rm eq} = 5760$ вместо
+   3400; равенство наступило бы через 23 тыс. лет вместо 51 тыс. Число релятивистских
+   степеней свободы прямо сдвигает $z_{\rm eq}$ — поэтому реликтовое
+   излучение чувствительно к $N_{\rm eff}$.
+3. $\ddot a \propto -(\rho_m - 2\rho_\Lambda)$ при $p_m = 0$,
+   $p_\Lambda = -\rho_\Lambda$. Возраст при $z_{\rm acc} = 0{,}64$ —
+   7,6 млрд лет, 0,55 нынешнего.
+4. $\Lambda = 4\pi G\rho_m$, $\kappa/a^2 = \Lambda > 0$ (замкнутая).
+   При малом сжатии $\rho_m$ растёт, притяжение побеждает, и сжатие
+   ускоряется; при расширении — наоборот. Равновесие неустойчиво.
+5. Масштабный фактор удвоится через 11,1 млрд лет после сегодняшнего дня;
+   асимптотическое хаббловское время — 17,4 млрд лет (время
+   $e$-кратного расширения), удвоение асимптотически происходит за
+   $\ln 2/(H_0\sqrt{\Omega_\Lambda}) = 12{,}1$ млрд лет. Сегодня
+   удвоение быстрее асимптотического: вклад вещества ещё увеличивает $H$.
+:::
+
+## Литература
+
+- Friedman A. Über die Krümmung des Raumes. *Z. Phys.* **10**, 377
+  (1922).
+- Lemaître G. Un Univers homogène de masse constante et de rayon
+  croissant rendant compte de la vitesse radiale des nébuleuses
+  extra-galactiques. *Ann. Soc. Sci. Bruxelles A* **47**, 49 (1927).
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной:
+  Теория горячего Большого взрыва.* — М.: ЛКИ, 2008. Гл. 3–4.
+- Planck Collaboration. Planck 2018 results. VI. Cosmological parameters.
+  *Astron. Astrophys.* **641**, A6 (2020), arXiv:1807.06209.
+- Milne E. A. A Newtonian expanding universe. *Q. J. Math.* **5**, 64
+  (1934); McCrea W. H., Milne E. A. Newtonian universes and the curvature
+  of space. *Q. J. Math.* **5**, 73 (1934).
+- Riess A. G. et al. A comprehensive measurement of the local value of the
+  Hubble constant with 1 km/s/Mpc uncertainty from the Hubble Space
+  Telescope and the SH0ES team. *Astrophys. J. Lett.* **934**, L7 (2022),
+  arXiv:2112.04510.
+- DESI Collaboration. DESI DR2 results II: measurements of baryon acoustic
+  oscillations and cosmological constraints. *Phys. Rev. D* **112**,
+  083515 (2025), arXiv:2503.14738.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка формул и ответов (не показывается на странице)
+close = lambda x, y, rel=1e-2: math.isclose(x, y, rel_tol=rel)
+
+# уравнения Фридмана и непрерывности
+assert sp.simplify(H2 - (sp.Rational(8, 3) * sp.pi * Gn * rho - k / a**2)) == 0
+assert sp.simplify(acc + sp.Rational(4, 3) * sp.pi * Gn * (rho + 3 * p)) == 0
+assert sp.simplify(rho_dot + 3 * adot / a * (rho + p)) == 0
+# эпохи и возраст
+assert round(z_eq, -2) == 3400 and round(z_acc, 2) == 0.64 and round(z_mL, 2) == 0.30
+assert close(t0, Planck18.age(0).to(u.Gyr).value, 5e-4) and round(t0, 2) == 13.79
+assert round(age(1 / (1 + z_acc)), 1) == 7.6
+assert round(age(1 / (1 + z_eq)) * 1e9, -3) == 51e3
+assert abs(t_today - t0) / t0 < 1e-5
+# 1
+assert round(2 / 3 * t_H, 2) == 9.63
+assert round(2 / 3 * (1 / (73.0 * u.km / u.s / u.Mpc)).to(u.Gyr).value, 2) == 8.93
+# 2
+z_eq0 = Om_m / Om_g - 1
+E0 = lambda a: np.sqrt(Om_g / a**4 + (1 - Om_g - Om_L) / a**3 + Om_L)
+t_eq0 = t_H * quad(lambda a: 1 / (a * E0(a)), 0, 1 / (1 + z_eq0))[0] * 1e9
+assert round(z_eq0, -1) == 5760 and round(t_eq0, -3) == 23e3
+# 3
+assert round(age(1 / (1 + z_acc)) / t0, 2) == 0.55
+# 4
+lam, rm, kk = sp.symbols("Lambda rho_m k_over_a2")
+s4 = sp.solve([sp.Eq(0, sp.Rational(8, 3) * sp.pi * Gn * rm + lam / 3 - kk),
+               sp.Eq(0, -sp.Rational(4, 3) * sp.pi * Gn * rm + lam / 3)], [lam, kk])
+assert sp.simplify(s4[lam] - 4 * sp.pi * Gn * rm) == 0 and sp.simplify(s4[kk] - s4[lam]) == 0
+# 5
+t_double = solve_ivp(lambda tt, y: [y[0] * E(y[0]) / t_H], [t0, 200], [1.0],
+                     events=lambda tt, y: y[0] - 2, rtol=1e-10).t_events[0][0] - t0
+assert round(t_double, 1) == 11.1
+assert round(t_H / math.sqrt(Om_L), 1) == 17.4 and round(t_H / math.sqrt(Om_L) * math.log(2), 1) == 12.1
+```
