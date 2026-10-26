@@ -1,0 +1,400 @@
+---
+title: "Метрика Фридмана–Леметра–Робертсона–Уокера"
+topic: frw
+order: 1
+description: "Однородность и изотропия; пространства постоянной кривизны; метрика ФЛРУ, сопутствующие координаты, конформное время; затухание импульсов, красное смещение и закон Хаббла как следствия метрики; наблюдательные проверки"
+---
+
+Вся история Вселенной в этом пособии рассказывается на фоне одной
+метрики. Её форма почти целиком следует из симметрии: если Вселенная в
+больших масштабах однородна и изотропна, то пространство-время
+описывается одной функцией времени — масштабным фактором $a(t)$ — и одним
+числом — кривизной $\kappa$. Динамику $a(t)$ задают уравнения Эйнштейна
+(тема «Уравнения Фридмана»), но многое следует из одной геометрии:
+красное смещение, закон Хаббла, остывание реликтового излучения,
+затухание пекулярных скоростей. Этим мы и займёмся.
+
+Тензоры кривизны в статье вычисляются функциями модуля `cosmevo.gr`;
+соглашения о знаках — на странице [Конвенции](/conventions.qmd).
+
+## Космологический принцип
+
+::: {#def-cosmological-principle}
+**Космологический принцип**: на достаточно больших масштабах Вселенная
+пространственно однородна и изотропна. Точнее, существует семейство
+наблюдателей (сопутствующих), для каждого из которых Вселенная выглядит
+одинаково во всех направлениях.
+:::
+
+Изотропия относительно *каждого* наблюдателя влечёт однородность. Поэтому
+исходные наблюдательные факты — это изотропия и отсутствие у нас
+выделенного положения. Их статус:
+
+- Реликтовое излучение изотропно с относительной точностью $10^{-5}$
+  после вычитания диполя, вызванного нашим движением [У]{.status}.
+- Число галактик в шаре радиуса $R$ растёт как $R^3$ с точностью 1 % при
+  $R \gtrsim 70\,h^{-1}$ Мпк (Хогг и соавторы, 2005; Скримджер и
+  соавторы, 2012): на этих масштабах распределение вещества однородно
+  [У]{.status}.
+- Отдельные проверки дают напряжённость: например, амплитуда диполя в
+  распределении 1,4 млн квазаров WISE вдвое больше ожидаемой из
+  кинематики (Секрест и соавторы, 2021). Нарушает ли это космологический
+  принцип или объясняется систематикой — по данным на 2025 г. не
+  решено [Г]{.status}.
+
+## Пространства постоянной кривизны
+
+Однородное и изотропное трёхмерное пространство максимально симметрично:
+у него шесть векторов Киллинга (три сдвига и три вращения). Его тензор
+Римана определяется одним числом $\kappa$:
+$$
+{}^{(3)}\!R_{ijkl} = \kappa\,(\gamma_{ik}\gamma_{jl} - \gamma_{il}\gamma_{jk}).
+$$
+
+::: {#def-constant-curvature}
+**Пространство постоянной кривизны $\kappa$** — трёхмерное риманово
+пространство с метрикой
+$$
+\dd l^2 = \gamma_{ij}\,\dd x^i \dd x^j
+= \frac{\dd r^2}{1 - \kappa r^2} + r^2\,\dd\Omega^2,
+\qquad \dd\Omega^2 = \dd\theta^2 + \sin^2\theta\,\dd\varphi^2 .
+$$
+При $\kappa > 0$ это трёхмерная сфера радиуса $\kappa^{-1/2}$, при
+$\kappa = 0$ — евклидово пространство, при $\kappa < 0$ — пространство
+Лобачевского (гиперболоид).
+:::
+
+Проверим, что эта метрика действительно имеет постоянную кривизну:
+вычислим тензор Римана и сравним все его компоненты с формулой выше.
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import numpy as np
+import sympy as sp
+from astropy.cosmology import Planck18
+
+from cosmevo.gr import christoffel, einstein, frw_metric, riemann, ricci_scalar
+
+r, th, ph = sp.symbols("r theta phi", positive=True)
+k = sp.Symbol("kappa", real=True)
+xs = [r, th, ph]
+gamma = sp.diag(1 / (1 - k * r**2), r**2, r**2 * sp.sin(th)**2)
+
+Rup = riemann(gamma, xs)                              # R^a_bcd
+R_low = lambda a, b, c, d: sum(gamma[a, e] * Rup[e][b][c][d] for e in range(3))
+ok = all(sp.simplify(R_low(a, b, c, d)
+                     - k * (gamma[a, c] * gamma[b, d] - gamma[a, d] * gamma[b, c])) == 0
+         for a in range(3) for b in range(3) for c in range(3) for d in range(3))
+print("R_ijkl = κ(γ_ik γ_jl − γ_il γ_jk):", ok)
+print("скалярная кривизна:", ricci_scalar(gamma, xs))
+```
+
+Удобна также координата $\chi$ — длина вдоль радиуса: $r = S_\kappa(\chi)$,
+где $S_\kappa(\chi) = \sin(\sqrt\kappa\chi)/\sqrt\kappa$,
+$\chi$ или $\sinh(\sqrt{-\kappa}\chi)/\sqrt{-\kappa}$ при $\kappa$
+положительном, нулевом и отрицательном. Тогда
+$\dd l^2 = \dd\chi^2 + S_\kappa^2(\chi)\,\dd\Omega^2$:
+
+```{python}
+chi = sp.Symbol("chi", positive=True)
+kp = sp.Symbol("kappa", positive=True)
+for name, S in [("κ > 0", sp.sin(sp.sqrt(kp) * chi) / sp.sqrt(kp)),
+                ("κ < 0", sp.sinh(sp.sqrt(kp) * chi) / sp.sqrt(kp))]:
+    kk = kp if name == "κ > 0" else -kp
+    # dr²/(1 − κr²) при r = S(χ) должно равняться dχ²
+    print(name, sp.simplify(sp.diff(S, chi)**2 / (1 - kk * S**2)) == 1)
+```
+
+Замкнутая вселенная ($\kappa > 0$) имеет конечный объём
+$2\pi^2\kappa^{-3/2}$ (упражнение 1). Плоская и открытая в простейшей
+топологии бесконечны; локальная геометрия не определяет глобальную
+топологию, и, например, плоский тор тоже допустим [У]{.status}.
+
+## Метрика ФЛРУ
+
+::: {#def-frw}
+**Метрика Фридмана–Леметра–Робертсона–Уокера (ФЛРУ)**:
+$$
+\dd s^2 = \dd t^2 - a^2(t)\,\gamma_{ij}\,\dd x^i\dd x^j
+= \dd t^2 - a^2(t)\left[\frac{\dd r^2}{1 - \kappa r^2} + r^2\dd\Omega^2\right].
+$$
+Координаты $x^i$ — **сопутствующие**: в них галактики, не имеющие
+собственных (пекулярных) скоростей, покоятся. $t$ — **космологическое
+время**, собственное время сопутствующих наблюдателей; $a(t)$ —
+**масштабный фактор**, $a(t_0) = 1$.
+:::
+
+Физическое (собственное) расстояние между сопутствующими точками в
+момент $t$ — это $d = a(t)\chi$, где $\chi$ — сопутствующее расстояние.
+Символы Кристоффеля метрики ФЛРУ:
+
+```{python}
+g, x, a = frw_metric(kappa=k)
+t = x[0]
+Gam = christoffel(g, x)
+print("Γ^t_rr =", sp.simplify(Gam[0][1][1]))
+print("Γ^r_tr =", sp.simplify(Gam[1][0][1]))
+print("Γ^i_tt =", [Gam[i][0][0] for i in (1, 2, 3)])
+```
+
+Из $\Gamma^i_{tt} = 0$ следует, что мировые линии $x^i = \text{const}$ —
+геодезические: сопутствующие наблюдатели свободно падают, и
+космологическое время — их собственное время. А
+$\Gamma^t_{ij} = a\dot a\,\gamma_{ij}$ и $\Gamma^i_{tj} = (\dot a/a)\delta^i_j$
+отвечают за то, что происходит с движущимися частицами.
+
+::: {#def-conformal-time}
+**Конформное время**: $\dd\eta = \dd t/a(t)$. В переменных $(\eta,\chi)$
+$$
+\dd s^2 = a^2(\eta)\left[\dd\eta^2 - \dd\chi^2 - S_\kappa^2(\chi)\,\dd\Omega^2\right],
+$$
+и при $\kappa = 0$ метрика конформно-плоская: световые лучи идут по
+прямым $\chi = \pm\eta + \text{const}$, как в пространстве Минковского.
+:::
+
+## Импульсы затухают, свет краснеет
+
+**Затухание импульса.** Пусть $\kappa = 0$ и частица массы $m$ движется
+вдоль оси $x$. Метрика не зависит от $x$, поэтому ковариантная компонента
+$u_x = -a^2\,\dd x/\dd\tau$ 4-скорости сохраняется. Физический импульс,
+измеренный сопутствующим наблюдателем, — $p = m\,a\,\dd x/\dd\tau$
+(собственное расстояние $a\,\dd x$ за собственное время $\dd\tau$). Отсюда
+$$
+p \propto \frac{1}{a} .
+$$
+Это верно для любой частицы, в том числе безмассовой. Проверим численно,
+проинтегрировав уравнение геодезической $\ddot x^\mu = -\Gamma^\mu_{\alpha\beta}
+\dot x^\alpha\dot x^\beta$ для $a = t^{2/3}$ (эпоха вещества):
+
+```{python}
+from scipy.integrate import solve_ivp
+
+tt, X = sp.symbols("t x", positive=True)
+a_dust = tt ** sp.Rational(2, 3)
+g2 = sp.diag(1, -a_dust**2)                      # (t, x): достаточно одного измерения
+G2 = christoffel(g2, [tt, X])
+accel = sp.lambdify((tt, X, sp.Symbol("ut"), sp.Symbol("ux")),
+                    [-sum(G2[m][i][j] * [sp.Symbol("ut"), sp.Symbol("ux")][i]
+                          * [sp.Symbol("ut"), sp.Symbol("ux")][j]
+                          for i in range(2) for j in range(2)) for m in range(2)])
+
+def geodesic(tau, y):
+    t_, x_, ut, ux = y
+    return [ut, ux, *accel(t_, x_, ut, ux)]
+
+# старт при t = 1 (a = 1) с релятивистским импульсом p = 3m
+p0 = 3.0
+y0 = [1.0, 0.0, math.sqrt(1 + p0**2), p0]        # u^t, u^x при a = 1
+sol = solve_ivp(geodesic, [0, 40], y0, rtol=1e-10, atol=1e-12, dense_output=True)
+for tau in (0, 10, 20, 40):
+    t_, _, ut, ux = sol.sol(tau)
+    a_ = t_ ** (2 / 3)
+    print(f"τ = {tau:2d}: a = {a_:6.3f},  p = {a_ * ux:6.4f},  p·a = {a_**2 * ux:.6f}")
+```
+
+Произведение $pa$ сохраняется с точностью интегратора. Следствия
+[У]{.status}:
+
+- пекулярные скорости галактик затухают: $v \propto 1/a$ (пока $v \ll c$);
+- газ нерелятивистских частиц, расширяясь без столкновений, остывает как
+  $T \propto 1/a^2$, а газ безмассовых — как $T \propto 1/a$.
+
+**Красное смещение.** Для фотона $p = h\nu/c$, поэтому частота падает
+как $1/a$. То же видно из конформного времени: свет от источника на
+сопутствующем расстоянии $\chi$ идёт по $\chi = \eta_0 - \eta$, и два
+гребня волны, испущенные с интервалом $\Delta\eta$, приходят с тем же
+$\Delta\eta$. Физические интервалы $\Delta t = a\,\Delta\eta$, откуда
+$$
+1 + z \equiv \frac{\lambda_{\text{набл}}}{\lambda_{\text{исп}}}
+= \frac{\Delta t_{\text{набл}}}{\Delta t_{\text{исп}}} = \frac{a(t_0)}{a(t_{\text{исп}})} = \frac{1}{a} .
+$$
+Красное смещение — не доплеровский эффект «разлетающихся в пространстве»
+галактик и не «усталость света», а отношение масштабных факторов в
+момент испускания и приёма. Это предсказывает два наблюдаемых эффекта
+[У]{.status}:
+
+- **замедление времени** — любые процессы в источнике видны растянутыми
+  в $1+z$ раз; кривые блеска и спектральная эволюция сверхновых Ia
+  подтверждают это (Голдхабер и соавторы, 2001; Блонден и соавторы, 2008);
+- **остывание реликтового излучения** $T(z) = T_0(1+z)$ — измерено по
+  возбуждению молекул в поглощающих облаках на $z \approx 2$–3; в
+  параметризации $T \propto (1+z)^{1-\beta}$ получено
+  $\beta = -0{,}007 \pm 0{,}027$ (Нотердам и соавторы, 2011).
+
+## Закон Хаббла
+
+Собственное расстояние до сопутствующей галактики $d = a\chi$ меняется
+со скоростью
+$$
+\dot d = \dot a\chi = H d, \qquad H \equiv \frac{\dot a}{a} .
+$$
+Это точное следствие метрики: линейный закон скорость–расстояние верен
+на любых расстояниях, если под скоростью понимать $\dot d$, а под
+расстоянием — собственное расстояние *сегодня*. При $d > c/H$ скорость
+$\dot d$ превышает $c$; противоречия с СТО нет — это скорость изменения
+расстояния вдоль гиперповерхности $t = \text{const}$, а не скорость
+сигнала относительно локального наблюдателя.
+
+Наблюдают же не $d$ и $\dot d$, а красное смещение и
+фотометрические расстояния. При $z \ll 1$, разлагая $a(t)$ около $t_0$,
+получаем $z \approx H_0 d/c$ — закон Хаббла–Леметра (Леметр, 1927;
+Хаббл, 1929) [У]{.status}. При больших $z$ связь становится нелинейной
+и зависит от истории $H(t)$: сопутствующее расстояние до источника с
+красным смещением $z$ равно $\chi = c\int_0^z \dd z'/H(z')$ (тема
+«Расстояния и горизонты»). Сравним для опорной космологии:
+
+```{python}
+#| label: fig-hubble
+#| fig-cap: "Сопутствующее расстояние (= собственное расстояние сегодня) до источника с красным смещением z для космологии Planck 2018 и линейный закон Хаббла cz/H₀. Пунктир — хаббловский радиус c/H₀: галактики дальше него сегодня удаляются со скоростью ḋ > c."
+import matplotlib.pyplot as plt
+from scipy.optimize import brentq
+
+D_H = (const.c / Planck18.H0).to(u.Gpc).value              # c/H₀
+z = np.linspace(0, 3, 301)
+D_C = Planck18.comoving_distance(z).to(u.Gpc).value
+z_H = brentq(lambda zz: Planck18.comoving_distance(zz).to(u.Gpc).value - D_H, 0.5, 3)
+z_10 = brentq(lambda zz: Planck18.comoving_distance(zz).to(u.Gpc).value / (zz * D_H) - 0.9,
+              0.05, 1)
+
+fig, ax = plt.subplots(figsize=(6.5, 4))
+ax.plot(z, D_C, "k", lw=1.5, label="Planck 2018")
+ax.plot(z, z * D_H, "k--", lw=0.8, label="cz/H₀")
+ax.axhline(D_H, color="tab:blue", ls=":", lw=1)
+ax.text(0.05, D_H + 0.15, "c/H₀", color="tab:blue")
+ax.plot(z_H, D_H, "o", color="tab:blue")
+ax.set(xlim=(0, 3), ylim=(0, 8), xlabel="красное смещение z",
+       ylabel="сопутствующее расстояние, Гпк")
+ax.legend(loc="lower right")
+ax.grid(alpha=0.2)
+print(f"c/H₀ = {D_H:.3f} Гпк = {(const.c / Planck18.H0).to(u.lyr).value / 1e9:.1f} млрд св. лет")
+print(f"отклонение от линейного закона достигает 10 % при z = {z_10:.2f}")
+print(f"сегодня удаляются быстрее света источники с z > {z_H:.2f}")
+```
+
+Свет от галактик с $z > 1{,}48$ мы видим, хотя сегодня они удаляются от
+нас со скоростью $\dot d > c$. Это не парадокс: свет, испущенный
+давно, сначала удалялся от нас вместе с расширением, затем, когда
+хаббловский радиус вырос, стал приближаться.
+
+## Итоги
+
+- Космологический принцип (однородность и изотропия на масштабах
+  $\gtrsim 70\,h^{-1}$ Мпк) — наблюдательный факт с отдельными
+  открытыми напряжённостями.
+- Однородное изотропное пространство имеет постоянную кривизну:
+  ${}^{(3)}\!R_{ijkl} = \kappa(\gamma_{ik}\gamma_{jl} - \gamma_{il}\gamma_{jk})$;
+  метрика ФЛРУ задаётся $a(t)$ и $\kappa$.
+- Сопутствующие наблюдатели — геодезические; их собственное время —
+  космологическое время.
+- Импульсы любых свободных частиц затухают как $1/a$; отсюда
+  $1 + z = 1/a$, замедление времени в $1+z$ раз и $T_{\rm CMB} \propto 1+z$.
+- Закон $\dot d = Hd$ точен для собственного расстояния; наблюдаемый
+  закон $z \approx H_0d/c$ — его предел при $z \ll 1$.
+
+## Упражнения
+
+1. Найдите объём замкнутого пространства ($\kappa > 0$) и длину
+   «экватора». Чему равна сумма углов треугольника, образованного
+   тремя геодезическими на сфере $\chi = \pi/(2\sqrt\kappa)$?
+2. Найдите связь $a(\eta)$ при $\kappa = 0$ для $a \propto t^{2/3}$
+   (вещество) и $a \propto t^{1/2}$ (излучение). Чему равно конформное
+   время $\eta_0$ сегодня для пыли, если возраст $t_0$?
+3. Галактика при $z = 1$ имела пекулярную скорость 600 км/с. Какой она
+   стала бы сегодня без гравитационного взаимодействия? Фотон линии
+   Лайман-альфа (10,2 эВ) приходит к нам с энергией 1 эВ; на каком $z$
+   он был испущен?
+4. При каком $z$ (Planck18) сопутствующее расстояние равно $c/H_0$?
+   С какой скоростью $\dot d$ (в единицах $c$) сегодня удаляется
+   галактика с $z = 3$?
+5. Сверхновая на $z = 0{,}5$ нарастает до максимума блеска за 18 суток в
+   собственной системе. Какое время нарастания видит наблюдатель? Какую
+   температуру реликтового излучения измерили бы в облаке на
+   $z = 2{,}34$, и на сколько процентов отличалась бы $T(z=3)$ от
+   $T_0(1+z)$ при $\beta = 0{,}027$?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $V = 4\pi\kappa^{-3/2}\int_0^\pi\sin^2\psi\,\dd\psi = 2\pi^2\kappa^{-3/2}$;
+   длина большого круга $2\pi\kappa^{-1/2}$. На сфере $\chi =
+   \pi/(2\sqrt\kappa)$ (двумерная сфера радиуса $\kappa^{-1/2}$) сумма
+   углов треугольника из трёх геодезических больше $\pi$ на площадь,
+   умноженную на $\kappa$.
+2. Вещество: $\eta = 3t_0^{2/3}t^{1/3}$, $a = (\eta/\eta_0)^2$,
+   $\eta_0 = 3t_0$ (в единицах $c = 1$). Излучение: $a \propto \eta$.
+3. 300 км/с ($v \propto 1/a$); $1 + z = 10{,}2$, то есть $z = 9{,}2$.
+4. $z = 1{,}48$; галактика с $z = 3$ сегодня удаляется со скоростью
+   $\dot d = H_0\chi = 1{,}47\,c$.
+5. 27 суток; $T = 2{,}7255\cdot3{,}34 = 9{,}10$ К; при $\beta = 0{,}027$
+   температура на $z = 3$ была бы на 3,7 % ниже.
+:::
+
+## Литература
+
+- Friedman A. Über die Krümmung des Raumes. *Z. Phys.* **10**, 377
+  (1922); Über die Möglichkeit einer Welt mit konstanter negativer
+  Krümmung des Raumes. *Z. Phys.* **21**, 326 (1924).
+- Lemaître G. Un Univers homogène de masse constante et de rayon
+  croissant rendant compte de la vitesse radiale des nébuleuses
+  extra-galactiques. *Ann. Soc. Sci. Bruxelles A* **47**, 49 (1927).
+- Hubble E. A relation between distance and radial velocity among
+  extra-galactic nebulae. *Proc. Natl. Acad. Sci.* **15**, 168 (1929).
+- Robertson H. P. Kinematics and world-structure. *Astrophys. J.* **82**,
+  284 (1935).
+- Walker A. G. On Milne's theory of world-structure. *Proc. London Math.
+  Soc.* **42**, 90 (1937).
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной:
+  Теория горячего Большого взрыва.* — М.: ЛКИ, 2008. Гл. 1–3.
+- Hogg D. W. et al. Cosmic homogeneity demonstrated with luminous red
+  galaxies. *Astrophys. J.* **624**, 54 (2005), arXiv:astro-ph/0411197.
+- Scrimgeour M. I. et al. The WiggleZ Dark Energy Survey: the transition
+  to large-scale cosmic homogeneity. *Mon. Not. R. Astron. Soc.* **425**,
+  116 (2012), arXiv:1205.6812.
+- Secrest N. J. et al. A test of the cosmological principle with quasars.
+  *Astrophys. J. Lett.* **908**, L51 (2021), arXiv:2009.14826.
+- Goldhaber G. et al. Timescale stretch parameterization of type Ia
+  supernova B-band light curves. *Astrophys. J.* **558**, 359 (2001).
+- Blondin S. et al. Time dilation in type Ia supernova spectra at high
+  redshift. *Astrophys. J.* **682**, 724 (2008).
+- Srianand R., Petitjean P., Ledoux C. The cosmic microwave background
+  radiation temperature at a redshift of 2.34. *Nature* **408**, 931
+  (2000).
+- Noterdaeme P. et al. The evolution of the cosmic microwave background
+  temperature. *Astron. Astrophys.* **526**, L7 (2011), arXiv:1012.3164.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка формул и ответов (не показывается на странице)
+close = lambda x, y, rel=1e-2: math.isclose(x, y, rel_tol=rel)
+
+# Кристоффели ФЛРУ и затухание импульса
+assert ok and sp.simplify(ricci_scalar(gamma, xs) - 6 * k) == 0
+assert sp.simplify(Gam[0][1][1] - a * sp.diff(a, t) / (1 - k * r**2)) == 0
+assert sp.simplify(Gam[1][0][1] - sp.diff(a, t) / a) == 0
+pa = [sol.sol(tau)[0] ** (4 / 3) * sol.sol(tau)[3] for tau in np.linspace(0, 40, 9)]
+assert np.allclose(pa, p0, rtol=1e-7)
+# закон Хаббла и расстояния
+assert round(z_H, 2) == 1.48
+# 1
+psi = sp.Symbol("psi")
+V = 4 * sp.pi * kp ** sp.Rational(-3, 2) * sp.integrate(sp.sin(psi)**2, (psi, 0, sp.pi))
+assert sp.simplify(V - 2 * sp.pi**2 * kp ** sp.Rational(-3, 2)) == 0
+# 2
+t0s, ts = sp.symbols("t_0 t", positive=True)
+eta_t = sp.integrate((ts / t0s) ** sp.Rational(-2, 3), (ts, 0, ts))
+assert sp.simplify(eta_t - 3 * t0s ** sp.Rational(2, 3) * ts ** sp.Rational(1, 3)) == 0
+assert sp.simplify((ts / t0s) ** sp.Rational(2, 3) - (eta_t / eta_t.subs(ts, t0s))**2) == 0
+eta_r = sp.integrate((ts / t0s) ** sp.Rational(-1, 2), (ts, 0, ts))
+assert sp.simplify((ts / t0s) ** sp.Rational(1, 2) - eta_r / eta_r.subs(ts, t0s)) == 0
+# 3
+assert 600 / (1 + 1) == 300 and close(10.2 / 1.0 - 1, 9.2, 1e-9)
+# 4
+v3 = (Planck18.H0 * Planck18.comoving_distance(3) / const.c).decompose().value
+assert round(v3, 2) == 1.47
+# 5
+assert 18 * 1.5 == 27 and round(2.7255 * 3.34, 2) == 9.10
+assert close(1 - 4 ** -0.027, 0.037, 2e-2)
+```

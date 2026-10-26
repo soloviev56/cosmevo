@@ -64,6 +64,25 @@ def test_redshift_convention():
         assert close(Planck18.scale_factor(z), 1 / (1 + z), rel=1e-12)
 
 
+# --- Кривизна и уравнения Эйнштейна ---------------------------------------
+
+def test_curvature_sign_and_einstein_equations():
+    # сфера: R > 0; ФЛРУ: G_00 = 3(ȧ² + κ)/a² = 8πGρ, т. е. H² = 8πGρ/3 − κ/a²
+    import sympy as sp
+
+    from cosmevo.gr import einstein, frw_metric, ricci_scalar
+
+    th, ph, rho = sp.symbols("theta phi rho", positive=True)
+    sphere = sp.diag(rho**2, rho**2 * sp.sin(th)**2)
+    assert ricci_scalar(sphere, [th, ph]).is_positive
+
+    g, x, a = frw_metric()
+    G = einstein(g, x)
+    k, rho_m, Gn = sp.symbols("kappa rho G", real=True)
+    H2 = sp.solve(sp.Eq(G[0, 0], 8 * sp.pi * Gn * rho_m), sp.diff(a, x[0])**2)[0] / a**2
+    assert sp.simplify(H2 - (8 * sp.pi * Gn * rho_m / 3 - k / a**2)) == 0
+
+
 # --- Энтропия и информация ----------------------------------------------------
 
 def test_landauer_at_room_temperature():

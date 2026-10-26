@@ -75,6 +75,23 @@ subtitle: "Обозначения, единицы и маркировка ста
   \qquad \kappa \in \{-1, 0, +1\}\cdot(\text{масштаб})^{-2},
   $$
   масштабный фактор нормирован на сегодняшний день: $a(t_0) = a_0 = 1$.
+- Кривизна — как у Ландау–Лифшица и Горбунова–Рубакова:
+  $$
+  R^\alpha{}_{\beta\mu\nu} = \partial_\mu\Gamma^\alpha_{\nu\beta}
+  - \partial_\nu\Gamma^\alpha_{\mu\beta}
+  + \Gamma^\alpha_{\mu\lambda}\Gamma^\lambda_{\nu\beta}
+  - \Gamma^\alpha_{\nu\lambda}\Gamma^\lambda_{\mu\beta},
+  \qquad R_{\beta\nu} = R^\alpha{}_{\beta\alpha\nu};
+  $$
+  у сферы скалярная кривизна положительна. Уравнения Эйнштейна:
+  $$
+  R_{\mu\nu} - \tfrac12 g_{\mu\nu}R = 8\pi G\,T_{\mu\nu} + \Lambda g_{\mu\nu},
+  \qquad T^\mu{}_\nu = \mathrm{diag}(\rho, -p, -p, -p)
+  $$
+  для идеальной жидкости в сопутствующей системе. Космологическую
+  постоянную можно включить в $T_{\mu\nu}$ как вакуумную энергию с
+  $\rho_\Lambda = -p_\Lambda = \Lambda/(8\pi G)$. Функции — в модуле
+  `cosmevo.gr`.
 - Параметр Хаббла $H = \dot a / a$; $H_0 = 100\,h$ км·с⁻¹·Мпк⁻¹.
   Красное смещение: $1 + z = a_0/a = 1/a$. Конформное время: $\dd\eta = \dd t/a$.
 - Критическая плотность $\rho_c = 3H_0^2/(8\pi G)$; доли
