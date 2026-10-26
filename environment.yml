@@ -1,0 +1,22 @@
+# Окружение проекта «Космическая эволюция».
+# Создать:   conda env create -f environment.yml
+# Обновить:  conda env update -f environment.yml --prune
+name: cosmevo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - quarto=1.9.38
+  - sympy=1.14.0
+  - numpy=2.2
+  - scipy=1.16
+  - matplotlib=3.10
+  - astropy=7.1
+  - jupyter
+  - ipykernel
+  - nbformat
+  - pyyaml
+  - pytest
+  - pip
+  - pip:
+      - -e .

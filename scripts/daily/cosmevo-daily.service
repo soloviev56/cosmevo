@@ -1,0 +1,7 @@
+[Unit]
+Description=Пособие «Космическая эволюция»: ежедневная порция работы Claude
+
+[Service]
+Type=oneshot
+ExecStart=%h/work/claude_prjs/Evolution/scripts/daily/run.sh
+TimeoutStartSec=infinity

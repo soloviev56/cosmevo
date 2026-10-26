@@ -1,0 +1,17 @@
+/_site/
+/_freeze/
+/_generated/
+/.quarto/
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+
+**/*.quarto_ipynb
+
+# Личные черновики, не публикуются
+/notes/
+
+# Журнал работы с замечаниями автора, логи ежедневных запусков
+/journal.md
+/logs/
+/SessionID.txt

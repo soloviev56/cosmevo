@@ -1,0 +1,55 @@
+project:
+  type: website
+  pre-render: scripts/topics.py
+  render:
+    - "*.qmd"
+    - "methods/**/*.qmd"
+    - "evolution/**/*.qmd"
+  resources:
+    - "_generated/topics.json"
+
+lang: ru
+
+website:
+  title: "Космическая эволюция"
+  site-url: https://soloviev56.github.io/cosmevo/
+  repo-url: https://github.com/soloviev56/cosmevo
+  repo-actions: [edit, issue]
+  search: true
+  page-navigation: true
+  page-footer:
+    center: >-
+      Текст — <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.ru">CC BY-SA 4.0</a>,
+      код — MIT
+  sidebar:
+    style: docked
+    contents:
+      - index.qmd
+      - conventions.qmd
+      - map.qmd
+      - section: "Аппарат"
+        contents: "methods/**/*.qmd"
+      - section: "Космическая эволюция"
+        contents: "evolution/**/*.qmd"
+
+filters:
+  # pre-ast: блок должен появиться до того, как Quarto обработает врезки (callout)
+  - path: filters/topics.lua
+    at: pre-ast
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css: styles.css
+    toc: true
+    number-sections: false
+    html-math-method: mathjax
+    include-before-body: _macros.html
+    code-tools: true
+    code-fold: false
+
+execute:
+  freeze: auto
+  warning: false

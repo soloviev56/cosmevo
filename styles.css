@@ -1,0 +1,10 @@
+/* Метка статуса утверждения: [У]{.status}, [Г]{.status}, [С]{.status}.
+   Скобки добавляются здесь, чтобы в исходном тексте метка читалась как [Г]. */
+.status {
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #6c757d;
+}
+.status::before { content: "["; }
+.status::after { content: "]"; }
