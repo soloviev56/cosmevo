@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ежедневный запуск Claude Code: порция статей или исправления по замечаниям.
-# Вызывается таймером systemd (scripts/daily/gmph-daily.timer) или вручную.
+# Вызывается таймером systemd (scripts/daily/cosmevo-daily.timer) или вручную.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
