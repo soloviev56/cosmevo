@@ -1,0 +1,481 @@
+---
+title: "Скорости термоядерных реакций"
+topic: reaction-rates
+order: 2
+description: "Кулоновский барьер и туннелирование (фактор Гамова из ВКБ); астрофизический S-фактор; скорость ⟨σv⟩ и гамовский пик; температурная чувствительность ν = (τ − 2)/3 для pp, ³He+³He и ¹⁴N(p,γ); время жизни протона в Солнце; смена pp-цепочки CNO-циклом; резонансные реакции; электронное экранирование"
+---
+
+В центре Солнца $kT \approx 1{,}4$ кэВ (тема «Гидростатическое
+равновесие и теорема вириала»), а кулоновский барьер двух протонов на
+расстоянии порядка ферми — около мегаэлектронвольта. Доля протонов с
+энергией выше барьера в максвелловском распределении — $e^{-700}$:
+классически Солнце светить не может. Термоядерный синтез в звёздах
+идёт за счёт **туннелирования** (Гамов, 1928; Аткинсон и Хоутерманс,
+1929), и вся астрофизика ядерного горения — следствие двух
+экспонент: убывающего хвоста Максвелла и растущей с энергией
+вероятности прохождения барьера. Их произведение даёт узкий
+«гамовский пик», а крутизна экспонент — огромную температурную
+чувствительность скоростей, от которой зависят строение и эволюция
+звёзд.
+
+## Кулоновский барьер и фактор Гамова
+
+Две частицы с зарядами $Z_1e$, $Z_2e$ и приведённой массой $\mu$
+сближаются с энергией $E$ в системе центра масс. Классическая точка
+поворота $r_c = Z_1Z_2e^2/E$ для $E \sim$ кэВ — сотни ферми, а ядерные
+силы действуют на расстояниях $R \sim$ нескольких ферми. Вероятность
+прохождения барьера в приближении ВКБ (s-волна):
+$$
+P \approx \exp\left[-\frac{2}{\hbar}\int_R^{r_c}\sqrt{2\mu\left(\frac{Z_1Z_2e^2}{r} - E\right)}\,\dd r\right].
+$$
+При $R \ll r_c$ нижний предел можно заменить нулём:
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import quad
+from scipy.optimize import brentq
+
+r, E, mu, k, hbar = sp.symbols("r E mu k hbar", positive=True)   # k = Z₁Z₂e²
+exponent = 2 / hbar * sp.integrate(sp.sqrt(2 * mu * (k / r - E)), (r, 0, k / E))
+v = sp.sqrt(2 * E / mu)
+print("показатель =", sp.simplify(exponent), " = 2π·Z₁Z₂e²/(ħv):",
+      sp.simplify(exponent - 2 * sp.pi * k / (hbar * v)) == 0)
+```
+
+::: {#def-gamow}
+**Фактор Гамова** — вероятность туннелирования через кулоновский
+барьер $P = e^{-2\pi\eta}$, где $\eta = Z_1Z_2e^2/(\hbar v)$ —
+параметр Зоммерфельда. В терминах энергии
+$$
+2\pi\eta = \sqrt{\frac{E_G}{E}}, \qquad E_G = 2\mu c^2\,(\pi\alpha Z_1Z_2)^2
+$$
+— **энергия Гамова**.
+:::
+
+Для двух протонов $E_G = m_pc^2(\pi\alpha)^2 \approx 493$ кэВ; при
+$E = 1$ кэВ вероятность прохождения $e^{-22}$ — мала, но не $e^{-700}$.
+Поправка от конечного $R$ и точной кулоновской волновой функции
+медленно зависит от энергии и поглощается в S-фактор.
+
+## Астрофизический S-фактор
+
+::: {#def-s-factor}
+Сечение нерезонансной реакции заряженных частиц записывают как
+$$
+\sigma(E) = \frac{S(E)}{E}\,e^{-\sqrt{E_G/E}},
+$$
+где множитель $1/E \propto \bar\lambda^2$ — геометрический (квадрат
+длины волны де Бройля), экспонента — туннелирование, а
+**астрофизический S-фактор** $S(E)$ содержит собственно ядерную физику
+и для нерезонансных реакций медленно меняется с энергией. Единица —
+кэВ·барн или МэВ·барн (1 барн $= 10^{-24}$ см²).
+:::
+
+Выделение двух экспонент позволяет экстраполировать измерения,
+проведённые при сотнях кэВ, в область звёздных энергий в единицы и
+десятки кэВ, где сечения слишком малы для лаборатории. Для реакции
+$p + p \to d + e^+ + \nu_e$ сечение не измерено вообще: оно идёт через
+слабое взаимодействие, и $S_{11}(0)$ вычисляют теоретически
+[У]{.status} (теория подтверждена потоком pp-нейтрино Солнца).
+Рекомендованные значения $S(0)$ (Адельбергер и соавторы, 2011):
+
+| Реакция | $S(0)$ | Роль |
+|---|---|---|
+| $p(p, e^+\nu)d$ | $4{,}01\cdot10^{-25}$ МэВ·барн | первая, самая медленная реакция pp-цепочки |
+| ${}^3\mathrm{He}({}^3\mathrm{He}, 2p){}^4\mathrm{He}$ | $5{,}21$ МэВ·барн | замыкает ветвь pp-I |
+| ${}^{14}\mathrm{N}(p,\gamma){}^{15}\mathrm{O}$ | $1{,}66$ кэВ·барн | самая медленная реакция CNO-цикла |
+
+Отношение $S$ для pp и ${}^3$He+${}^3$He — $10^{25}$: слабое
+взаимодействие против сильного. Обновлённые рекомендации — в обзоре
+Ачарьи и соавторов (2025).
+
+## Скорость реакции и гамовский пик
+
+::: {#def-rate}
+**Скорость реакции** в единице объёма $r_{12} = n_1n_2\langle\sigma v\rangle
+/(1 + \delta_{12})$ ($\delta_{12} = 1$ для одинаковых частиц), где для
+максвелловского распределения относительных скоростей
+$$
+\langle\sigma v\rangle = \sqrt{\frac{8}{\pi\mu}}\,\frac{1}{(kT)^{3/2}}
+\int_0^\infty S(E)\,\exp\left(-\frac{E}{kT} - \sqrt{\frac{E_G}{E}}\right)\dd E.
+$$
+:::
+
+Подынтегральное выражение — произведение падающей и растущей
+экспонент с острым максимумом (**гамовский пик**) при
+$$
+E_0 = \left(\frac{E_G(kT)^2}{4}\right)^{1/3}, \qquad
+\tau \equiv \frac{3E_0}{kT}, \qquad
+\Delta = \frac{4}{\sqrt3}\sqrt{E_0kT},
+$$
+где $\Delta$ — ширина по уровню $1/e$ в гауссовом приближении
+показателя около $E_0$. Тогда
+$$
+\langle\sigma v\rangle \approx \sqrt{\frac{8}{\pi\mu}}\,\frac{S(E_0)}{(kT)^{3/2}}\,
+\frac{\sqrt\pi\,\Delta}{2}\,e^{-\tau}.
+$$
+Проверим положение и ширину пика символьно:
+
+```{python}
+Es, kT_s, EG_s = sp.symbols("E kT E_G", positive=True)
+f = -Es / kT_s - sp.sqrt(EG_s / Es)
+E0_sym = sp.solve(sp.diff(f, Es), Es)[0]
+curv = sp.diff(f, Es, 2).subs(Es, E0_sym)                 # f ≈ f(E₀) + ½f''(E−E₀)²
+print("E₀ =", E0_sym)
+print("−f(E₀) = 3E₀/kT:", sp.simplify(-f.subs(Es, E0_sym) - 3 * E0_sym / kT_s) == 0)
+print("Δ = 2/√(−f''/2) = (4/√3)√(E₀kT):",
+      sp.simplify(2 / sp.sqrt(-curv / 2) - 4 / sp.sqrt(3) * sp.sqrt(E0_sym * kT_s)) == 0)
+```
+
+Теперь численно — для трёх реакций в центре Солнца
+($T_c = 1{,}57\cdot10^7$ К, стандартная модель; Бакал и соавторы, 2005):
+
+```{python}
+keV = u.keV.to(u.erg)
+barn = 1e-24
+k_B = const.k_B.cgs.value
+amu = (1 * u.u).to(u.g).value
+amu_keV = (1 * u.u * const.c**2).to(u.keV).value
+alpha = const.alpha.value
+
+# (имя, S(0) в кэВ·барн, Z₁, Z₂, A₁, A₂) — массы ядер в а. е. м.
+REACTIONS = [("p + p", 4.01e-22, 1, 1, 1.007276, 1.007276),
+             ("³He + ³He", 5.21e3, 2, 2, 3.014932, 3.014932),
+             ("¹⁴N + p", 1.66, 7, 1, 13.999234, 1.007276)]
+
+def gamow_energy(Z1, Z2, A1, A2):
+    """E_G в кэВ."""
+    return 2 * A1 * A2 / (A1 + A2) * amu_keV * (math.pi * alpha * Z1 * Z2) ** 2
+
+def sigma_v(S0, Z1, Z2, A1, A2, T):
+    """⟨σv⟩, см³/с, при постоянном S = S0 (кэВ·барн)."""
+    kT, EG = k_B * T / keV, gamow_energy(Z1, Z2, A1, A2)
+    mu = A1 * A2 / (A1 + A2) * amu
+    E0 = (EG * kT**2 / 4) ** (1 / 3)
+    integral = quad(lambda E: math.exp(-E / kT - math.sqrt(EG / E)), 0, 60 * E0,
+                    points=[E0], limit=200)[0]                       # кэВ
+    return math.sqrt(8 / (math.pi * mu)) * (kT * keV) ** -1.5 * (S0 * keV * barn) * integral * keV
+
+def peak(Z1, Z2, A1, A2, T):
+    """E₀ (кэВ), τ, Δ (кэВ)."""
+    kT, EG = k_B * T / keV, gamow_energy(Z1, Z2, A1, A2)
+    E0 = (EG * kT**2 / 4) ** (1 / 3)
+    return E0, 3 * E0 / kT, 4 / math.sqrt(3) * math.sqrt(E0 * kT)
+
+def sensitivity(reaction, T, h=0.01):
+    """ν = d ln⟨σv⟩ / d ln T."""
+    _, S0, *ZA = reaction
+    up, down = sigma_v(S0, *ZA, T * (1 + h)), sigma_v(S0, *ZA, T / (1 + h))
+    return math.log(up / down) / (2 * math.log(1 + h))
+
+T_sun = 1.57e7
+print(f"kT = {k_B * T_sun / keV:.2f} кэВ")
+for reaction in REACTIONS:
+    name, S0, *ZA = reaction
+    E0, tau, width = peak(*ZA, T_sun)
+    sv = sigma_v(S0, *ZA, T_sun)
+    mu = ZA[2] * ZA[3] / (ZA[2] + ZA[3]) * amu
+    approx = (math.sqrt(8 / (math.pi * mu)) * (k_B * T_sun) ** -1.5 * S0 * keV * barn
+              * math.sqrt(math.pi) / 2 * width * keV * math.exp(-tau))       # гауссово приближение
+    print(f"{name:10s} E_G = {gamow_energy(*ZA):8.0f} кэВ, E₀ = {E0:5.1f} кэВ, Δ = {width:5.1f} кэВ, "
+          f"τ = {tau:5.1f};  ⟨σv⟩ = {sv:.2e} см³/с (гаусс: {approx / sv:.3f}),  "
+          f"ν = {sensitivity(reaction, T_sun):.1f}")
+```
+
+```{python}
+#| label: fig-gamow-peak
+#| fig-cap: "Гамовский пик реакции p + p в центре Солнца (kT = 1,35 кэВ). Хвост распределения Максвелла e^{−E/kT} и вероятность туннелирования e^{−√(E_G/E)} (обе — в относительных единицах, логарифмическая шкала) и их произведение, умноженное на 10⁶ для наглядности. Реакции идут в узком окне около E₀ = 6 кэВ, где частиц уже мало, а барьер ещё почти непроницаем."
+kT_sun = k_B * T_sun / keV
+EG_pp = gamow_energy(*REACTIONS[0][2:])
+E_grid = np.linspace(0.05, 25, 800)
+maxwell = np.exp(-E_grid / kT_sun)
+tunnel = np.exp(-np.sqrt(EG_pp / E_grid))
+fig, ax = plt.subplots(figsize=(6.8, 4))
+ax.semilogy(E_grid, maxwell, color="tab:blue", label="Максвелл $e^{-E/kT}$")
+ax.semilogy(E_grid, tunnel, color="tab:orange", label="туннелирование $e^{-\\sqrt{E_G/E}}$")
+ax.semilogy(E_grid, 1e6 * maxwell * tunnel, color="k", lw=2, label="произведение × 10⁶")
+E0_pp = peak(*REACTIONS[0][2:], T_sun)[0]
+ax.axvline(E0_pp, color="0.6", ls="--", lw=0.8)
+ax.set(xlabel="E, кэВ", ylabel="относительная величина", ylim=(1e-12, 2), xlim=(0, 25))
+ax.legend(fontsize=9, loc="lower right")
+ax.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Гауссово приближение точно до 3–5 %; на практике $S(E)$ разлагают в
+ряд около нуля, и это даёт поправки того же порядка.
+
+## Температурная чувствительность
+
+Так как $\langle\sigma v\rangle \propto T^{-2/3}e^{-\tau}$ с $\tau \propto T^{-1/3}$,
+$$
+\nu \equiv \frac{\dd\ln\langle\sigma v\rangle}{\dd\ln T} = \frac{\tau - 2}{3}.
+$$
+Чем выше заряды, тем больше $\tau$ и круче зависимость. Для pp при
+солнечной температуре $\nu \approx 3{,}8$, для ${}^{14}$N + p —
+$\nu \approx 20$ (численные значения выше совпадают с формулой).
+
+```{python}
+#| label: fig-sensitivity
+#| fig-cap: "Скорости ⟨σv⟩ трёх реакций как функции температуры, нормированные на значение в центре Солнца (вертикальная линия). Наклоны в логарифмическом масштабе — показатели ν: около 4 для p + p, 16 для ³He + ³He и 20 для ¹⁴N + p; удвоение температуры ускоряет ключевую реакцию CNO-цикла почти в 200 тысяч раз."
+T_grid = np.logspace(math.log10(5e6), math.log10(5e7), 60)
+fig, ax = plt.subplots(figsize=(6.5, 4))
+for (name, S0, *ZA), color in zip(REACTIONS, ["tab:blue", "tab:green", "tab:red"]):
+    rates = np.array([sigma_v(S0, *ZA, T) for T in T_grid])
+    ax.loglog(T_grid, rates / sigma_v(S0, *ZA, T_sun), color=color, label=name)
+ax.axvline(T_sun, color="0.6", ls="--", lw=0.8)
+ax.set(xlabel="T, К", ylabel="⟨σv⟩ / ⟨σv⟩(T_c☉)", ylim=(1e-10, 1e10))
+ticks = [5e6, 1e7, 2e7, 5e7]
+ax.set_xticks(ticks, [f"{t / 1e7:g}·10⁷".replace(".", ",") for t in ticks])
+ax.set_xticks([], minor=True)
+ax.legend(fontsize=9)
+ax.grid(alpha=0.2, which="major")
+fig.tight_layout()
+N14 = REACTIONS[2]
+print(f"¹⁴N + p: ⟨σv⟩(2T_c☉)/⟨σv⟩(T_c☉) = {sigma_v(*N14[1:], 2 * T_sun) / sigma_v(*N14[1:], T_sun):.1e}")
+```
+
+Следствия [У]{.status}:
+
+- **Термостат.** При $\nu \gg 1$ малое изменение температуры сильно
+  меняет энерговыделение; вместе с отрицательной теплоёмкостью звезды
+  (тема «Гидростатическое равновесие и теорема вириала») это делает
+  горение устойчивым, а центральную температуру — почти не зависящей от
+  массы звезды (у звёзд главной последовательности $T_c$ меняется лишь
+  в несколько раз при изменении массы в сотни раз).
+- **Время жизни протона в Солнце.** Скорость убыли протонов в pp-реакции
+  $\dot n_p = -n_p^2\langle\sigma v\rangle_{pp}$ (две частицы на акт,
+  делённые на $1 + \delta_{12} = 2$). В центре Солнца
+  ($\rho \approx 150$ г/см³, массовая доля водорода $X \approx 0{,}34$):
+
+```{python}
+rho_c, X_c = 150.0, 0.34
+yr = u.yr.to(u.s)
+n_p = rho_c * X_c / const.m_p.cgs.value
+sv_pp = sigma_v(*REACTIONS[0][1:], T_sun)
+print(f"n_p = {n_p:.1e} см⁻³;  τ_p = 1/(n_p⟨σv⟩) = {1 / (n_p * sv_pp) / yr:.1e} лет")
+```
+
+  Протон ждёт своей реакции миллиарды лет — поэтому Солнце живёт
+  10 млрд лет, а не секунды. Медленность определяется слабым
+  взаимодействием (крошечным $S_{11}$), а не барьером: реакция
+  ${}^3$He + ${}^3$He с более высоким барьером идёт в $5\cdot10^9$ раз
+  быстрее.
+
+- **pp-цепочка или CNO-цикл.** В CNO-цикле ядра углерода, азота и
+  кислорода служат катализатором превращения четырёх протонов в гелий;
+  скорость задаёт самая медленная реакция ${}^{14}$N(p,γ). Отношение
+  энерговыделений
+  $$
+  \frac{\varepsilon_{\rm CNO}}{\varepsilon_{pp}} =
+  \frac{n_pn_{\rm N}\langle\sigma v\rangle_{14}\,Q_{\rm CNO}}{\frac12 n_p^2\langle\sigma v\rangle_{pp}\,Q_{pp}},
+  $$
+  где $Q_{\rm CNO} \approx 25{,}0$ МэВ на цикл, $Q_{pp} \approx 13{,}1$ МэВ на
+  pp-реакцию (половина от 26,2 МэВ на ядро гелия; энергия нейтрино
+  вычтена). Положим, как в веществе с солнечным составом, $X = 0{,}7$ и
+  массовую долю азота $X_{\rm N} = 0{,}01$ (весь CNO-катализатор
+  накапливается в виде ${}^{14}$N, самого долгоживущего звена цикла):
+
+```{python}
+def cno_to_pp(T, X=0.7, X_N=0.01):
+    """ε_CNO/ε_pp при постоянных S-факторах."""
+    n_p, n_N = X / 1.007276, X_N / 14.003074            # в единицах ρ/m_u
+    r_pp = 0.5 * n_p**2 * sigma_v(*REACTIONS[0][1:], T)
+    r_N = n_p * n_N * sigma_v(*REACTIONS[2][1:], T)
+    return r_N * 25.0 / (r_pp * 13.1)
+
+T_cross = brentq(lambda T: cno_to_pp(T) - 1, 1e7, 4e7)
+print(f"CNO-цикл обгоняет pp-цепочку при T ≈ {T_cross:.2e} К")
+```
+
+  Звёзды массивнее примерно $1{,}3M_\odot$ с более горячими ядрами
+  горят преимущественно в CNO-цикле [У]{.status}; оценка точки перехода
+  зависит от состава и от того, насколько CNO-цикл успел прийти в
+  равновесие. В Солнце, по стандартной модели и прямой регистрации
+  CNO-нейтрино на детекторе Borexino (2020), CNO-цикл даёт около 1 %
+  энергии [У]{.status}.
+
+## Резонансные реакции
+
+Если у составного ядра есть уровень с энергией $E_r$ над порогом
+реакции, сечение вблизи него описывается формулой Брейта–Вигнера. Для
+узкого резонанса ($\Gamma \ll kT$) интеграл скорости вычисляется
+точно:
+$$
+\langle\sigma v\rangle = \left(\frac{2\pi}{\mu kT}\right)^{3/2}\hbar^2\,
+(\omega\gamma)\,e^{-E_r/kT},
+$$
+где **сила резонанса** $\omega\gamma$ — комбинация статистических
+весов и парциальных ширин. Теперь температурная зависимость —
+больцмановская: $\nu = E_r/kT - 3/2$. Главный пример — тройной
+альфа-процесс: два последовательных резонанса (основное состояние
+${}^8$Be и уровень Хойла ${}^{12}$C, лежащий на 379,5 кэВ выше
+порога трёх α-частиц). Скорость пропорциональна
+$T^{-3}e^{-Q/kT}$ с $Q = 379{,}5$ кэВ:
+
+```{python}
+kT8 = k_B * 1e8 / keV
+print(f"T = 10⁸ К: kT = {kT8:.2f} кэВ, ν(3α) = Q/kT − 3 = {379.5 / kT8 - 3:.0f}")
+```
+
+С $\nu \approx 40$ гелиевое горение — самый «термостатированный»
+процесс в звёздах и, в вырожденном ядре без термостата, — причина
+гелиевой вспышки (темы «Тройной альфа-процесс и резонанс Хойла»,
+«Эволюция звёзд»).
+
+## Электронное экранирование
+
+Электроны плазмы частично экранируют заряд ядер и понижают барьер.
+В пределе слабого экранирования (Солпитер, 1954), когда энергия
+кулоновского взаимодействия на дебаевской длине мала по сравнению с
+$kT$, скорость умножается на $f = \exp[Z_1Z_2e^2/(kT\lambda_D)]$, где
+$\lambda_D^{-2} = 4\pi e^2\sum_i(Z_i^2 + Z_i)n_i/(kT)$ (сумма по
+ионам; $Z_i$ — вклад их электронов):
+
+```{python}
+e = const.e.gauss.value
+X_h, Y_he = 0.34, 0.64                                # центр Солнца
+n_sum = rho_c / amu * (X_h * (1 + 1) + Y_he / 4 * (4 + 2))
+lambda_D = math.sqrt(k_B * T_sun / (4 * math.pi * e**2 * n_sum))
+f_screen = math.exp(e**2 / (k_B * T_sun * lambda_D))
+print(f"λ_D = {lambda_D * 1e8:.3f}·10⁻⁸ см;  для p + p f = {f_screen:.3f}")
+```
+
+Поправка в 5 % для pp и около 40 % для ${}^{14}$N + p
+(показатель пропорционален $Z_1Z_2$, $f_{14} = f_{pp}^7$) — существенна для точных моделей
+Солнца, но не меняет картины [У]{.status}. В лабораторных опытах при
+низких энергиях экранирование атомными электронами мишени оказалось
+сильнее предсказанного; причина обсуждается [Г]{.status}.
+
+## Итоги
+
+- Синтез в звёздах идёт туннелированием: $P = e^{-\sqrt{E_G/E}}$,
+  $E_G = 2\mu c^2(\pi\alpha Z_1Z_2)^2$ (для pp — 493 кэВ).
+- $\sigma = S(E)E^{-1}e^{-\sqrt{E_G/E}}$; ядерная физика — в медленно
+  меняющемся S-факторе.
+- Реакции идут в гамовском пике $E_0 = (E_GkT^2/4)^{1/3}$ — в Солнце
+  около 6 кэВ для pp и 27 кэВ для ${}^{14}$N + p, много выше $kT = 1{,}35$ кэВ.
+- $\nu = (\tau - 2)/3$: около 4 для pp, около 20 для CNO, около 40 для
+  тройного альфа-процесса (резонанс).
+- Протон в центре Солнца ждёт реакции $\sim10^{10}$ лет из-за слабого
+  взаимодействия; CNO-цикл обгоняет pp-цепочку при $T \approx 1{,}9\cdot10^7$ К.
+
+## Упражнения
+
+1. Найдите $E_G$, $E_0$, $\Delta$ и $\tau$ для реакции
+   ${}^{12}\mathrm{C} + {}^{12}\mathrm{C}$ при $T = 8\cdot10^8$ К (горение
+   углерода). Чему равен $\nu$?
+2. Во сколько раз изменится $\langle\sigma v\rangle_{pp}$, если $T_c$
+   Солнца возрастёт на 10 %? А для ${}^{14}$N + p? Используйте $\nu$.
+3. При какой температуре $\langle\sigma v\rangle$ реакции
+   $D + T \to {}^4\mathrm{He} + n$ максимально (при постоянном $S$)? Почему
+   на самом деле ответ иной? (Оценка: $\langle\sigma v\rangle$ при
+   постоянном $S$ монотонно растёт.) Найдите $E_0$ при $kT = 10$ кэВ.
+4. Покажите, что для узкого резонанса $\nu = E_r/kT - 3/2$, и найдите
+   температуру, при которой $\nu = 0$. Какой физический смысл у
+   резонанса с $E_r < \frac32kT$?
+5. Оцените, во сколько раз изменилось бы время жизни протона в центре
+   Солнца, если бы постоянная тонкой структуры была на 10 % больше (при
+   тех же $T$, $\rho$ и $S$). Это первый пример чувствительности звёзд
+   к константам (тема «Как структура мира зависит от констант»).
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $E_G = 2\mu c^2(36\pi\alpha)^2$ с $\mu = 6$ а. е. м.: $E_G = 7{,}6$ ГэВ;
+   при $kT = 69$ кэВ $E_0 = 2{,}1$ МэВ, $\Delta = 0{,}88$ МэВ, $\tau = 91$,
+   $\nu = (\tau - 2)/3 \approx 30$. Энергии в пике — уже мегаэлектронвольты,
+   но барьер всё равно непроницаем в $e^{91}$ раз сильнее, чем для
+   надбарьерных частиц.
+2. pp: $1{,}1^{3{,}8} = 1{,}44$; ${}^{14}$N + p: $1{,}1^{19{,}6} = 6{,}5$.
+3. При постоянном $S$ скорость растёт монотонно: $\tau$ убывает с $T$.
+   В действительности у D + T есть резонанс ($S$ сильно растёт к
+   ~64 кэВ), и $\langle\sigma v\rangle$ максимальна при $kT \approx 65$ кэВ.
+   При $kT = 10$ кэВ $E_0 = 31$ кэВ.
+4. $\langle\sigma v\rangle \propto T^{-3/2}e^{-E_r/kT}$ ⇒
+   $\nu = E_r/kT - 3/2$; $\nu = 0$ при $kT = \frac23E_r$. При
+   $E_r < \frac32 kT$ рост температуры *уменьшает* скорость: резонанс
+   лежит в основном теле распределения, и при нагреве частицы уходят
+   из резонансной области.
+5. $E_G \propto \alpha^2$, поэтому $\tau \propto \alpha^{2/3}$ и
+   $\Delta \propto \alpha^{1/3}$: $\tau$ растёт с 13,5 до 14,4, и время жизни
+   $\propto \Delta^{-1}e^{\tau}$ увеличивается в 2,4 раза. Чувствительность
+   умеренная, потому что для pp $\tau$ невелико; для реакций с большими
+   зарядами она экспоненциально сильнее.
+:::
+
+## Литература
+
+- Gamow G. Zur Quantentheorie des Atomkernes. *Z. Phys.* **51**, 204
+  (1928).
+- Atkinson R. d'E., Houtermans F. G. Zur Frage der Aufbaumöglichkeit
+  der Elemente in Sternen. *Z. Phys.* **54**, 656 (1929).
+- Bethe H. A. Energy production in stars. *Phys. Rev.* **55**, 434
+  (1939).
+- Salpeter E. E. Electron screening and thermonuclear reactions.
+  *Aust. J. Phys.* **7**, 373 (1954).
+- Adelberger E. G. et al. Solar fusion cross sections. II. The pp chain
+  and CNO cycles. *Rev. Mod. Phys.* **83**, 195 (2011), arXiv:1004.2318.
+- Acharya B. et al. Solar fusion III: new data and theory for
+  hydrogen-burning stars. *Rev. Mod. Phys.* **97**, 035002 (2025),
+  arXiv:2405.06470.
+- Borexino Collaboration. Experimental evidence of neutrinos produced in
+  the CNO fusion cycle in the Sun. *Nature* **587**, 577 (2020).
+- Bahcall J. N., Serenelli A. M., Basu S. New solar opacities,
+  abundances, helioseismology, and neutrino fluxes. *Astrophys. J.*
+  **621**, L85 (2005), arXiv:astro-ph/0412440.
+- Clayton D. D. *Principles of Stellar Evolution and Nucleosynthesis.* —
+  Chicago: University of Chicago Press, 1983. Гл. 4.
+- Iliadis C. *Nuclear Physics of Stars.* 2nd ed. — Weinheim:
+  Wiley-VCH, 2015.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert round(EG_pp) == 493
+assert round(math.sqrt(EG_pp / 1.0)) == 22
+assert round(k_B * T_sun / keV, 2) == 1.35
+assert 1.3 < k_B * T_sun / keV < 1.45                         # «≈ 1,4 кэВ» во введении
+for reaction, nu_text in zip(REACTIONS, (3.8, 15.6, 19.6)):
+    _, S0, *ZA = reaction
+    E0, tau, _ = peak(*ZA, T_sun)
+    assert abs(sensitivity(reaction, T_sun) - (tau - 2) / 3) < 0.06
+    assert round(sensitivity(reaction, T_sun), 1) == nu_text
+assert round(peak(*REACTIONS[0][2:], T_sun)[0]) == 6 and round(peak(*REACTIONS[2][2:], T_sun)[0]) == 27
+ratio2 = sigma_v(*N14[1:], 2 * T_sun) / sigma_v(*N14[1:], T_sun)
+assert round(ratio2, -4) == 170000                            # «почти в 200 тысяч раз»
+tau_p = 1 / (n_p * sv_pp) / yr
+assert 3e9 < tau_p < 3e10
+sv33 = sigma_v(*REACTIONS[1][1:], T_sun)
+assert round(sv33 / sv_pp / 1e9) == 5
+assert round(math.log10(5.21 / 4.01e-25)) == 25
+assert round(T_cross / 1e7, 1) == 1.9
+assert round(379.5 / kT8 - 3) == 41
+assert round(f_screen, 2) == 1.05
+# 1
+CC = ("C+C", 1.0, 6, 6, 11.996709, 11.996709)
+E0c, tauc, Dc = peak(*CC[2:], 8e8)
+assert round(gamow_energy(*CC[2:]) / 1e6, 1) == 7.6 and round(k_B * 8e8 / keV) == 69
+assert round(E0c / 1e3, 1) == 2.1 and round(Dc / 1e3, 2) == 0.88 and round(tauc) == 91
+assert round(sensitivity(CC, 8e8)) == 30
+# 2
+assert round(1.1**3.8, 2) == 1.44 and round(1.1**19.6, 1) == 6.5
+# 3
+DT = ("D+T", 1.0, 1, 1, 2.013553, 3.015501)
+assert round(peak(*DT[2:], 10 * keV / k_B)[0]) == 31
+# 5
+alpha_saved = alpha
+alpha = 1.1 * alpha_saved
+sv_pp_new = sigma_v(*REACTIONS[0][1:], T_sun)
+tau_new = peak(*REACTIONS[0][2:], T_sun)[1]
+alpha = alpha_saved
+assert round(sv_pp / sv_pp_new, 1) == 2.4 and round(tau_new, 1) == 14.4
+assert round(peak(*REACTIONS[0][2:], T_sun)[1], 1) == 13.5
+assert round(f_screen**7 - 1, 1) == 0.4                         # ¹⁴N + p: Z₁Z₂ = 7
+```
