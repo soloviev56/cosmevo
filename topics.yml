@@ -297,7 +297,7 @@ sections:
     title: Удельная мощность как мера сложности
     level: 1
     status: Г
-    requires: [order-estimates]
+    requires: [order-estimates, entropy-production]
     about: Величина Φm Чейссона; расчёт для галактики, Солнца, растения, человека, мозга, общества, микропроцессора; что она измеряет, а что нет; критика.
   - id: epistemic-status
     title: Что считать установленным

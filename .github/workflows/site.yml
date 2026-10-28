@@ -1,5 +1,5 @@
 # Проверка и публикация пособия.
-# На каждый push и pull request: тесты пакета gmph и полная сборка сайта
+# На каждый push и pull request: тесты пакета cosmevo и полная сборка сайта
 # с исполнением всего кода. Ошибка в любом блоке кода останавливает сборку.
 # Push в main дополнительно публикует сайт на GitHub Pages.
 # Раз в месяц — контрольная сборка, чтобы заметить поломки от обновлений.
@@ -35,7 +35,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v4
         with:
           environment-file: environment.yml
-          activate-environment: gmph
+          activate-environment: cosmevo
           miniforge-version: latest
 
       - name: Тесты вычислительного ядра

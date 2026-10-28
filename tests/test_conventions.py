@@ -34,6 +34,10 @@ def test_astronomical_units():
     assert u.yr.to(u.day) == 365.25
     assert close(u.yr.to(u.s), 3.156e7)
     assert close(u.pc.to(u.cm), 3.086e18)
+    # световой год — путь света за юлианский год
+    assert close(u.lyr.to(u.cm), (const.c * 1 * u.yr).cgs.value, rel=1e-9)
+    assert close(u.lyr.to(u.cm), 9.461e17)
+    assert close(u.lyr.to(u.pc), 0.3066)
 
 
 def test_ev_in_kelvin():
