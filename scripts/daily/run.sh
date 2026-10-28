@@ -22,13 +22,22 @@ LOG="$LOG_DIR/$(date +%F_%H%M).log"
 cd "$REPO"
 echo "$(date -Is) старт, лог $LOG" >> "$LOG_DIR/daily.log"
 
+# Полный поток событий пишется по ходу работы и сохраняется при обрыве.
+EVENTS="${LOG%.log}.jsonl"
+AFTER="${LOG%.log}.after.jsonl"
+
 set +e
 claude -p "$(cat "$REPO/scripts/daily/prompt.md")" \
     --permission-mode auto \
-    --output-format text \
-    > "$LOG" 2>&1
+    --output-format stream-json --verbose \
+    > "$EVENTS" 2>&1
 status=$?
+# Короткий контрольный запрос: загрузка лимитов подписки после запуска.
+claude -p "Ответь одним словом: да" --max-turns 1 \
+    --output-format stream-json --verbose > "$AFTER" 2>&1
+# Итоговое сообщение — в $LOG, строка о расходе — в daily.log.
+usage="$(python3 -I "$REPO/scripts/daily/usage.py" "$EVENTS" "$LOG" "$AFTER" 2>&1)"
 set -e
 
-echo "$(date -Is) завершено, код $status" >> "$LOG_DIR/daily.log"
+echo "$(date -Is) завершено, код $status; $usage" >> "$LOG_DIR/daily.log"
 exit $status
