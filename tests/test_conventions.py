@@ -93,3 +93,11 @@ def test_landauer_at_room_temperature():
     e_bit = const.k_B * 300 * u.K * math.log(2)
     assert close(e_bit.to(u.J).value, 2.87e-21)
     assert close(e_bit.to(u.eV).value, 0.0179, rel=3e-3)   # три значащие цифры
+
+
+# --- Данные ---------------------------------------------------------------------
+
+def test_data_dir():
+    from cosmevo import DATA_DIR
+    for name in ("ame2020.csv", "gstar_lattice.csv", "firas_monopole.txt"):
+        assert (DATA_DIR / name).is_file()

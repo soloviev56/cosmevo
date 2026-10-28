@@ -5,11 +5,11 @@
 `scripts/data/make_ame2020.py`. Энергии — в МэВ.
 """
 
-from pathlib import Path
-
 import numpy as np
 
-AME2020 = Path(__file__).resolve().parents[2] / "data" / "ame2020.csv"
+from cosmevo import DATA_DIR
+
+AME2020 = DATA_DIR / "ame2020.csv"
 
 # Названия членов формулы Вайцзеккера в порядке коэффициентов
 TERMS = ("объём", "поверхность", "кулон", "асимметрия", "спаривание")

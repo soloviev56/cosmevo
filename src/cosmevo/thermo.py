@@ -13,10 +13,11 @@
 
 import math
 from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 from scipy.integrate import quad
+
+from cosmevo import DATA_DIR
 
 FERMION, BOSON = +1, -1
 
@@ -110,7 +111,7 @@ def g_star(T):
 
 # --- g_*(T) по решёточным расчётам -------------------------------------------
 
-GSTAR_LATTICE = Path(__file__).resolve().parents[2] / "data" / "gstar_lattice.csv"
+GSTAR_LATTICE = DATA_DIR / "gstar_lattice.csv"
 
 
 @lru_cache(maxsize=1)
