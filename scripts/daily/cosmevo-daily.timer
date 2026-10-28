@@ -2,7 +2,7 @@
 Description=Пособие «Космическая эволюция»: запуск раз в сутки
 
 [Timer]
-OnCalendar=*-*-* 04:00
+OnCalendar=*-*-* 08:00
 Persistent=true
 
 [Install]
