@@ -473,7 +473,7 @@ fig.tight_layout()
   *MNRAS* **138**, 495 (1968).
 - Антонов В. А. Наиболее вероятное фазовое распределение в сферических
   звёздных системах и условия его существования. *Вестник ЛГУ*, 1962;
-  англ. перевод: *IAU Symp.* **127**, 531 (1987).
+  англ. перевод: *IAU Symp.* **113**, 525 (1985).
 - Thirring W. Systems with negative specific heat. *Z. Phys.* **235**,
   339 (1970).
 - Lynden-Bell D., Lynden-Bell R. M. On the negative specific heat
