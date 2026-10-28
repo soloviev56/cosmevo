@@ -4,9 +4,16 @@
 бозонов и фермионов с нулевым химическим потенциалом; эффективные числа
 степеней свободы g_* и g_*s Стандартной модели как функции температуры
 фотонов. Масса и температура — в одних единицах (обычно ГэВ).
+
+Две версии g_*: `g_star` — идеальный газ с резким КХД-переходом (прозрачная
+модель для вывода), `g_star_lattice` — таблица по решёточным расчётам
+(Saikawa, Shirai 2018; файл `data/gstar_lattice.csv`, извлечён скриптом
+`scripts/data/make_gstar_lattice.py`) для количественных оценок.
 """
 
 import math
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 from scipy.integrate import quad
@@ -99,3 +106,27 @@ def g_star(T):
     r = neutrino_temperature_ratio(T)
     g_nu = 7 / 8 * NEUTRINOS[2]
     return gr + g_nu * r**4, gs + g_nu * r**3
+
+
+# --- g_*(T) по решёточным расчётам -------------------------------------------
+
+GSTAR_LATTICE = Path(__file__).resolve().parents[2] / "data" / "gstar_lattice.csv"
+
+
+@lru_cache(maxsize=1)
+def _lattice_table():
+    T, gr, gs = np.loadtxt(GSTAR_LATTICE, delimiter=",", skiprows=2,
+                           usecols=(0, 1, 3), unpack=True)
+    return np.log(T), gr, gs
+
+
+def g_star_lattice(T):
+    """(g_*, g_*s) Стандартной модели по таблице Сайкавы и Сираи (2018):
+    область КХД-перехода — по решёточным расчётам уравнения состояния,
+    отрыв нейтрино — с N_eff = 3,045. T в ГэВ, 2·10⁻⁶ ≤ T ≤ 10¹⁷;
+    линейная интерполяция по ln T. Принимает число или массив."""
+    lnT, gr, gs = _lattice_table()
+    x = np.log(np.asarray(T, dtype=float))
+    if np.any(x < lnT[0]) or np.any(x > lnT[-1]):
+        raise ValueError("T вне диапазона таблицы 2·10⁻⁶ – 10¹⁷ ГэВ")
+    return np.interp(x, lnT, gr), np.interp(x, lnT, gs)

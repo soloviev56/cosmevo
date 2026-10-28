@@ -38,3 +38,24 @@ def test_g_star_standard_model():
     gr, gs = g_star(1e-8)
     assert close(neutrino_temperature_ratio(1e-8), (4 / 11) ** (1 / 3), rel=2e-3)
     assert close(gr, 3.363, rel=3e-3) and close(gs, 3.909, rel=3e-3)
+
+
+def test_g_star_lattice():
+    import numpy as np
+    import pytest
+
+    from cosmevo.thermo import g_star_lattice
+
+    # низкие T: фотоны и нейтрино, N_eff ≈ 3,04 вместо 3 у мгновенного отрыва
+    gr, gs = g_star_lattice(1e-5)
+    n_eff = (gr - 2) / (2 * 7 / 8 * (4 / 11) ** (4 / 3))
+    assert abs(n_eff - 3.045) < 0.005 and close(gs, 3.931, rel=1e-3)
+    # плато перед нуклеосинтезом совпадает с идеальным газом
+    assert abs(g_star_lattice(0.01)[0] - g_star(0.01)[0]) < 0.05
+    # выше электрослабого масштаба взаимодействие КХД понижает g_* на ~2 %
+    assert 103 < g_star_lattice(1e4)[0] < 106.75
+    # кроссовер плавный: g_* монотонно растёт через область 0,1–0,3 ГэВ
+    T = np.linspace(0.1, 0.3, 50)
+    assert np.all(np.diff(g_star_lattice(T)[0]) > 0)
+    with pytest.raises(ValueError):
+        g_star_lattice(1e-7)

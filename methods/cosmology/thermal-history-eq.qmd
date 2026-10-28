@@ -68,7 +68,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.special import zeta
 
 from cosmevo.thermo import (BOSON, FERMION, equilibrium, g_star,
-                            neutrino_temperature_ratio)
+                            g_star_lattice, neutrino_temperature_ratio)
 from cosmevo.units import natural
 
 x = sp.Symbol("x", positive=True)
@@ -141,13 +141,15 @@ $g_* = 28 + \frac78\cdot90 = 106{,}75$. При понижении темпера
 
 ```{python}
 #| label: fig-gstar
-#| fig-cap: "Эффективные числа степеней свободы Стандартной модели g_* (энергия) и g_*s (энтропия) как функции температуры фотонов. Расчёт идеального газа с точными интегралами для массивных частиц; переход кварк-глюонной плазмы в адронный газ (пионы) условно резкий при 150 МэВ — по расчётам КХД на решётке это плавный кроссовер. Ниже ~1 МэВ g_* и g_*s расходятся: нейтрино оторвались и холоднее фотонов."
+#| fig-cap: "Эффективные числа степеней свободы Стандартной модели g_* (энергия) и g_*s (энтропия) как функции температуры фотонов. Расчёт идеального газа с точными интегралами для массивных частиц; переход кварк-глюонной плазмы в адронный газ (пионы) условно резкий при 150 МэВ. Тонкая серая линия — g_* по таблице Сайкавы и Сираи (2018), где область КХД-перехода взята из решёточных расчётов: это плавный кроссовер. Ниже ~1 МэВ g_* и g_*s расходятся: нейтрино оторвались и холоднее фотонов."
 T_grid = np.logspace(-5.3, 3.5, 160)                     # ГэВ
 gs = np.array([g_star(T) for T in T_grid])
 
 fig, ax = plt.subplots(figsize=(7.5, 4.2))
 ax.loglog(T_grid, gs[:, 0], color="tab:blue", label=r"$g_*$")
 ax.loglog(T_grid, gs[:, 1], "--", color="tab:orange", label=r"$g_{*s}$")
+ax.loglog(T_grid, g_star_lattice(T_grid)[0], color="0.3", lw=0.9,
+          label=r"$g_*$, решётка (Сайкава, Сираи)")
 for T_mark, label in [(173 / 3, "t, H, Z, W"), (4.2 / 3, "b, c, τ"), (0.15, "КХД-переход"),
                       (0.106 / 3, "μ, π"), (0.000511 / 3, "e±")]:
     ax.axvline(T_mark, color="0.75", lw=0.7)
@@ -170,6 +172,22 @@ for T in (1e3, 1.0, 0.01, 1e-5):
 $T \approx m/3$–$m/6$, а не при $T = m$. Плато $g_* = 10{,}75$
 (фотоны, $e^\pm$ и три сорта нейтрино: $2 + \frac78\cdot10$) держится
 примерно от 10 до 1 МэВ — в эпоху, предшествующую нуклеосинтезу.
+
+Для количественных расчётов пакет содержит и таблицу $g_*(T)$, $g_{*s}(T)$
+Сайкавы и Сираи (2018) — функция `g_star_lattice`. Сравним две модели:
+
+```{python}
+for T in (1e3, 1.0, 0.3, 0.15, 0.1, 0.01):
+    (r_id, _), (r_lat, _) = g_star(T), g_star_lattice(T)
+    print(f"T = {T:7.2g} ГэВ: g_* идеальный газ {r_id:6.2f}, решётка {float(r_lat):6.2f}")
+```
+
+Ниже 30 МэВ модели совпадают с точностью лучше 0,3 %. Выше
+электрослабого масштаба табличное $g_*$ на 2 % меньше $106{,}75$, а
+при 1–10 ГэВ — на 6–9 %: это поправки взаимодействия КХД к свободному
+газу кварков и глюонов. Вблизи самого перехода (0,15–0,3 ГэВ) разница
+достигает 20–60 %: резкая ступенька идеального газа — лишь грубая
+иллюстрация.
 
 ## Сохранение энтропии
 
@@ -317,8 +335,9 @@ print(f"n_b = {n_b:.3e} см⁻³;  η = n_b/n_γ = {n_b / n_gamma:.2e};  s₀/n
   $\eta$ [У]{.status}.
 - $g_*(T)$ при $T \gg$ МэВ — расчёт в рамках Стандартной модели,
   проверенной коллайдерами при энергиях до ТэВ [У]{.status}; область
-  КХД-перехода требует расчётов на решётке (резкий переход в нашем
-  расчёте — грубое приближение).
+  КХД-перехода требует расчётов на решётке (резкий переход в модели
+  идеального газа — грубое приближение; таблица `g_star_lattice`
+  опирается на решёточное уравнение состояния) [У]{.status}.
 - Если существуют неизвестные лёгкие частицы, $g_*$ при высоких $T$
   больше; ограничение $\Delta N_{\rm eff}$ по реликтовому излучению
   проверяет такие сценарии [Г]{.status} (упражнение 3).
@@ -389,6 +408,9 @@ print(f"n_b = {n_b:.3e} см⁻³;  η = n_b/n_γ = {n_b / n_gamma:.2e};  s₀/n
 - Borsanyi S. et al. Calculation of the axion mass based on
   high-temperature lattice quantum chromodynamics. *Nature* **539**, 69
   (2016).
+- Saikawa K., Shirai S. Primordial gravitational waves, precisely: the
+  role of thermodynamics in the Standard Model. *JCAP* **05**, 035
+  (2018), arXiv:1803.01038.
 - Froustey J., Pitrou C., Volpe M. C. Neutrino decoupling including
   flavour oscillations and primordial nucleosynthesis. *JCAP* **12**, 015
   (2020), arXiv:2008.01074.
@@ -425,6 +447,15 @@ t01 = np.exp(np.interp(-math.log(0.1), -lnT, np.log(t_exact)))
 assert round((t01 / t_approx(0.1) - 1) * 100) == 12 or round((t01 / t_approx(0.1) - 1) * 100) == 11
 t1e4 = np.exp(np.interp(-math.log(1e-4), -lnT, np.log(t_exact)))
 assert 0.02 <= t1e4 / t_approx(1e-4) - 1 <= 0.03
+lat = {T: float(g_star_lattice(T)[0]) for T in (1e3, 1.0, 0.3, 0.15, 0.1, 0.01)}
+assert 0.97 < lat[1e3] / 106.75 < 0.99
+for T in (1e3, 0.01):
+    assert abs(lat[T] / g_star(T)[0] - 1) < 0.05
+assert max(abs(lat[T] / g_star(T)[0] - 1) for T in (1.0, 0.3, 0.15)) > 0.1
+dev = lambda T: float(g_star_lattice(T)[0]) / g_star(T)[0] - 1
+assert all(abs(dev(T)) < 0.003 for T in (0.03, 0.01, 0.003))
+assert all(0.06 <= -dev(T) <= 0.09 for T in (1.0, 3.0, 10.0))
+assert 0.18 < -dev(0.3) < 0.22 and 0.55 < dev(0.15) < 0.65
 # 1
 assert 18 + 7 / 8 * 50 == 61.75 and round(g_star(1.0)[0], 1) == 76.4
 # 2
