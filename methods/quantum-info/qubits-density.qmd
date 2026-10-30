@@ -1,0 +1,484 @@
+---
+title: "Кубиты и матрица плотности"
+topic: qubits-density
+order: 1
+description: "Кубит и сфера Блоха; матрица плотности, чистые и смешанные состояния, неоднозначность ансамблей; вращения сферы Блоха унитарной эволюцией; тепловое состояние спина и поляризация электронов и протонов; составные системы и частичный след; энтропия фон Неймана, её связь с энтропией Шеннона измерений; субаддитивность, неравенство Араки–Либа и отрицательная условная энтропия; очищение и разложение Шмидта"
+---
+
+В теме «Энтропия Шеннона и взаимная информация» информация была
+определена для классических распределений вероятностей. В квантовой
+механике состояние описывается не распределением, а оператором, и
+неопределённость бывает двух сортов: от незнания того, какое из
+состояний приготовлено, и от того, что система — часть большего
+целого. Оба сорта описывает **матрица плотности**, а их меру — энтропия
+фон Неймана. Этот аппарат понадобится в темах о запутанности, о
+декогеренции и возникновении классичности, о термодинамике горизонтов
+и о физических пределах вычислений.
+
+Квантовую механику читатель знает; здесь соберём то, что нужно для
+информационного взгляда на неё, на простейшем примере — кубите.
+
+В этой статье:
+
+- опишем кубит, сферу Блоха и матрицу плотности;
+- найдём тепловое состояние спина и его поляризацию;
+- определим частичный след и энтропию фон Неймана;
+- проверим численно её основные неравенства и увидим, чем она
+  отличается от энтропии Шеннона.
+
+## Кубит и сфера Блоха
+
+::: {#def-qubit}
+**Кубит** — квантовая система с двумерным гильбертовым пространством,
+базис которого обозначают $|0\rangle$, $|1\rangle$. Чистое состояние
+с точностью до фазы:
+$$
+|\psi\rangle = \cos\frac\theta2\,|0\rangle + e^{i\varphi}\sin\frac\theta2\,|1\rangle,
+\qquad 0 \le \theta \le \pi,\; 0 \le \varphi < 2\pi,
+$$
+— точка на единичной сфере (**сфера Блоха**) с полярными углами
+$\theta, \varphi$.
+:::
+
+Физические кубиты — спин 1/2, два уровня атома или иона, поляризация
+фотона, два зарядовых состояния сверхпроводящего контура. Бит
+классической памяти — это $|0\rangle$ или $|1\rangle$ (полюса сферы);
+кубит может быть в любой точке сферы, но измерение в базисе
+$\{|0\rangle, |1\rangle\}$ даёт один бит: «0» с вероятностью
+$\cos^2(\theta/2)$.
+
+## Матрица плотности
+
+::: {#def-density-matrix}
+**Матрица плотности** — оператор $\hat\rho = \sum_k p_k|\psi_k\rangle\langle\psi_k|$
+для ансамбля чистых состояний $|\psi_k\rangle$ с вероятностями $p_k$
+(Ландау, 1927; фон Нейман, 1932). Её свойства: $\hat\rho^\dagger = \hat\rho$,
+$\hat\rho \ge 0$, $\mathrm{Tr}\,\hat\rho = 1$; среднее наблюдаемой
+$\langle A\rangle = \mathrm{Tr}(\hat\rho\hat A)$. Состояние **чистое**,
+если $\hat\rho^2 = \hat\rho$ (эквивалентно $\mathrm{Tr}\,\hat\rho^2 = 1$),
+иначе — **смешанное**.
+:::
+
+Для кубита любой эрмитов оператор с единичным следом раскладывается по
+единичной матрице и матрицам Паули:
+$$
+\hat\rho = \frac12\left(1 + \mathbf r\cdot\boldsymbol\sigma\right),
+\qquad \mathbf r = \mathrm{Tr}(\hat\rho\,\boldsymbol\sigma) = \langle\boldsymbol\sigma\rangle .
+$$
+Вектор Блоха $\mathbf r$ — средний спин. Проверим собственные значения
+и чистоту:
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.constants import physical_constants
+from scipy.linalg import expm
+
+sx, sy, sz = (sp.Matrix(m) for m in ([[0, 1], [1, 0]], [[0, -sp.I], [sp.I, 0]], [[1, 0], [0, -1]]))
+x, y, z, r = sp.symbols("x y z r", real=True)
+rho = (sp.eye(2) + x * sx + y * sy + z * sz) / 2
+eigs = [sp.simplify(e) for e in rho.eigenvals()]
+purity = sp.simplify((rho * rho).trace())
+print("собственные значения:", eigs)
+print("Tr ρ² =", sp.factor(purity))
+```
+
+Собственные значения $(1 \pm |\mathbf r|)/2$ неотрицательны, только если
+$|\mathbf r| \le 1$: **допустимые состояния заполняют шар Блоха**,
+чистые — его поверхность, $\mathrm{Tr}\,\hat\rho^2 = (1 + r^2)/2$
+[У]{.status}. Центр шара $\mathbf r = 0$ — максимально смешанное
+состояние $\hat\rho = 1/2$.
+
+**Неоднозначность ансамблей.** Смесь «$|0\rangle$ или $|1\rangle$
+поровну» и смесь «$|+\rangle$ или $|-\rangle$ поровну»
+($|\pm\rangle = (|0\rangle \pm |1\rangle)/\sqrt2$) дают одну и ту же
+матрицу $\hat\rho = 1/2$:
+
+```{python}
+ket0, ket1 = np.array([1, 0], complex), np.array([0, 1], complex)
+plus, minus = (ket0 + ket1) / math.sqrt(2), (ket0 - ket1) / math.sqrt(2)
+
+def mix(states, probs):
+    return sum(p * np.outer(s, s.conj()) for s, p in zip(states, probs))
+
+rho_z, rho_x = mix([ket0, ket1], [0.5, 0.5]), mix([plus, minus], [0.5, 0.5])
+print("ρ(0/1) − ρ(+/−) =", np.abs(rho_z - rho_x).max())
+```
+
+Никакое измерение их не различит: все вероятности определяются
+$\hat\rho$ [У]{.status}. Поэтому матрица плотности — полное описание
+состояния, а «какой из ансамблей на самом деле приготовлен» — вопрос
+об истории приготовления, а не о состоянии. Если бы ансамбли можно было
+различить, двое наблюдателей с общей запутанной парой могли бы
+обмениваться сигналами быстрее света (тема «Запутанность и неравенства
+Белла»).
+
+**Эволюция.** Унитарная эволюция $\hat\rho \to \hat U\hat\rho\hat U^\dagger$
+с $\hat U = e^{-i\alpha\,\mathbf n\cdot\boldsymbol\sigma/2}$ поворачивает
+вектор Блоха на угол $\alpha$ вокруг $\mathbf n$ (так в магнитном поле
+прецессирует спин) и не меняет $|\mathbf r|$:
+
+```{python}
+SIGMA = [np.array(m, complex) for m in ([[0, 1], [1, 0]], [[0, -1j], [1j, 0]], [[1, 0], [0, -1]])]
+
+def bloch_vector(rho):
+    return np.real([np.trace(rho @ s) for s in SIGMA])
+
+def rotation(n, alpha):
+    """Матрица SO(3) поворота на угол alpha вокруг единичного n (формула Родрига)."""
+    n = np.asarray(n, float)
+    K = np.array([[0, -n[2], n[1]], [n[2], 0, -n[0]], [-n[1], n[0], 0]])
+    return np.eye(3) + math.sin(alpha) * K + (1 - math.cos(alpha)) * K @ K
+
+rng = np.random.default_rng(1)
+n_axis = rng.normal(size=3); n_axis /= np.linalg.norm(n_axis)
+alpha, r0 = 1.1, np.array([0.3, -0.4, 0.5])
+U = expm(-1j * alpha / 2 * sum(c * s for c, s in zip(n_axis, SIGMA)))
+rho0 = 0.5 * (np.eye(2) + sum(c * s for c, s in zip(r0, SIGMA)))
+r_after = bloch_vector(U @ rho0 @ U.conj().T)
+print("U ρ U† ↔ поворот вектора Блоха: расхождение", np.abs(r_after - rotation(n_axis, alpha) @ r0).max())
+```
+
+Унитарная эволюция не смешивает и не очищает состояние: длина вектора
+Блоха сохраняется. Уменьшить её может только взаимодействие с другой
+системой (теплообмен, измерение, декогеренция).
+
+## Тепловое состояние спина
+
+Спин 1/2 с магнитным моментом $\mu$ в поле $B$ вдоль $z$ имеет уровни
+$\mp\mu B$. В равновесии с термостатом
+$\hat\rho = e^{-\beta\hat H}/Z$ — вектор Блоха вдоль поля длиной
+$$
+r = \tanh\frac{\mu B}{kT}.
+$$
+Для электрона $\mu \approx \mu_B$, для протона $\mu_p = 2{,}79\,\mu_N$:
+
+```{python}
+k_B = const.k_B.si.value
+# магнитных моментов частиц в astropy нет — берём CODATA из scipy
+mu_e = abs(physical_constants["electron mag. mom."][0])    # Дж/Тл
+mu_p = physical_constants["proton mag. mom."][0]
+
+def polarization(mu, B, T):
+    return math.tanh(mu * B / (k_B * T))
+
+for name, mu in [("электрон", mu_e), ("протон", mu_p)]:
+    print(f"{name:8s}: B = 1 Тл, T = 300 К: r = {polarization(mu, 1, 300):.2e};  "
+          f"T = 4 К: r = {polarization(mu, 1, 4):.2e};  T = 0,1 К: r = {polarization(mu, 1, 0.1):.3f}")
+```
+
+Ядерные спины при комнатной температуре почти максимально смешаны:
+поляризация протонов в поле 1 Тл — несколько миллионных. ЯМР-томограф
+«видит» именно эту ничтожную поляризацию [У]{.status}. Приготовить
+кубит в чистом состоянии — значит охладить его до $kT \ll \mu B$ или
+сжать энтропию другим способом; энтропия, которую нужно при этом
+отвести, — тема следующих разделов.
+
+## Составные системы и частичный след
+
+Состояние пары систем $A$ и $B$ живёт в тензорном произведении
+$\mathcal H_A \otimes \mathcal H_B$. Всё, что можно узнать, измеряя
+только $A$, содержится в одной матрице.
+
+::: {#def-partial-trace}
+**Частичный след** по $B$: $\hat\rho_A = \mathrm{Tr}_B\,\hat\rho_{AB}$,
+$(\rho_A)_{ij} = \sum_k (\rho_{AB})_{ik,\,jk}$. Это единственный оператор,
+для которого $\mathrm{Tr}(\hat\rho_A\hat O_A) =
+\mathrm{Tr}\big(\hat\rho_{AB}(\hat O_A\otimes 1)\big)$ для всех
+наблюдаемых $\hat O_A$; $\hat\rho_A$ называют **приведённой матрицей
+плотности**.
+:::
+
+```{python}
+def partial_trace(rho, dims, keep):
+    """Частичный след матрицы плотности системы с размерностями dims; keep — индекс оставляемой подсистемы."""
+    n = len(dims)
+    t = rho.reshape(dims + dims)
+    for axis in reversed(range(n)):
+        if axis != keep:
+            t = np.trace(t, axis1=axis, axis2=axis + t.ndim // 2)
+    return t
+
+def density(psi):
+    return np.outer(psi, psi.conj())
+
+bell = (np.kron(ket0, ket0) + np.kron(ket1, ket1)) / math.sqrt(2)
+product = np.kron(plus, ket0)
+print("Белл: ρ_A =\n", np.round(partial_trace(density(bell), [2, 2], 0).real, 3))
+print("произведение |+⟩|0⟩: Tr ρ_A² =", round(np.trace(np.linalg.matrix_power(
+      partial_trace(density(product), [2, 2], 0), 2)).real, 6))
+```
+
+Пара в чистом состоянии Белла $(|00\rangle + |11\rangle)/\sqrt2$, а
+каждая её часть — в максимально смешанном [У]{.status}. Смешанность
+здесь не от незнания приготовителя: всё известно о целом, и ничего — о
+частях. Это второй сорт неопределённости, без классического аналога
+(у классического совместного распределения, сосредоточенного в одной
+точке, маргинальные распределения тоже сосредоточены в точке).
+
+## Энтропия фон Неймана
+
+::: {#def-von-neumann}
+**Энтропия фон Неймана** состояния $\hat\rho$:
+$$
+S(\hat\rho) = -\mathrm{Tr}\,\hat\rho\log_2\hat\rho = -\sum_i\lambda_i\log_2\lambda_i ,
+$$
+где $\lambda_i$ — собственные значения $\hat\rho$ (в битах; в
+термодинамике — с $\ln$ и множителем $k$).
+:::
+
+Свойства [У]{.status} (обзор — Верль, 1978):
+
+- $S = 0$ только для чистых состояний; $S \le \log_2 d$, равенство —
+  для $\hat\rho = 1/d$;
+- $S$ не меняется при унитарной эволюции;
+- для кубита $S = H_2\big((1 + r)/2\big)$ — функция только длины
+  вектора Блоха;
+- **связь с Шенноном**: при измерении в любом ортонормированном
+  базисе энтропия Шеннона результатов $H \ge S$, и минимум
+  достигается в собственном базисе $\hat\rho$. Квантовое состояние
+  нельзя «прочитать» с меньшей неопределённостью, чем $S$;
+- для теплового состояния $\hat\rho = e^{-\beta\hat H}/Z$ энтропия
+  $kS\ln 2$ совпадает с термодинамической, и это состояние имеет
+  наибольшую $S$ при заданной средней энергии.
+
+Проверим неравенство $H \ge S$ на случайных состояниях и базисах:
+
+```{python}
+def entropy(rho):
+    lam = np.linalg.eigvalsh(rho)
+    lam = lam[lam > 1e-14]
+    return float(-np.sum(lam * np.log2(lam)))
+
+def random_state(d, rng, rank=None):
+    """Случайная матрица плотности d×d (мера Гинибра)."""
+    g = rng.normal(size=(d, rank or d)) + 1j * rng.normal(size=(d, rank or d))
+    rho = g @ g.conj().T
+    return rho / np.trace(rho).real
+
+def random_unitary(d, rng):
+    q, rr = np.linalg.qr(rng.normal(size=(d, d)) + 1j * rng.normal(size=(d, d)))
+    return q * (np.diag(rr) / np.abs(np.diag(rr)))
+
+def measurement_entropy(rho, basis):
+    p = np.real(np.einsum("ij,jk,ki->i", basis.conj().T, rho, basis))
+    p = p[p > 1e-14]
+    return float(-np.sum(p * np.log2(p)))
+
+gaps = []
+for _ in range(2000):
+    d = rng.integers(2, 6)
+    rho_r = random_state(d, rng)
+    gaps.append(measurement_entropy(rho_r, random_unitary(d, rng)) - entropy(rho_r))
+rho_r = random_state(4, rng)
+eigbasis = np.linalg.eigh(rho_r)[1]
+print(f"min (H − S) по 2000 случайным парам: {min(gaps):.3f};  "
+      f"в собственном базисе H − S = {measurement_entropy(rho_r, eigbasis) - entropy(rho_r):.1e}")
+```
+
+## Неравенства для составных систем
+
+Для пары систем определим, как в классическом случае, условную
+энтропию $S(A|B) = S(AB) - S(B)$ и взаимную информацию
+$I(A{:}B) = S(A) + S(B) - S(AB)$. Справедливы [У]{.status}:
+
+- **субаддитивность** $S(AB) \le S(A) + S(B)$, то есть $I \ge 0$;
+- **неравенство Араки–Либа** $S(AB) \ge |S(A) - S(B)|$ (Араки и Либ,
+  1970);
+- **сильная субаддитивность** $S(ABC) + S(B) \le S(AB) + S(BC)$ (Либ и
+  Рускаи, 1973) — квантовый аналог неотрицательности условной взаимной
+  информации, самое глубокое из этих неравенств.
+
+```{python}
+def S_sub(rho, dims, keep):
+    """Энтропия подсистемы, состоящей из подсистем с индексами keep."""
+    keep = sorted(keep)
+    n = len(dims)
+    t = rho.reshape(dims + dims)
+    for axis in reversed(range(n)):
+        if axis not in keep:
+            t = np.trace(t, axis1=axis, axis2=axis + t.ndim // 2)
+    d_keep = int(np.prod([dims[i] for i in keep]))
+    return entropy(t.reshape(d_keep, d_keep))
+
+worst = {"субаддитивность": np.inf, "Араки–Либ": np.inf, "сильная субаддитивность": np.inf}
+dims3 = [2, 2, 2]
+for _ in range(500):
+    rho3 = random_state(8, rng, rank=rng.integers(1, 9))
+    SA, SB, SC = (S_sub(rho3, dims3, [i]) for i in range(3))
+    SAB, SBC, SABC = S_sub(rho3, dims3, [0, 1]), S_sub(rho3, dims3, [1, 2]), entropy(rho3)
+    worst["субаддитивность"] = min(worst["субаддитивность"], SA + SB - SAB)
+    worst["Араки–Либ"] = min(worst["Араки–Либ"], SAB - abs(SA - SB))
+    worst["сильная субаддитивность"] = min(worst["сильная субаддитивность"], SAB + SBC - SABC - SB)
+for name, value in worst.items():
+    print(f"{name:24s}: наименьший запас {value:+.3f} бит (500 случайных состояний трёх кубитов)")
+
+rho_bell = density(bell)
+S_A, S_AB = S_sub(rho_bell, [2, 2], [0]), entropy(rho_bell)
+print(f"Белл: S(A) = {S_A:.3f}, S(AB) = {S_AB:.3f}, S(A|B) = {S_AB - S_A:+.3f}, I(A:B) = {2 * S_A - S_AB:.3f} бит")
+```
+
+Классически $H(AB) \ge H(A)$: целое не может быть определённее части.
+Квантово — может: у пары Белла $S(AB) = 0$, а $S(A) = 1$, и условная
+энтропия $S(A|B) = -1$ бит [У]{.status}. Взаимная информация достигает
+2 бит — вдвое больше классического максимума для двух битов.
+Отрицательная условная энтропия — признак запутанности; её смысл и
+использование — темы «Запутанность и неравенства Белла» и «Запрет
+клонирования и квантовая телепортация».
+
+**Очищение.** Неравенство Араки–Либа для чистого $|\psi\rangle_{AB}$ даёт
+$S(A) = S(B)$. Это следствие **разложения Шмидта**: любой
+$|\psi\rangle_{AB} = \sum_i\sqrt{\lambda_i}\,|a_i\rangle|b_i\rangle$ с
+ортонормированными $|a_i\rangle$, $|b_i\rangle$, а $\lambda_i$ — общие
+собственные значения $\hat\rho_A$ и $\hat\rho_B$ (численно — сингулярное
+разложение матрицы коэффициентов). Обратно, любое смешанное
+$\hat\rho_A$ можно получить как часть чистого состояния большей
+системы — **очищение**. Поэтому в квантовой механике смешанность
+всегда можно считать следствием корреляций с чем-то ещё [У]{.status}
+(как утверждение о математике; означает ли это, что «вся энтропия —
+это запутанность», — вопрос интерпретации).
+
+```{python}
+#| label: fig-qubit-entropy
+#| fig-cap: "Слева: энтропия фон Неймана S и «линейная энтропия» 1 − Tr ρ² кубита как функции длины вектора Блоха r. Справа: равновесная поляризация r = tanh(μB/kT) спинов электрона и протона в поле 1 Тл; при комнатной температуре электронные спины поляризованы на 2·10⁻³, протонные — на несколько миллионных."
+r_grid = np.linspace(0, 1, 300)
+lam_plus, lam_minus = (1 + r_grid) / 2, np.clip((1 - r_grid) / 2, 1e-300, None)
+S_r = -(lam_plus * np.log2(lam_plus) + lam_minus * np.log2(lam_minus))
+T_grid = np.logspace(-2, 3, 300)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 3.6))
+ax1.plot(r_grid, S_r, color="tab:blue", label="S, бит")
+ax1.plot(r_grid, 1 - (1 + r_grid**2) / 2, color="tab:orange", ls="--", label="1 − Tr ρ²")
+ax1.set(xlabel="|r|", xlim=(0, 1), ylim=(0, 1.05))
+ax1.legend(fontsize=9)
+ax1.grid(alpha=0.2)
+for name, mu, col in [("электрон", mu_e, "tab:blue"), ("протон", mu_p, "tab:red")]:
+    ax2.loglog(T_grid, [polarization(mu, 1, T) for T in T_grid], color=col, label=name)
+ax2.axvline(300, color="0.5", lw=0.8, ls=":")
+ax2.set(xlabel="T, К", ylabel="поляризация r", ylim=(1e-6, 2))
+ax2.legend(fontsize=9)
+ax2.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+## Физика и наблюдательный статус
+
+- Описание состояний матрицей плотности, свойства энтропии фон
+  Неймана и неравенства для неё — [У]{.status}: это теоремы квантовой
+  механики; их следствия (томография состояний, протоколы квантовой
+  связи) проверены экспериментально.
+- Кубиты реализованы на спинах, ионах, атомах, фотонах и
+  сверхпроводящих контурах; приготовление почти чистых состояний
+  требует охлаждения или накачки — энтропию отводят в окружение
+  [У]{.status}.
+- Интерпретационные вопросы (что «реально» — вектор состояния или
+  только вероятности; что происходит при измерении) не влияют на
+  предсказания и в этом пособии не обсуждаются.
+
+## Итоги
+
+- Состояние кубита — точка шара Блоха: $\hat\rho = (1 + \mathbf r\cdot\boldsymbol\sigma)/2$,
+  $|\mathbf r| \le 1$; поверхность — чистые состояния.
+- Разные ансамбли с одной $\hat\rho$ неразличимы; унитарная эволюция
+  вращает вектор Блоха и не меняет $|\mathbf r|$.
+- Тепловая поляризация спина $r = \tanh(\mu B/kT)$: при 300 К и 1 Тл
+  у протонов несколько миллионных.
+- Часть чистого запутанного состояния смешанна; частичный след даёт
+  её состояние.
+- Энтропия фон Неймана $S = -\mathrm{Tr}\,\hat\rho\log_2\hat\rho$ —
+  наименьшая энтропия Шеннона измерений; субаддитивна, но условная
+  энтропия может быть отрицательной (−1 бит у пары Белла).
+
+## Упражнения
+
+1. Найдите энтропию фон Неймана и чистоту кубита с $|\mathbf r| = 0{,}5$.
+2. Кубит приготовлен в $|0\rangle$ с вероятностью 1/3 и в $|+\rangle$ с
+   вероятностью 2/3. Найдите вектор Блоха, $S$ и энтропию Шеннона
+   выбора ансамбля. Почему $S$ меньше неё?
+3. При какой температуре поляризация электронных спинов в поле 1 Тл
+   равна 0,99? Тот же вопрос для протонов.
+4. Для $|\psi\rangle = \cos\vartheta\,|00\rangle + \sin\vartheta\,|11\rangle$
+   найдите $S(A)$ и $S(A|B)$ при $\vartheta = \pi/8$ и $\pi/4$.
+5. Кубит с $\mathbf r = (0, 0, 0{,}6)$ измеряют в базисе
+   $\{|+\rangle, |-\rangle\}$ и в базисе $\{|0\rangle, |1\rangle\}$.
+   Найдите энтропии Шеннона результатов и сравните с $S$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. Собственные значения 0,75 и 0,25: $S = H_2(0{,}75) = 0{,}811$ бита,
+   $\mathrm{Tr}\,\hat\rho^2 = 0{,}625$.
+2. $\mathbf r = \frac13(0, 0, 1) + \frac23(1, 0, 0) = (2/3, 0, 1/3)$,
+   $|\mathbf r| = 0{,}745$, $S = 0{,}550$ бита; энтропия выбора
+   $H_2(1/3) = 0{,}918$ бита. Состояния $|0\rangle$ и $|+\rangle$ не
+   ортогональны, поэтому часть «незнания» о выборе не проявляется ни в
+   каком измерении: $S \le H(p_k)$, равенство — только для
+   ортогональных состояний.
+3. $\tanh x = 0{,}99$ при $x = 2{,}65$: электрон — $T = 0{,}25$ К,
+   протон — $0{,}39$ мК.
+4. $S(A) = H_2(\cos^2\vartheta)$: 0,601 бита при $\pi/8$ и 1 бит при
+   $\pi/4$; $S(A|B) = -S(A)$: $-0{,}601$ и $-1$ бит.
+5. Вдоль $x$ — 1 бит (результаты равновероятны), вдоль $z$ —
+   $H_2(0{,}8) = 0{,}722$ бита $= S$: собственный базис даёт минимум.
+:::
+
+## Литература
+
+- Landau L. Das Dämpfungsproblem in der Wellenmechanik. *Z. Phys.*
+  **45**, 430 (1927).
+- von Neumann J. *Mathematische Grundlagen der Quantenmechanik.* —
+  Berlin: Springer, 1932.
+- Bloch F. Nuclear induction. *Phys. Rev.* **70**, 460 (1946).
+- Fano U. Description of states in quantum mechanics by density matrix
+  and operator techniques. *Rev. Mod. Phys.* **29**, 74 (1957).
+- Araki H., Lieb E. H. Entropy inequalities. *Commun. Math. Phys.*
+  **18**, 160 (1970).
+- Lieb E. H., Ruskai M. B. Proof of the strong subadditivity of
+  quantum-mechanical entropy. *J. Math. Phys.* **14**, 1938 (1973).
+- Wehrl A. General properties of entropy. *Rev. Mod. Phys.* **50**, 221
+  (1978).
+- Schumacher B. Quantum coding. *Phys. Rev. A* **51**, 2738 (1995).
+- Nielsen M. A., Chuang I. L. *Quantum Computation and Quantum
+  Information.* 10th anniversary ed. — Cambridge: Cambridge University
+  Press, 2010.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+norm = math.sqrt(0.3**2 + 0.2**2 + 0.1**2)
+assert sorted(float(e.subs({x: 0.3, y: 0.2, z: 0.1})) for e in eigs) == \
+       sorted([(1 - norm) / 2, (1 + norm) / 2]) or \
+       np.allclose(sorted(float(e.subs({x: 0.3, y: 0.2, z: 0.1})) for e in eigs), [(1 - norm) / 2, (1 + norm) / 2])
+assert sp.simplify(purity - (1 + x**2 + y**2 + z**2) / 2) == 0
+assert np.abs(rho_z - rho_x).max() < 1e-15 and np.abs(r_after - rotation(n_axis, alpha) @ r0).max() < 1e-12
+assert round(mu_p / physical_constants["nuclear magneton"][0], 2) == 2.79
+assert 1e-3 < polarization(mu_e, 1, 300) < 3e-3 and 1e-6 < polarization(mu_p, 1, 300) < 1e-5
+assert min(gaps) > -1e-9 and abs(measurement_entropy(rho_r, eigbasis) - entropy(rho_r)) < 1e-9
+assert all(v > -1e-9 for v in worst.values())
+assert abs(S_A - 1) < 1e-12 and abs(S_AB) < 1e-9
+H2 = lambda p: -(p * math.log2(p) + (1 - p) * math.log2(1 - p))
+# 1
+assert round(H2(0.75), 3) == 0.811 and 0.5 * (1 + 0.25) == 0.625
+# 2
+rho2 = mix([ket0, plus], [1 / 3, 2 / 3])
+r2 = bloch_vector(rho2)
+assert np.allclose(r2, [2 / 3, 0, 1 / 3]) and round(np.linalg.norm(r2), 3) == 0.745
+assert round(entropy(rho2), 3) == 0.550 and round(H2(1 / 3), 3) == 0.918
+# 3
+x3 = math.atanh(0.99)
+assert round(x3, 2) == 2.65 and round(mu_e / (k_B * x3), 2) == 0.25 and round(mu_p / (k_B * x3) * 1e3, 2) == 0.39
+# 4
+for th, val in ((math.pi / 8, 0.601), (math.pi / 4, 1.0)):
+    psi4 = math.cos(th) * np.kron(ket0, ket0) + math.sin(th) * np.kron(ket1, ket1)
+    SA4 = S_sub(density(psi4), [2, 2], [0])
+    assert round(SA4, 3) == val and abs(entropy(density(psi4))) < 1e-9
+# 5
+rho5 = 0.5 * (np.eye(2) + 0.6 * SIGMA[2])
+xbasis = np.column_stack([plus, minus])
+assert abs(measurement_entropy(rho5, xbasis) - 1) < 1e-12
+assert round(measurement_entropy(rho5, np.eye(2)), 3) == round(entropy(rho5), 3) == 0.722
+```
