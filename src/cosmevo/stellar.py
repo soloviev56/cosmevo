@@ -15,6 +15,11 @@ r = α ξ, α² = (n+1) K ρ_c^{1/n−1} / (4πG), и
 x = p_F/(m c) (Чандрасекар, 1939, гл. X), и равновесные конфигурации из
 него: белые карлики (ньютоновская гидростатика) и звёзды из свободного
 нейтронного газа (уравнение Толмена–Оппенгеймера–Волкова). Единицы СГС.
+
+Электронный газ при конечной температуре (распределение Ферми–Дирака,
+любая степень релятивизма, без рождения пар) и одно-зонная модель
+центра звезды: давление политропы данной массы и центральной плотности
+уравновешено давлением идеальных ионов и электронов.
 """
 
 import math
@@ -24,8 +29,10 @@ import astropy.constants as const
 import astropy.units as u
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.optimize import brentq
 
 _G, _C, _HBAR = const.G.cgs.value, const.c.cgs.value, const.hbar.cgs.value
+_K_B = const.k_B.cgs.value
 M_E, M_N = const.m_e.cgs.value, const.m_n.cgs.value
 M_U = (1 * u.u).to(u.g).value
 
@@ -157,3 +164,95 @@ def neutron_star_ov(x_c):
 
     return _integrate_star(rhs, x_c, fermi_energy_density(x_c, M_N) / _C**2,
                            r_max=1e8, max_step=1e4)
+
+
+_GL_X, _GL_W = np.polynomial.legendre.leggauss(64)
+
+
+def _gauss(f, a, b):
+    """Квадратура Гаусса–Лежандра (64 узла) на [a, b] для векторной f."""
+    s = 0.5 * (b - a) * _GL_X + 0.5 * (a + b)
+    return 0.5 * (b - a) * np.sum(_GL_W * f(s))
+
+
+def electron_moments(eta, T):
+    """Концентрация (см⁻³) и давление (дин/см²) электронного газа с
+    параметром вырождения eta = (μ − m_e c²)/kT при температуре T (К).
+
+    Интегралы по кинетической энергии x = (γ − 1)/β в единицах kT,
+    β = kT/(m_e c²), с заменой x = s² и разбиением у ферми-поверхности:
+        n λ³ = (1/π²) ∫ t γ β f dx,   P λ³/(m_e c²) = (1/3π²) ∫ t³ β f dx,
+    t = p/(m_e c) = √(γ² − 1), f = 1/(e^{x−η} + 1).
+    """
+    beta = _K_B * T / (M_E * _C**2)
+
+    def integrand(s, power):
+        x = s * s
+        gamma = 1 + beta * x
+        t = np.sqrt(np.maximum(gamma**2 - 1, 0.0))
+        f = np.exp(-np.logaddexp(0.0, x - eta))
+        weight = t * gamma if power == 1 else t**3
+        return weight * beta * f * 2 * s
+
+    e = max(eta, 0.0)
+    edges = sorted({0.0, math.sqrt(max(eta - 40, 0.0)), math.sqrt(e), math.sqrt(e + 50)})
+    pieces = list(zip(edges, edges[1:]))
+    n = sum(_gauss(lambda s: integrand(s, 1), a, b) for a, b in pieces)
+    P = sum(_gauss(lambda s: integrand(s, 3), a, b) for a, b in pieces)
+    lam = _HBAR / (M_E * _C)
+    return n / (math.pi**2 * lam**3), P / (3 * math.pi**2) * _fermi_scale(M_E)
+
+
+def electron_pressure(n_e, T):
+    """Давление электронного газа (дин/см²) с концентрацией n_e (см⁻³) при
+    температуре T (К): от больцмановского n_e kT до вырожденного предела."""
+    excess = lambda eta: math.log(electron_moments(eta, T)[0] / n_e)
+    lo, hi = -10.0, 10.0
+    while excess(lo) > 0:
+        lo -= 20
+    while excess(hi) < 0:
+        hi *= 3
+    eta = brentq(excess, lo, hi, xtol=1e-10, rtol=1e-12)
+    return electron_moments(eta, T)[1]
+
+
+def _one_zone_W(n):
+    """W в P_c = W G M^{2/3} ρ_c^{4/3} для политропы n."""
+    return (4 * math.pi) ** (1 / 3) / ((n + 1) * lane_emden(n).omega ** (2 / 3))
+
+
+def one_zone_temperature(M, rho_c, mu_i, mu_e, n=3):
+    """Центральная температура (К) звезды массы M (г) с центральной
+    плотностью rho_c (г/см³) в одно-зонной модели:
+        W G M^{2/3} ρ_c^{4/3} = ρ_c kT/(μ_i m_u) + P_e(ρ_c/(μ_e m_u), T),
+    W = (4π)^{1/3} / ((n+1) ω_n^{2/3}) — коэффициент политропы n.
+    NaN, если давления холодного вырожденного газа уже достаточно."""
+    P_grav = _one_zone_W(n) * _G * M ** (2 / 3) * rho_c ** (4 / 3)
+    n_e = rho_c / (mu_e * M_U)
+    x_F = _HBAR * (3 * math.pi**2 * n_e) ** (1 / 3) / (M_E * _C)
+    if fermi_pressure(x_F) >= P_grav:
+        return math.nan
+    balance = lambda lgT: (rho_c * _K_B * 10**lgT / (mu_i * M_U)
+                           + electron_pressure(n_e, 10**lgT) - P_grav)
+    if balance(1.0) > 0:
+        return math.nan
+    return 10 ** brentq(balance, 1.0, 11.0, xtol=1e-7)
+
+
+def one_zone_track(M, mu_i, mu_e, eta, n=3):
+    """Точка (ρ_c, T_c) той же одно-зонной модели при заданном параметре
+    вырождения электронов eta — быстрый способ построить путь
+    сжимающегося центра. (NaN, NaN), если равновесия при этом eta нет."""
+    W = _one_zone_W(n)
+
+    def balance(lgT):
+        n_e, P_e = electron_moments(eta, 10**lgT)
+        rho = mu_e * M_U * n_e
+        P_gas = rho * _K_B * 10**lgT / (mu_i * M_U) + P_e
+        return math.log(W * _G * M ** (2 / 3) * rho ** (4 / 3) / P_gas)
+
+    lo, hi = 2.0, 11.0
+    if balance(lo) * balance(hi) > 0:
+        return math.nan, math.nan
+    T = 10 ** brentq(balance, lo, hi, xtol=1e-10)
+    return mu_e * M_U * electron_moments(eta, T)[0], T

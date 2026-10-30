@@ -62,3 +62,38 @@ def test_chandrasekhar_and_ov_limits():
     assert 1.44 < M / M_sun < 1.457                # M_Ch(μ_e = 2) = 1,4563 M☉
     masses = [neutron_star_ov(x)[0] / M_sun for x in np.linspace(0.6, 1.0, 9)]
     assert close(max(masses), 0.71, rel=1e-2)      # Оппенгеймер и Волков (1939)
+
+
+def test_electron_pressure_limits():
+    from cosmevo.stellar import M_E, electron_pressure, fermi_pressure
+    import astropy.constants as const
+    k_B, hbar, c = const.k_B.cgs.value, const.hbar.cgs.value, const.c.cgs.value
+    assert close(electron_pressure(1e22, 1e7), 1e22 * k_B * 1e7, rel=1e-3)   # больцмановский газ
+    n_e = 1e30
+    x_F = hbar * (3 * math.pi**2 * n_e) ** (1 / 3) / (M_E * c)
+    assert close(electron_pressure(n_e, 1e4), fermi_pressure(x_F), rel=1e-6)  # вырожденный
+
+
+def test_one_zone_model():
+    from cosmevo.stellar import M_U, lane_emden, one_zone_temperature
+    import astropy.constants as const
+    G, k_B, M_sun = const.G.cgs.value, const.k_B.cgs.value, const.M_sun.cgs.value
+    # разреженный газ: kT = μ m_u W G M^{2/3} ρ^{1/3}, 1/μ = 1/μ_i + 1/μ_e
+    W = (4 * math.pi) ** (1 / 3) / (4 * lane_emden(3).omega ** (2 / 3))
+    mu = 1 / (1 / 4 + 1 / 2)
+    T_ideal = mu * M_U * W * G * M_sun ** (2 / 3) * 1e-3 ** (1 / 3) / k_B
+    assert close(one_zone_temperature(M_sun, 1e-3, 4, 2), T_ideal, rel=1e-4)
+    # ниже предела Чандрасекара (1,456 M☉ при μ_e = 2) плотное ядро холодное,
+    # выше — температура растёт неограниченно
+    assert math.isnan(one_zone_temperature(1.40 * M_sun, 1e10, 14, 2))
+    T1, T2 = (one_zone_temperature(1.50 * M_sun, rho, 14, 2) for rho in (1e9, 1e10))
+    assert T2 > T1 > 1e9
+
+
+def test_one_zone_track_consistent():
+    from cosmevo.stellar import one_zone_temperature, one_zone_track
+    import astropy.constants as const
+    M = 0.5 * const.M_sun.cgs.value
+    for eta in (-5.0, 0.0, 5.0):
+        rho, T = one_zone_track(M, 4, 2, eta)
+        assert close(one_zone_temperature(M, rho, 4, 2), T, rel=1e-5)
