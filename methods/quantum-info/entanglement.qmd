@@ -1,0 +1,633 @@
+---
+title: "Запутанность и неравенства Белла"
+topic: entanglement
+order: 2
+description: "Сепарабельные и запутанные состояния; энтропия запутанности чистых состояний и средняя энтропия подсистемы (Пейдж); критерий Переса–Городецких и состояния Вернера; неравенство CHSH: локальная граница 2, граница Цирельсона 2√2, критерий Городецких; невозможность передачи сигналов; лазейки и эксперименты без лазеек 2015 г."
+---
+
+В теме «Кубиты и матрица плотности» мы увидели, что часть чистого
+состояния пары может быть смешанной, а условная энтропия — отрицательной.
+Это проявления **запутанности** — корреляций, которых не бывает у
+классических систем. Эйнштейн, Подольский и Розен (1935) считали такие
+корреляции признаком неполноты квантовой механики; Шрёдингер (1935) дал
+им имя и назвал «не одной, а *главной* чертой» квантовой механики. Белл
+(1964) превратил спор в эксперимент: всякая локальная теория со
+скрытыми параметрами даёт ограничение на корреляции, которое квантовая
+механика нарушает. Эксперименты 1972–2015 гг. нашли нарушение.
+
+Для пособия запутанность важна трижды: это ресурс квантовой связи
+(следующая тема — «Запрет клонирования и квантовая телепортация»),
+механизм возникновения классичности («Декогеренция и открытые
+квантовые системы») и ключ к термодинамике горизонтов, где энтропия
+излучения чёрной дыры — энтропия запутанности.
+
+В этой статье:
+
+- определим запутанность и её меру для чистых состояний; найдём
+  среднюю запутанность случайного состояния;
+- сформулируем критерий запутанности смешанных состояний и разберём
+  состояния Вернера;
+- выведем неравенство CHSH, его квантовый максимум и докажем, что
+  запутанность не передаёт сигналов;
+- обсудим лазейки и эксперименты, которые их закрыли.
+
+## Сепарабельные и запутанные состояния
+
+::: {#def-separable}
+Состояние $\hat\rho_{AB}$ пары систем **сепарабельно**, если его можно
+приготовить локальными операциями и обменом классической информацией
+(Вернер, 1989), то есть
+$$
+\hat\rho_{AB} = \sum_k p_k\,\hat\rho^{(k)}_A\otimes\hat\rho^{(k)}_B,
+\qquad p_k \ge 0,\; \sum_k p_k = 1 .
+$$
+Несепарабельное состояние называется **запутанным**. Чистое состояние
+сепарабельно тогда и только тогда, когда оно произведение:
+$|\psi\rangle = |a\rangle|b\rangle$.
+:::
+
+Сепарабельное состояние может быть коррелированным (классическая смесь
+$|00\rangle$ и $|11\rangle$), но эти корреляции «записаны» заранее в
+общем случайном индексе $k$. Запутанные состояния так приготовить
+нельзя.
+
+**Мера запутанности чистого состояния.** Разложение Шмидта
+$|\psi\rangle_{AB} = \sum_i\sqrt{\lambda_i}\,|a_i\rangle|b_i\rangle$
+даёт $\hat\rho_A$ и $\hat\rho_B$ с одним спектром $\{\lambda_i\}$.
+
+::: {#def-entanglement-entropy}
+**Энтропия запутанности** чистого состояния —
+$E(\psi) = S(\hat\rho_A) = S(\hat\rho_B) = -\sum_i\lambda_i\log_2\lambda_i$.
+:::
+
+Её операционный смысл [У]{.status}: из $n \gg 1$ копий $|\psi\rangle$
+локальными операциями и классической связью можно получить $nE$ пар
+Белла и, наоборот, из $nE$ пар — $n$ копий $|\psi\rangle$
+(Беннетт и др., 1996). Пара Белла — единица запутанности, «e-бит».
+Пример — $|\psi\rangle = (|00\rangle + |01\rangle + |10\rangle)/\sqrt3$:
+
+```{python}
+import itertools
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+
+ket0, ket1 = np.array([1, 0], complex), np.array([0, 1], complex)
+SIGMA = [np.array(m, complex) for m in ([[0, 1], [1, 0]], [[0, -1j], [1j, 0]], [[1, 0], [0, -1]])]
+
+def schmidt_coefficients(psi, d_a, d_b):
+    """Квадраты коэффициентов Шмидта = спектр ρ_A (сингулярное разложение матрицы ψ_ij)."""
+    return np.linalg.svd(psi.reshape(d_a, d_b), compute_uv=False) ** 2
+
+def shannon_bits(p):
+    p = p[p > 1e-15]
+    return float(-np.sum(p * np.log2(p)))
+
+psi_w = (np.kron(ket0, ket0) + np.kron(ket0, ket1) + np.kron(ket1, ket0)) / math.sqrt(3)
+lam_w = schmidt_coefficients(psi_w, 2, 2)
+print("λ_i =", np.round(lam_w, 4), f"  E = {shannon_bits(lam_w):.3f} e-бит")
+```
+
+Собственные значения $(3 \pm \sqrt5)/6$; состояние запутано на 0,55
+e-бита.
+
+**Типичное состояние запутано почти максимально.** Пусть
+$|\psi\rangle$ — случайный вектор (равномерный по сфере) в
+$\mathcal H_A\otimes\mathcal H_B$ размерностей $m \le n$. Пейдж (1993)
+нашёл среднюю энтропию подсистемы (в натах):
+$$
+\langle S_A\rangle = \sum_{k = n + 1}^{mn}\frac1k - \frac{m - 1}{2n}
+\;\approx\; \ln m - \frac{m}{2n}\quad (1 \ll m \le n).
+$$
+Проверим формулу на кубите, запутанном с окружением из $n$ состояний:
+
+```{python}
+def page_mean_entropy(m, n):
+    """Средняя энтропия (наты) подсистемы размерности m случайного чистого состояния m×n (Пейдж, 1993)."""
+    return sum(1 / k for k in range(n + 1, m * n + 1)) - (m - 1) / (2 * n)
+
+def sampled_mean_entropy(m, n, rng, samples=4000):
+    values = []
+    for _ in range(samples):
+        g = rng.normal(size=m * n) + 1j * rng.normal(size=m * n)
+        lam = schmidt_coefficients(g / np.linalg.norm(g), m, n)
+        lam = lam[lam > 1e-15]
+        values.append(-np.sum(lam * np.log(lam)))
+    return np.mean(values), np.std(values) / math.sqrt(samples)
+
+rng = np.random.default_rng(2)
+page_rows = []
+for n_env in (2, 4, 16, 64):
+    mean, err = sampled_mean_entropy(2, n_env, rng)
+    page_rows.append((n_env, mean, err, page_mean_entropy(2, n_env)))
+    print(f"n = {n_env:3d}: выборка {mean:.4f} ± {err:.4f},  Пейдж {page_mean_entropy(2, n_env):.4f},  "
+          f"ln 2 = {math.log(2):.4f} нат")
+```
+
+Уже при окружении из 16 состояний кубит запутан на 93 % от максимума
+$\ln 2$ [У]{.status}. Это математический факт о большой размерности
+гильбертова пространства; на нём основана кривая Пейджа для энтропии
+излучения испаряющейся чёрной дыры (темы «Эффекты Унру и Хокинга» и
+«Термодинамика горизонтов»), а в теме «Декогеренция и открытые
+квантовые системы» — объяснение того, почему подсистема, связанная с
+большим окружением, быстро становится смешанной.
+
+## Запутанность смешанных состояний
+
+Для смешанного состояния $S(\hat\rho_A)$ уже не мера запутанности:
+$\hat\rho_{AB} = 1/4$ сепарабельно, а $S(A) = 1$. Простое необходимое
+условие сепарабельности даёт **частичное транспонирование**
+$(\rho^{T_B})_{ik,\,jl} = \rho_{il,\,jk}$: оно переводит каждое
+$\hat\rho_A\otimes\hat\rho_B$ в $\hat\rho_A\otimes\hat\rho_B^T$ — снова
+матрицу плотности. Значит, у сепарабельного состояния
+$\hat\rho^{T_B} \ge 0$ (Перес, 1996). Для пар кубитов и пар
+«кубит–кутрит» это условие и достаточно (Городецкие, 1996)
+[У]{.status}; в больших размерностях есть запутанные состояния с
+$\hat\rho^{T_B} \ge 0$ («связанная» запутанность).
+
+::: {#def-werner}
+**Состояние Вернера** двух кубитов — смесь синглета
+$|\Psi^-\rangle = (|01\rangle - |10\rangle)/\sqrt2$ с белым шумом:
+$$
+\hat\rho_W(p) = p\,|\Psi^-\rangle\langle\Psi^-| + \frac{1 - p}{4}\,1,
+\qquad 0 \le p \le 1 .
+$$
+:::
+
+Это модель реальной пары, испорченной деполяризующим шумом. Найдём
+спектр частично транспонированной матрицы:
+
+```{python}
+p = sp.symbols("p", nonnegative=True)
+singlet = sp.Matrix([0, 1, -1, 0]) / sp.sqrt(2)
+rho_werner = p * singlet * singlet.T + (1 - p) / 4 * sp.eye(4)
+
+def partial_transpose_b(rho):
+    """Частичное транспонирование по второму кубиту матрицы 4×4 (индекс 2i + k)."""
+    out = sp.zeros(4, 4)
+    for i, k, j, l in itertools.product(range(2), repeat=4):
+        out[2 * i + k, 2 * j + l] = rho[2 * i + l, 2 * j + k]
+    return out
+
+pt_eigs = sp.Matrix(partial_transpose_b(rho_werner)).eigenvals()
+print("спектр ρ_W^{T_B}:", {sp.factor(e): mult for e, mult in pt_eigs.items()})
+p_entangled = sp.solve(sp.Eq((1 - 3 * p) / 4, 0), p)[0]
+print("запутано при p >", p_entangled)
+```
+
+Наименьшее собственное значение $(1 - 3p)/4$: состояние Вернера
+запутано при $p > 1/3$ [У]{.status}.
+
+## Неравенство Белла–CHSH
+
+**Постановка.** Алиса выбирает одно из двух измерений $A_0, A_1$,
+Боб — $B_0, B_1$; каждое даёт $\pm1$. Локальная теория со скрытыми
+параметрами (*локальный реализм*) утверждает: существует распределение
+$\rho(\lambda)$ параметров, определённых до выбора измерений и
+независимых от него, и функции $A_x(\lambda), B_y(\lambda) \in \{\pm1\}$,
+так что
+$$
+E(x, y) = \langle A_xB_y\rangle = \int\dd\lambda\,\rho(\lambda)\,A_x(\lambda)B_y(\lambda).
+$$
+Локальность — в том, что $A_x$ не зависит от $y$, а $B_y$ от $x$;
+«свобода выбора» — в том, что $\rho(\lambda)$ не зависит от $(x, y)$.
+(Вероятностные локальные модели сводятся к детерминированным
+добавлением случайности в $\lambda$.)
+
+Для каждого $\lambda$
+$$
+A_0(B_0 + B_1) + A_1(B_0 - B_1) = \pm2,
+$$
+так как одна из скобок равна нулю, а другая $\pm2$. Усредняя, получаем
+**неравенство CHSH** (Клаузер, Хорн, Шимони, Холт, 1969):
+$$
+S \equiv E(0,0) + E(0,1) + E(1,0) - E(1,1),\qquad |S| \le 2 .
+$$
+Проверим перебором всех 16 детерминированных стратегий:
+
+```{python}
+def chsh(E):
+    return E[0][0] + E[0][1] + E[1][0] - E[1][1]
+
+lhv_values = {chsh([[a[x] * b[y] for y in range(2)] for x in range(2)])
+              for a in itertools.product([1, -1], repeat=2) for b in itertools.product([1, -1], repeat=2)}
+print("значения S детерминированных локальных стратегий:", sorted(lhv_values))
+```
+
+Любая локальная модель — смесь этих стратегий, поэтому $|S| \le 2$.
+
+**Квантовый максимум.** Для спиновых наблюдаемых
+$\hat A_x = \mathbf a_x\cdot\boldsymbol\sigma$,
+$\hat B_y = \mathbf b_y\cdot\boldsymbol\sigma$ составим оператор Белла
+$\hat{\mathcal B} = \hat A_0(\hat B_0 + \hat B_1) + \hat A_1(\hat B_0 - \hat B_1)$.
+Так как $\hat A_x^2 = \hat B_y^2 = 1$,
+$$
+\hat{\mathcal B}^2 = 4 - [\hat A_0, \hat A_1][\hat B_0, \hat B_1] ,
+$$
+а $\|[\hat A_0, \hat A_1]\| \le 2$, откуда $|S| \le 2\sqrt2$ —
+**граница Цирельсона** (1980) [У]{.status}. Проверим тождество и найдём
+состояние и измерения, на которых она достигается:
+
+```{python}
+def spin_along(n):
+    return sum(c * s for c, s in zip(n, SIGMA))
+
+def bell_operator(a0, a1, b0, b1):
+    A0, A1, B0, B1 = (spin_along(v) for v in (a0, a1, b0, b1))
+    return np.kron(A0, B0 + B1) + np.kron(A1, B0 - B1)
+
+def unit(phi):
+    """Единичный вектор в плоскости xz под углом phi к оси z."""
+    return np.array([math.sin(phi), 0.0, math.cos(phi)])
+
+def comm(X, Y):
+    return X @ Y - Y @ X
+
+dirs = [rng.normal(size=3) for _ in range(4)]
+dirs = [v / np.linalg.norm(v) for v in dirs]
+Bop = bell_operator(*dirs)
+A0, A1, B0, B1 = (spin_along(v) for v in dirs)
+identity_gap = np.abs(Bop @ Bop - (4 * np.eye(4) - np.kron(comm(A0, A1), comm(B0, B1)))).max()
+print(f"𝓑² = 4 − [A0,A1]⊗[B0,B1]: расхождение {identity_gap:.1e}")
+
+opt = bell_operator(unit(0), unit(math.pi / 2), unit(math.pi / 4), unit(-math.pi / 4))
+eigvals, eigvecs = np.linalg.eigh(opt)
+psi_max = eigvecs[:, -1]
+print(f"наибольшее собственное значение {eigvals[-1]:.4f} (2√2 = {2 * math.sqrt(2):.4f}); "
+      f"энтропия запутанности этого вектора {shannon_bits(schmidt_coefficients(psi_max, 2, 2)):.3f}")
+```
+
+Максимум достигается на максимально запутанном состоянии при
+настройках Алисы вдоль $z$ и $x$, Боба — под $\pm45°$ между ними.
+Для синглета $E(\mathbf a, \mathbf b) = -\mathbf a\cdot\mathbf b$, и при
+настройках $\mathbf a_1, \mathbf b_0, \mathbf a_0, \mathbf b_1$, идущих в
+одной плоскости друг за другом через угол $\theta$,
+$|S| = 3\cos\theta - \cos3\theta$ (@fig-chsh, слева).
+
+**Критерий Городецких.** Какое наибольшее $S$ даёт данное состояние
+двух кубитов? Запишем
+$\hat\rho = \frac14\big(1 + \mathbf r\cdot\boldsymbol\sigma\otimes1 + 1\otimes\mathbf s\cdot\boldsymbol\sigma + \sum_{ij}T_{ij}\,\sigma_i\otimes\sigma_j\big)$;
+тогда $E(\mathbf a, \mathbf b) = \mathbf a^T T\mathbf b$, и максимум по
+настройкам (Городецкие, 1995)
+$$
+S_{\max} = 2\sqrt{t_1^2 + t_2^2},
+$$
+где $t_1 \ge t_2$ — два наибольших сингулярных числа матрицы $T$
+[У]{.status}. Сверим с прямой оптимизацией по восьми углам:
+
+```{python}
+from scipy.optimize import minimize
+
+def correlation_matrix(rho):
+    return np.real([[np.trace(rho @ np.kron(si, sj)) for sj in SIGMA] for si in SIGMA])
+
+def horodecki_smax(rho):
+    t = np.linalg.svd(correlation_matrix(rho), compute_uv=False)
+    return 2 * math.sqrt(t[0] ** 2 + t[1] ** 2)
+
+def sphere(theta, phi):
+    return np.array([math.sin(theta) * math.cos(phi), math.sin(theta) * math.sin(phi), math.cos(theta)])
+
+def numeric_smax(rho, rng, starts=20):
+    def minus_s(angles):
+        vs = [sphere(angles[2 * k], angles[2 * k + 1]) for k in range(4)]
+        return -abs(np.trace(rho @ bell_operator(*vs)).real)
+    return max(-minimize(minus_s, rng.uniform(0, math.pi, 8), method="Nelder-Mead",
+                          options={"xatol": 1e-9, "fatol": 1e-11, "maxiter": 20000}).fun for _ in range(starts))
+
+def werner(pp):
+    s = np.array([0, 1, -1, 0], complex) / math.sqrt(2)
+    return pp * np.outer(s, s.conj()) + (1 - pp) / 4 * np.eye(4)
+
+def partial_state(theta):
+    """cos θ|00⟩ + sin θ|11⟩."""
+    psi = math.cos(theta) * np.kron(ket0, ket0) + math.sin(theta) * np.kron(ket1, ket1)
+    return np.outer(psi, psi.conj())
+
+for name, rho_test in [("Вернер p = 0,9", werner(0.9)), ("cos(π/8)|00⟩ + sin(π/8)|11⟩", partial_state(math.pi / 8)),
+                       ("случайное состояние", None)]:
+    if rho_test is None:
+        g = rng.normal(size=(4, 4)) + 1j * rng.normal(size=(4, 4))
+        rho_test = g @ g.conj().T / np.trace(g @ g.conj().T).real
+    print(f"{name:30s}: критерий {horodecki_smax(rho_test):.4f},  оптимизация {numeric_smax(rho_test, rng):.4f}")
+```
+
+Для состояния Вернера $T = -p\cdot1$, $S_{\max} = 2\sqrt2\,p$: CHSH
+нарушается при $p > 1/\sqrt2 \approx 0{,}707$. Между $1/3$ и $1/\sqrt2$
+состояние запутано, но CHSH не нарушает; более того, при
+$p \le 1/2$ Вернер (1989) построил явную локальную модель для всех
+проективных измерений [У]{.status}. Запутанность и нелокальность —
+разные свойства (@fig-chsh, справа).
+
+```{python}
+#| label: fig-chsh
+#| fig-cap: "Слева: величина S для синглета при настройках a₁, b₀, a₀, b₁, идущих в одной плоскости через угол θ; локальная граница 2 и граница Цирельсона 2√2; максимум при θ = 45°. Справа: состояние Вернера как функция примеси синглета p — наименьшее собственное значение частично транспонированной матрицы (правая шкала; отрицательно — запутанность — при p > 1/3) и наибольшее значение S (нарушение CHSH при p > 1/√2; левая шкала); при p ≤ 1/2 существует локальная модель для проективных измерений (Вернер, 1989)."
+theta_grid = np.linspace(0, math.pi / 2, 400)
+p_grid = np.linspace(0, 1, 400)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.8, 3.6))
+ax1.plot(np.degrees(theta_grid), 3 * np.cos(theta_grid) - np.cos(3 * theta_grid), color="tab:blue", label="|S| синглета")
+ax1.axhline(2, color="0.3", lw=1, ls="--", label="локальная граница 2")
+ax1.axhline(2 * math.sqrt(2), color="tab:red", lw=1, ls=":", label="Цирельсон 2√2")
+ax1.set(xlabel="θ, градусы", ylabel="|S|", xlim=(0, 90), ylim=(0, 3.1))
+ax1.legend(fontsize=8, loc="lower left")
+ax1.grid(alpha=0.2)
+ax2.plot(p_grid, 2 * math.sqrt(2) * p_grid, color="tab:blue", label=r"$S_{\max} = 2\sqrt{2}\,p$")
+ax2.axhline(2, color="0.3", lw=1, ls="--")
+ax2b = ax2.twinx()
+ax2b.plot(p_grid, (1 - 3 * p_grid) / 4, color="tab:green", ls="-.", label=r"$\lambda_{\min}(\rho^{T_B})$")
+ax2b.axhline(0, color="tab:green", lw=0.6, alpha=0.5)
+ax2b.set(ylabel=r"$\lambda_{\min}(\rho^{T_B})$", ylim=(-0.55, 0.3))
+for x0, txt in [(1 / 3, "1/3"), (0.5, "1/2"), (1 / math.sqrt(2), "1/√2")]:
+    ax2.axvline(x0, color="0.6", lw=0.8, ls=":")
+    ax2.text(x0 + 0.01, 0.15, txt, fontsize=8)
+ax2.set(xlabel="p", ylabel=r"$S_{\max}$", xlim=(0, 1), ylim=(0, 3.1))
+handles = ax2.get_legend_handles_labels()[0] + ax2b.get_legend_handles_labels()[0]
+ax2.legend(handles=handles, fontsize=8, loc="upper center")
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Есть и обратная сторона: квантовая механика нарушает CHSH, но не
+сильнее $2\sqrt2$, хотя ограничение «без сигналов» (см. ниже) допускает
+и $S = 4$ — гипотетические «ящики Попеску–Рорлиха» (1994). Почему
+природа останавливается на $2\sqrt2$, — открытый вопрос оснований
+квантовой механики; есть несколько частичных ответов
+(информационные принципы), ни один не общепринят [Г]{.status}.
+
+## Почему запутанность не передаёт сигналов
+
+Алиса, получив свою половину пары, может что угодно сделать с ней:
+унитарно повернуть, измерить в любом базисе, выбросить. Состояние
+половины Боба после любой такой операции, *пока Алиса не сообщила
+результат*,
+$$
+\hat\rho_B' = \mathrm{Tr}_A\Big[\sum_k (\hat K_k\otimes1)\,\hat\rho_{AB}\,(\hat K_k^\dagger\otimes1)\Big]
+= \mathrm{Tr}_A\Big[\Big(\sum_k\hat K_k^\dagger\hat K_k\otimes1\Big)\hat\rho_{AB}\Big]
+= \hat\rho_B ,
+$$
+где $\hat K_k$ — операторы Крауса операции, $\sum_k\hat K_k^\dagger\hat K_k = 1$
+(во втором равенстве использована цикличность следа по $A$).
+Никакая статистика Боба не зависит от выбора Алисы [У]{.status}
+(Гирарди, Римини, Вебер, 1980). Корреляции видны только при сравнении
+записей, а для этого нужен классический канал. Проверим для случайного
+состояния и случайных измерений:
+
+```{python}
+def partial_trace_a(rho, d_a, d_b):
+    return np.trace(rho.reshape(d_a, d_b, d_a, d_b), axis1=0, axis2=2)
+
+def random_unitary(d, rng):
+    q, r = np.linalg.qr(rng.normal(size=(d, d)) + 1j * rng.normal(size=(d, d)))
+    return q * (np.diag(r) / np.abs(np.diag(r)))
+
+g = rng.normal(size=(4, 4)) + 1j * rng.normal(size=(4, 4))
+rho_ab = g @ g.conj().T / np.trace(g @ g.conj().T).real
+rho_b = partial_trace_a(rho_ab, 2, 2)
+signal = 0.0
+for _ in range(200):
+    U = random_unitary(2, rng)
+    projectors = [np.outer(U[:, k], U[:, k].conj()) for k in range(2)]   # измерение Алисы в базисе U
+    after = sum(np.kron(P, np.eye(2)) @ rho_ab @ np.kron(P, np.eye(2)) for P in projectors)
+    signal = max(signal, np.abs(partial_trace_a(after, 2, 2) - rho_b).max())
+print(f"наибольшее изменение ρ_B от выбора базиса Алисы (200 базисов): {signal:.1e}")
+```
+
+Нарушение неравенства Белла не противоречит теории относительности:
+оно запрещает *локальные скрытые параметры*, а не причинность.
+
+## Лазейки и эксперименты
+
+Неравенство выведено при трёх предположениях о самом эксперименте.
+Если какое-то не выполнено, локальная модель может воспроизвести
+наблюдаемое нарушение («лазейка»):
+
+1. **Локальность.** Выбор настройки и регистрация результата у Алисы
+   должны быть пространственно-подобно разделены с выбором у Боба.
+2. **Свобода выбора.** Настройки не должны коррелировать с $\lambda$:
+   их выбирают быстрые генераторы случайных чисел (или, в «космическом
+   тесте Белла», цвет фотонов от далёких квазаров, Раух и др., 2018).
+3. **Детектирование.** Если часть пар не регистрируется, а анализ
+   ведётся только по зарегистрированным, локальная модель может
+   «выбирать», какие пары засчитать.
+
+Последнюю лазейку количественно легко оценить. Пусть детекторы
+срабатывают с вероятностью $\eta$, а несработавший детектор
+засчитывается как исход $+1$. Для максимально запутанного состояния
+локальные исходы несмещены, и
+$E_\eta = \eta^2 E + (1 - \eta)^2$, так что
+$$
+S_\eta = \eta^2 S + 2(1 - \eta)^2 > 2 \iff \eta > \frac{4}{S + 2} .
+$$
+
+```{python}
+eta, S_q = sp.symbols("eta S", positive=True)
+eta_crit = sp.solve(sp.Eq(eta**2 * S_q + 2 * (1 - eta) ** 2, 2), eta)
+eta_crit = [e for e in eta_crit if e != 0][0]
+eta_tsirelson = eta_crit.subs(S_q, 2 * sp.sqrt(2))
+print("η_крит =", eta_crit, "; при S = 2√2:", sp.nsimplify(sp.radsimp(eta_tsirelson)), "=", f"{float(eta_tsirelson):.4f}")
+```
+
+Для идеального синглета нужно $\eta > 2(\sqrt2 - 1) = 0{,}828$ (Гарг
+и Мермин, 1987); с частично запутанными состояниями и неравенством
+Эберхарда порог снижается до $2/3$ (Эберхард, 1993) [У]{.status}.
+Фотонные детекторы 1970–2000-х гг. имели эффективность в десятки
+процентов, и опыты опирались на допущение о «честной выборке».
+
+**Эксперименты** [У]{.status}:
+
+- Фридман и Клаузер (1972) — первое нарушение (каскад в кальции,
+  поляризации фотонов), без закрытия лазеек.
+- Аспе, Гранжье, Роже (1982) и Аспе, Далибар, Роже (1982) — настройки
+  переключались во время пролёта фотонов (лазейка локальности частично
+  закрыта: переключение было периодическим).
+- Вайс и др. (1998) — случайный выбор настроек при разнесении на
+  400 м: лазейка локальности закрыта.
+- **2015 г., без основных лазеек одновременно.** Хенсен и др. —
+  электронные спины NV-центров в алмазе, разнесённые на 1,3 км,
+  245 испытаний: $S = 2{,}42 \pm 0{,}20$, вероятность получить такое
+  нарушение в локальной модели $p = 0{,}039$. Джустина и др. и Шалм
+  и др. — фотоны со сверхпроводящими детекторами и неравенством типа
+  Эберхарда: $p \le 3{,}7\cdot10^{-31}$ и $p = 2{,}3\cdot10^{-7}$
+  соответственно.
+
+Нобелевская премия по физике 2022 г. — Аспе, Клаузеру и Цайлингеру
+«за эксперименты с запутанными фотонами, установление нарушения
+неравенств Белла и пионерские работы в квантовой информатике».
+Остаётся только логически неустранимая лазейка: полный
+«супердетерминизм», при котором настройки и скрытые параметры
+скоррелированы с начала Вселенной. Её нельзя опровергнуть
+экспериментом, можно лишь отодвигать момент возможной корреляции в
+прошлое (квазары — миллиарды лет); большинство физиков считают такую
+конспирологию неприемлемой [С]{.status}.
+
+## Физика и наблюдательный статус
+
+- Определение запутанности, энтропия запутанности, критерий
+  Переса–Городецких, граница Цирельсона, невозможность сигналов — теоремы
+  квантовой механики [У]{.status}.
+- Нарушение неравенства CHSH наблюдается с 1972 г.; в 2015 г. — без
+  лазеек локальности и детектирования одновременно [У]{.status}.
+  Значит, никакая локальная теория скрытых параметров не описывает
+  природу (при свободе выбора настроек).
+- Какой из постулатов локального реализма нарушается («реализм» или
+  «локальность») — вопрос интерпретации; наблюдаемые предсказания
+  квантовой механики от него не зависят.
+- Запутанность с окружением — общее свойство систем, взаимодействующих
+  со средой: типичное чистое состояние «система + окружение» почти
+  максимально запутано (Пейдж) [У]{.status}.
+
+## Итоги
+
+- Запутанное состояние нельзя приготовить локальными операциями и
+  классической связью. Мера запутанности чистого состояния —
+  $S(\hat\rho_A)$; у случайного состояния она близка к максимуму.
+- Для пар кубитов запутанность равносильна отрицательному собственному
+  значению частично транспонированной матрицы; состояние Вернера
+  запутано при $p > 1/3$.
+- Локальный реализм: $|S| \le 2$; квантовая механика: $|S| \le 2\sqrt2$;
+  для данного состояния $S_{\max} = 2\sqrt{t_1^2 + t_2^2}$.
+- Запутанность не передаёт сигналов: $\hat\rho_B$ не зависит от действий
+  Алисы.
+- Эксперименты 2015 г. закрыли одновременно лазейки локальности и
+  детектирования; порог эффективности для синглета 82,8 %.
+
+## Упражнения
+
+1. Найдите энтропию запутанности состояния
+   $(|00\rangle + 2|11\rangle)/\sqrt5$.
+2. Найдите $S_{\max}$ для $\cos\vartheta\,|00\rangle + \sin\vartheta\,|11\rangle$
+   по критерию Городецких как функцию $\vartheta$. Чему она равна при
+   $\vartheta = \pi/8$?
+3. В эксперименте измеренное значение $S$ для зарегистрированных пар
+   равно 2,70. Какая эффективность детекторов нужна, чтобы нарушение
+   выдержало засчитывание несработавших детекторов как $+1$?
+4. Найдите среднюю энтропию запутанности (в битах) двух кубитов в
+   случайном чистом состоянии; во сколько раз она меньше максимальной?
+5. Для синглета найдите $|S|$ при $\theta = 30°$ в схеме @fig-chsh
+   (слева) и диапазон $\theta$, при котором $|S| > 2$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. Коэффициенты Шмидта $1/5$ и $4/5$: $E = H_2(0{,}2) = 0{,}722$ e-бита.
+2. $T = \mathrm{diag}(\sin2\vartheta, -\sin2\vartheta, 1)$,
+   $S_{\max} = 2\sqrt{1 + \sin^22\vartheta} > 2$ при любом
+   $0 < \vartheta < \pi/2$ (каждое запутанное чистое состояние нарушает
+   CHSH — теорема Гизина, 1991); при $\vartheta = \pi/8$ $S_{\max} = \sqrt6 = 2{,}449$.
+3. $\eta > 4/(2{,}70 + 2) = 0{,}851$.
+4. По формуле Пейджа при $m = n = 2$: $\langle S\rangle = 1/3$ ната
+   $= 0{,}481$ бита — около половины максимального 1 бита (в 2,08 раза
+   меньше).
+5. $3\cos30° - \cos90° = 2{,}598$; $|S| > 2$ при $0° < \theta < 68{,}5°$
+   (правая граница — корень уравнения $3\cos\theta - \cos3\theta = 2$).
+   Из-за симметрии $\theta \to 180° - \theta$ ($S \to -S$) нарушение есть
+   и при $111{,}5° < \theta < 180°$.
+:::
+
+## Литература
+
+- Einstein A., Podolsky B., Rosen N. Can quantum-mechanical description
+  of physical reality be considered complete? *Phys. Rev.* **47**, 777
+  (1935).
+- Schrödinger E. Discussion of probability relations between separated
+  systems. *Math. Proc. Cambridge Phil. Soc.* **31**, 555 (1935).
+- Bell J. S. On the Einstein Podolsky Rosen paradox. *Physics* **1**,
+  195 (1964).
+- Clauser J. F., Horne M. A., Shimony A., Holt R. A. Proposed experiment
+  to test local hidden-variable theories. *Phys. Rev. Lett.* **23**, 880
+  (1969).
+- Freedman S. J., Clauser J. F. Experimental test of local
+  hidden-variable theories. *Phys. Rev. Lett.* **28**, 938 (1972).
+- Cirel'son B. S. Quantum generalizations of Bell's inequality.
+  *Lett. Math. Phys.* **4**, 93 (1980).
+- Ghirardi G. C., Rimini A., Weber T. A general argument against
+  superluminal transmission through the quantum mechanical measurement
+  process. *Lett. Nuovo Cimento* **27**, 293 (1980).
+- Aspect A., Grangier P., Roger G. Experimental realization of
+  Einstein-Podolsky-Rosen-Bohm Gedankenexperiment: a new violation of
+  Bell's inequalities. *Phys. Rev. Lett.* **49**, 91 (1982).
+- Aspect A., Dalibard J., Roger G. Experimental test of Bell's
+  inequalities using time-varying analyzers. *Phys. Rev. Lett.* **49**,
+  1804 (1982).
+- Garg A., Mermin N. D. Detector inefficiencies in the
+  Einstein-Podolsky-Rosen experiment. *Phys. Rev. D* **35**, 3831 (1987).
+- Werner R. F. Quantum states with Einstein-Podolsky-Rosen correlations
+  admitting a hidden-variable model. *Phys. Rev. A* **40**, 4277 (1989).
+- Eberhard P. H. Background level and counter efficiencies required for
+  a loophole-free Einstein-Podolsky-Rosen experiment. *Phys. Rev. A*
+  **47**, R747 (1993).
+- Page D. N. Average entropy of a subsystem. *Phys. Rev. Lett.* **71**,
+  1291 (1993); arXiv:gr-qc/9305007.
+- Popescu S., Rohrlich D. Quantum nonlocality as an axiom.
+  *Found. Phys.* **24**, 379 (1994).
+- Gisin N. Bell's inequality holds for all non-product states.
+  *Phys. Lett. A* **154**, 201 (1991).
+- Horodecki R., Horodecki P., Horodecki M. Violating Bell inequality by
+  mixed spin-1/2 states: necessary and sufficient condition.
+  *Phys. Lett. A* **200**, 340 (1995).
+- Bennett C. H., Bernstein H. J., Popescu S., Schumacher B. Concentrating
+  partial entanglement by local operations. *Phys. Rev. A* **53**, 2046
+  (1996).
+- Peres A. Separability criterion for density matrices.
+  *Phys. Rev. Lett.* **77**, 1413 (1996).
+- Horodecki M., Horodecki P., Horodecki R. Separability of mixed states:
+  necessary and sufficient conditions. *Phys. Lett. A* **223**, 1 (1996).
+- Weihs G., Jennewein T., Simon C., Weinfurter H., Zeilinger A.
+  Violation of Bell's inequality under strict Einstein locality
+  conditions. *Phys. Rev. Lett.* **81**, 5039 (1998).
+- Horodecki R., Horodecki P., Horodecki M., Horodecki K. Quantum
+  entanglement. *Rev. Mod. Phys.* **81**, 865 (2009).
+- Hensen B. et al. Loophole-free Bell inequality violation using
+  electron spins separated by 1.3 kilometres. *Nature* **526**, 682
+  (2015); arXiv:1508.05949.
+- Giustina M. et al. Significant-loophole-free test of Bell's theorem
+  with entangled photons. *Phys. Rev. Lett.* **115**, 250401 (2015);
+  arXiv:1511.03190.
+- Shalm L. K. et al. Strong loophole-free test of local realism.
+  *Phys. Rev. Lett.* **115**, 250402 (2015); arXiv:1511.03189.
+- Rauch D. et al. Cosmic Bell test using random measurement settings
+  from high-redshift quasars. *Phys. Rev. Lett.* **121**, 080403 (2018).
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert np.allclose(sorted(lam_w), sorted([(3 - math.sqrt(5)) / 6, (3 + math.sqrt(5)) / 6]))
+assert round(shannon_bits(lam_w), 2) == 0.55
+for n_env, mean, err, exact in page_rows:
+    assert abs(mean - exact) < 4 * err + 1e-3
+assert round(page_mean_entropy(2, 16) / math.log(2), 2) == 0.93
+assert sp.simplify(min(pt_eigs, key=lambda e: e.subs(p, 1)) - (1 - 3 * p) / 4) == 0 and p_entangled == sp.Rational(1, 3)
+assert lhv_values == {-2, 2}
+assert identity_gap < 1e-12 and abs(eigvals[-1] - 2 * math.sqrt(2)) < 1e-12
+assert abs(shannon_bits(schmidt_coefficients(psi_max, 2, 2)) - 1) < 1e-9
+assert abs(horodecki_smax(werner(0.9)) - 2 * math.sqrt(2) * 0.9) < 1e-12
+assert np.allclose(correlation_matrix(werner(0.6)), -0.6 * np.eye(3))
+assert signal < 1e-14
+assert sp.simplify(eta_crit - 4 / (S_q + 2)) == 0
+assert sp.simplify(eta_tsirelson - 2 * (sp.sqrt(2) - 1)) == 0 and round(float(eta_tsirelson), 3) == 0.828
+# 1
+assert round(shannon_bits(schmidt_coefficients(np.array([1, 0, 0, 2]) / math.sqrt(5), 2, 2)), 3) == 0.722
+# 2
+th = math.pi / 8
+assert np.allclose(correlation_matrix(partial_state(th)), np.diag([math.sin(2 * th), -math.sin(2 * th), 1]))
+assert abs(horodecki_smax(partial_state(th)) - math.sqrt(6)) < 1e-12 and round(math.sqrt(6), 3) == 2.449
+# 3
+assert round(4 / 4.70, 3) == 0.851
+# 4
+s4 = page_mean_entropy(2, 2)
+assert abs(s4 - 1 / 3) < 1e-12 and round(s4 / math.log(2), 3) == 0.481 and round(math.log(2) / s4, 2) == 2.08
+# 5
+from scipy.optimize import brentq
+f5 = lambda t: 3 * math.cos(t) - math.cos(3 * t) - 2
+assert round(3 * math.cos(math.radians(30)) - math.cos(math.radians(90)), 3) == 2.598
+assert round(math.degrees(brentq(f5, 0.3, 1.3)), 1) == 68.5 and round(180 - math.degrees(brentq(f5, 0.3, 1.3)), 1) == 111.5
+assert all(abs(f5(t) + 2) < 2 for t in np.radians(np.linspace(69, 111, 50)))
+# опыт со синглетом в схеме θ: S(θ) из корреляций −a·b
+th5 = 0.4
+a1, b0, a0, b1 = unit(0), unit(th5), unit(2 * th5), unit(3 * th5)
+s_singlet = werner(1.0)
+E = lambda a, b: np.trace(s_singlet @ np.kron(spin_along(a), spin_along(b))).real
+assert abs(abs(E(a0, b0) + E(a0, b1) + E(a1, b0) - E(a1, b1)) - (3 * math.cos(th5) - math.cos(3 * th5))) < 1e-12
+```
