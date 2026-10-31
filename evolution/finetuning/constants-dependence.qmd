@@ -1,0 +1,541 @@
+---
+title: "Как структура мира зависит от констант"
+topic: constants-dependence
+order: 1
+description: "Три безразмерных параметра α, α_G, β = m_e/m_p и масштабы атомов, планет, звёзд и времён жизни звёзд как их степени; одно-зонная модель: максимальная температура звезды ∝ α_G²(M/m_p)^{4/3} m_ec², нижняя граница масс горения водорода как функция α и β; верхняя граница по давлению излучения; окно масс звёзд при других α и G; время жизни звезды ∝ α²α_G⁻¹β⁻²; совпадение Картера α_G ~ α¹²β⁴"
+---
+
+В теме «Оценки по порядку величины» мы получили размеры атома,
+наибольшей холодной планеты и массу звезды из фундаментальных констант.
+Там вопрос был «почему мир такой»; здесь — «каким он был бы при других
+константах». Это не праздное любопытство. Утверждения о «тонкой
+настройке» — что малое изменение констант сделало бы невозможными
+звёзды, химию или жизнь — встречаются и в научной литературе, и в
+популярных книгах, и проверять их надо расчётом, а не интуицией.
+Начнём с самого надёжного: что константы делают со звёздами.
+
+Мы будем менять константы поодиночке, «при прочих равных», — это
+модельное допущение: в реальной теории (например, при объединении
+взаимодействий) константы могут быть связаны. Вопрос «может ли
+константа быть другой» и «что из этого следует для наблюдателей» —
+темы «Антропные рассуждения» и «Мультивселенная и проблема меры».
+
+В этой статье:
+
+- выразим масштабы атомов, планет и звёзд через три безразмерных
+  параметра и сведём показатели степеней в таблицу;
+- найдём, как от констант зависят максимальная температура звезды и
+  нижняя граница масс горения водорода;
+- найдём окно масс звёзд и его зависимость от $\alpha$;
+- выведем зависимость времени жизни звезды от констант и разберём
+  совпадение Картера.
+
+## Три безразмерных параметра
+
+::: {#def-structure-constants}
+**Структурные параметры** макроскопического мира (Карр и Рис, 1979):
+$$
+\alpha = \frac{e^2}{\hbar c} \approx \frac{1}{137},\qquad
+\alpha_G = \frac{Gm_p^2}{\hbar c} \approx 5{,}9\cdot10^{-39},\qquad
+\beta = \frac{m_e}{m_p} \approx \frac{1}{1836}.
+$$
+Масштабы измеряются в единицах $m_p$ (масса), $\hbar/(m_pc)$ (длина),
+$\hbar/(m_pc^2)$ (время).
+:::
+
+К ним добавляются параметры ядерной физики: энерговыделение синтеза
+$\varepsilon \approx 0{,}007$ (доля $mc^2$ при превращении водорода в
+гелий) и абсолютные скорости реакций (слабое взаимодействие в
+pp-реакции). Их мы держим фиксированными, кроме **гамовской энергии**,
+которая зависит от $\alpha$ явно:
+$E_G = 2m_rc^2(\pi\alpha Z_1Z_2)^2$, для двух протонов
+$E_G = \pi^2\alpha^2m_pc^2 \approx 0{,}49$ МэВ.
+
+Соберём масштабы, полученные в теме «Оценки по порядку величины» и в
+разделе «Физика звёзд», и найдём их показатели по трём параметрам
+(логарифмические производные):
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import quad
+from scipy.optimize import brentq, minimize_scalar
+
+from cosmevo.stellar import M_U, lane_emden, one_zone_track
+
+hbar, c, G = const.hbar.cgs.value, const.c.cgs.value, const.G.cgs.value
+m_p, m_e, k_B = const.m_p.cgs.value, const.m_e.cgs.value, const.k_B.cgs.value
+M_sun, yr = const.M_sun.cgs.value, u.yr.to(u.s)
+alpha0 = const.alpha.value
+alphaG0 = G * m_p**2 / (hbar * c)
+beta0 = m_e / m_p
+print(f"α = 1/{1 / alpha0:.3f},  α_G = {alphaG0:.3e},  β = 1/{1 / beta0:.2f}")
+
+al, aG, be, eps_n = sp.symbols("alpha alpha_G beta epsilon", positive=True)
+# масштабы в единицах m_p, ħ/(m_p c), ħ/(m_p c²), m_p c²
+scales = {
+    "боровский радиус a₀":                 1 / (al * be),
+    "энергия связи атома (Ry)":            al**2 * be / 2,
+    "масса наибольшей планеты":            (al / aG) ** sp.Rational(3, 2),
+    "радиус наибольшей планеты":           (al / aG) ** sp.Rational(1, 2) / (al * be),
+    "масса звезды α_G^{-3/2} m_p":         aG ** sp.Rational(-3, 2),
+    "эддингтоновское время ε σ_T c/(4πGm_p)": eps_n * sp.Rational(2, 3) * al**2 / (aG * be**2),
+}
+print(f"{'масштаб':42s} {'α':>6s} {'α_G':>6s} {'β':>6s}")
+for name, expr in scales.items():
+    powers = [sp.simplify(v * sp.diff(sp.log(expr), v)) for v in (al, aG, be)]
+    print(f"{name:42s} " + " ".join(f"{str(p):>6s}" for p in powers))
+```
+
+Эддингтоновское время $t_E = \varepsilon c^2M/L_{\rm Edd} =
+\varepsilon\sigma_Tc/(4\pi Gm_p)$ — время жизни звезды, светящей на
+эддингтоновском пределе; с $\sigma_T = \frac{8\pi}{3}\alpha^2(\hbar/m_ec)^2$
+оно равно $\frac23\varepsilon\,\alpha^2\alpha_G^{-1}\beta^{-2}\,\hbar/(m_pc^2)$.
+Проверим, что это то же время, что получается в СГС:
+
+```{python}
+sigma_T = const.sigma_T.cgs.value
+eps_H = 0.007
+t_E_cgs = eps_H * sigma_T * c / (4 * math.pi * G * m_p)
+t_E_dimless = float(scales["эддингтоновское время ε σ_T c/(4πGm_p)"].subs(
+    {eps_n: eps_H, al: alpha0, aG: alphaG0, be: beta0})) * hbar / (m_p * c**2)
+print(f"t_E = {t_E_cgs / yr:.3e} лет (СГС),  {t_E_dimless / yr:.3e} лет (через α, α_G, β)")
+```
+
+Знак показателя сразу говорит, что чему мешает: усиление гравитации
+(рост $\alpha_G$) уменьшает массы звёзд как $\alpha_G^{-3/2}$ и время
+их жизни как $\alpha_G^{-1}$; рост $\alpha$ увеличивает время жизни
+(больше непрозрачность), но, как мы увидим, затрудняет зажигание.
+
+## Максимальная температура звезды
+
+В теме «Эволюция звёзд» одно-зонная модель центра звезды дала
+максимальную температуру, которой достигает сжимающийся газовый шар,
+прежде чем электроны станут вырожденными. Повторим вывод в общем виде.
+Давление в центре политропы индекса $n$ равно
+$P_c = W_nGM^{2/3}\rho_c^{4/3}$; давление вещества — сумма давления
+идеального газа ионов и электронов и давления нерелятивистского
+вырожденного газа:
+$$
+W_nGM^{2/3}\rho^{4/3} = \frac{\rho\,kT}{\mu m_u} + K_1\Big(\frac{\rho}{\mu_em_u}\Big)^{5/3},
+\qquad K_1 = \frac{(3\pi^2)^{2/3}\hbar^2}{5m_e}.
+$$
+
+```{python}
+rho, Mv, Wn, mu, mue, mu_ = sp.symbols("rho M W_n mu mu_e m_u", positive=True)
+hb, Gs, me_s, cs = sp.symbols("hbar G m_e c", positive=True)
+K1 = (3 * sp.pi**2) ** sp.Rational(2, 3) * hb**2 / (5 * me_s)
+kT_of_rho = mu * mu_ / rho * (Wn * Gs * Mv ** sp.Rational(2, 3) * rho ** sp.Rational(4, 3)
+                               - K1 * (rho / (mue * mu_)) ** sp.Rational(5, 3))
+rho_star = sp.solve(sp.diff(kT_of_rho, rho), rho)[0]
+kT_max = sp.simplify(kT_of_rho.subs(rho, rho_star))
+# перейдём к α_G и N = M/m_p (m_u ≈ m_p): kT_max/(m_e c²) = C · α_G² N^{4/3}
+N_s, mp_s = sp.symbols("N m_p", positive=True)
+ratio_expr = sp.simplify((kT_max / (me_s * cs**2)).subs({mu_: mp_s, Mv: N_s * mp_s, Gs: aG * hb * cs / mp_s**2}))
+C_coef = sp.simplify(ratio_expr / (aG**2 * N_s ** sp.Rational(4, 3)))
+print("kT_max =", kT_max)
+print("kT_max/(m_e c²) = C α_G² N^{4/3},  C =", C_coef)
+```
+
+Итак,
+$$
+kT_{\max} = C\,\alpha_G^2\Big(\frac{M}{m_p}\Big)^{4/3}m_ec^2,\qquad
+C = \frac{5\,\mu\,\mu_e^{5/3}W_n^2}{4(3\pi^2)^{2/3}} .
+$$
+В единицах $M = \mathcal N\alpha_G^{-3/2}m_p$ это
+$kT_{\max} = C\mathcal N^{4/3}m_ec^2$: **звезда массы порядка
+$\alpha_G^{-3/2}m_p$ разогревается до температуры порядка $m_ec^2$,
+какой бы ни была гравитационная постоянная** [У]{.status} (в рамках
+модели). Формула верна, пока $kT_{\max} \ll m_ec^2$; при массах,
+приближающихся к пределу Чандрасекара, электроны становятся
+релятивистскими и максимум температуры исчезает: давление вырожденного
+газа уже не может остановить сжатие.
+
+Сверим формулу с точным одно-зонным расчётом (электроны Ферми–Дирака
+любой степени релятивизма, `cosmevo.stellar.one_zone_track`) для
+солнечного состава и $n = 3$:
+
+```{python}
+X = 0.7
+MU_I, MU_E = 1 / (X + (1 - X) / 4), 2 / (1 + X)       # ионы и электроны солнечной смеси
+omega3 = lane_emden(3).omega
+W3 = (4 * math.pi) ** (1 / 3) / (4 * omega3 ** (2 / 3))
+mu_tot = 1 / (1 / MU_I + 1 / MU_E)                    # полное μ газа (ионы + электроны)
+C_num = float(C_coef.subs({Wn: W3, mu: mu_tot, mue: MU_E}))
+
+def T_max_analytic(M):
+    return C_num * alphaG0**2 * (M / m_p) ** (4 / 3) * m_e * c**2 / k_B
+
+def T_max_exact(M):
+    """Максимум T_c вдоль пути сжатия в одно-зонной модели с точным уравнением состояния электронов."""
+    f = lambda e: -one_zone_track(M, MU_I, MU_E, e)[1]
+    grid = np.linspace(-6, 30, 19)
+    vals = [f(e) for e in grid]
+    i = int(np.nanargmin(vals))
+    best = minimize_scalar(f, bounds=(grid[max(i - 1, 0)], grid[min(i + 1, 18)]),
+                           method="bounded", options={"xatol": 1e-3})
+    return -best.fun
+
+masses = np.array([0.01, 0.015, 0.02, 0.03, 0.05, 0.08, 0.12, 0.2, 0.3, 0.5, 0.8, 1.2, 2.0, 3.0, 3.6, 3.9, 4.05, 4.15])
+T_exact = np.array([T_max_exact(M * M_sun) for M in masses])
+for M, Te in zip(masses[[0, 5, 9, 12, 15]], T_exact[[0, 5, 9, 12, 15]]):
+    print(f"M = {M:4.2f} M☉: точно {Te:.2e} К,  формула {T_max_analytic(M * M_sun):.2e} К")
+```
+
+```{python}
+# предел, при котором максимум температуры исчезает: релятивистский вырожденный газ
+K2 = (3 * math.pi**2) ** (1 / 3) * hbar * c / 4
+M_lim = (K2 / (W3 * G)) ** 1.5 / (MU_E * M_U) ** 2
+print(f"одно-зонный аналог предела Чандрасекара для μ_e = {MU_E:.3f}: {M_lim / M_sun:.2f} M☉")
+```
+
+При малых массах формула занижает температуру примерно в 1,5 раза
+(сумма давлений идеального и полностью вырожденного газа грубо
+описывает частично вырожденные электроны), но правильно передаёт
+закон $M^{4/3}$. При массах в несколько $M_\odot$ температура растёт
+много быстрее $M^{4/3}$ и уходит в бесконечность у предела
+$4{,}2\,M_\odot$ — это в точности предел Чандрасекара
+$5{,}83\,M_\odot/\mu_e^2$ для водородной смеси: для политропы $n = 3$
+одно-зонная оценка релятивистского предела точна.
+
+## Зажигание и нижняя граница масс
+
+Водород загорается, когда энерговыделение pp-цепочки сравнивается с
+потерями энергии звездой. В теме «Эволюция звёзд» это дало
+$T_{\rm ign} \approx (2$–$3)\cdot10^6$ К. Скорость реакции
+$\propto \exp[-3(E_G/4kT)^{1/3}]$ с медленно меняющимся множителем,
+поэтому требование «скорость фиксирована» означает, что
+$E_G/kT_{\rm ign}$ фиксировано с точностью до логарифмических
+поправок, и
+$$
+T_{\rm ign} \propto E_G \propto \alpha^2 .
+$$
+Проверим, насколько точен этот закон: найдём температуру, при которой
+pp-реакция (с тем же $S$-фактором) даёт заданное энерговыделение, при
+других $\alpha$:
+
+```{python}
+keV, barn, MeV = u.keV.to(u.erg), 1e-24, u.MeV.to(u.erg)
+UC2_MEV = (const.u * const.c**2).to(u.MeV).value
+
+def eps_pp(rho_, T, alpha):
+    """Энерговыделение pp-цепочки, эрг/(г·с): S(0) = 4,01·10⁻²² кэВ·барн, 13,1 МэВ на реакцию."""
+    m_red = 1.007276 / 2
+    kT = k_B * T / keV
+    E_G = 2 * m_red * UC2_MEV * 1e3 * (math.pi * alpha) ** 2          # кэВ
+    E0 = (E_G * kT**2 / 4) ** (1 / 3)
+    gamow = quad(lambda E: math.exp(-E / kT - math.sqrt(E_G / E)), 0, 60 * E0, points=[E0], limit=200)[0]
+    sigma_v = math.sqrt(8 / (math.pi * m_red * M_U)) * (kT * keV) ** -1.5 * 4.01e-22 * keV * barn * gamow * keV
+    n_p = rho_ * X / (1.007276 * M_U)
+    return 0.5 * n_p**2 * sigma_v * 13.1 * MeV / rho_
+
+def T_ign(alpha, eps_target=3e-3, rho_=300.0):
+    """Температура, при которой ε_pp = eps_target; поиск вокруг оценки T ∝ α²."""
+    guess = math.log10(2.5e6 * (alpha / alpha0) ** 2)
+    return 10 ** brentq(lambda lgT: math.log(eps_pp(rho_, 10**lgT, alpha) / eps_target), guess - 0.7, guess + 0.7)
+
+T_ign0 = T_ign(alpha0)
+for k in (0.5, 2, 5, 10):
+    print(f"α = {k:4} α₀: T_ign/T_ign0 = {T_ign(k * alpha0) / T_ign0:7.2f}   (α/α₀)² = {k**2:6.2f}")
+print(f"T_ign0 = {T_ign0:.2e} К;  E_G/kT_ign0 = {math.pi**2 * alpha0**2 * m_p * c**2 / (k_B * T_ign0):.0f}")
+```
+
+Закон $T_{\rm ign} \propto \alpha^2$ выполняется с точностью до
+логарифмических поправок [У]{.status}: при удвоении $\alpha$ ошибка
+около 10 %, при росте в 10 раз — около 40 % (температура зажигания
+растёт чуть быстрее $\alpha^2$: предэкспоненциальный множитель
+скорости тоже падает с ростом $E_G$).
+
+**Нижняя граница масс.** Звезда загорается, если
+$T_{\max}(M) > T_{\rm ign}$. В нерелятивистской области это даёт
+$$
+M_{\min} = m_p\,\alpha_G^{-3/2}\left(\frac{kT_{\rm ign}}{C\,m_ec^2}\right)^{3/4}
+\;\propto\; \alpha_G^{-3/2}\,\alpha^{3/2}\,\beta^{-3/4}.
+$$
+Более тяжёлый электрон (больший $\beta$) мешает вырождению и снижает
+$M_{\min}$; больший $\alpha$ поднимает порог зажигания и повышает её.
+Найдём $M_{\min}(\alpha)$ по точной кривой $T_{\max}(M)$:
+
+```{python}
+lgM, lgT = np.log10(masses), np.log10(T_exact)
+
+def M_min(alpha):
+    """Наименьшая масса (M☉), достигающая T_ign(α), по интерполяции точной кривой T_max(M)."""
+    target = math.log10(T_ign(alpha))
+    if not lgT[0] <= target <= lgT[-1]:
+        return math.nan                       # вне таблицы масс
+    return 10 ** np.interp(target, lgT, lgM)
+
+alpha_ratios = np.array([0.3, 0.5, 1, 2, 3, 5, 7, 10])
+Mmin_vals = np.array([M_min(k * alpha0) for k in alpha_ratios])
+for k, Mm in zip(alpha_ratios, Mmin_vals):
+    print(f"α = {k:4} α₀: M_min = {Mm:6.3f} M☉,  T_ign = {T_ign(k * alpha0):.1e} К")
+```
+
+В нашей Вселенной модель даёт $M_{\min} \approx 0{,}1\,M_\odot$ — близко
+к наблюдаемой границе между звёздами и коричневыми карликами,
+$\approx 0{,}075\,M_\odot$ (Шабрие и Барафф, 2000).
+
+## Верхняя граница и окно масс
+
+Сверху массы звёзд ограничены давлением излучения: по квартике
+Эддингтона (тема «Уравнения строения звезды») доля давления излучения
+$1 - \beta_r$ растёт с массой, и когда она становится порядка
+половины, звезда близка к неустойчивости. Масштаб этой массы —
+$(\hbar c/G)^{3/2}m_u^{-2}$ с множителем, зависящим только от $\mu$, —
+**не зависит от $\alpha$ и $\beta$** (давление излучения и газа не
+содержат заряда электрона):
+
+```{python}
+a_rad = const.sigma_sb.cgs.value * 4 / c
+
+def mass_of_beta_r(b, mu_gas=0.61):
+    """Масса политропы n = 3 с долей газового давления b (модель Эддингтона), г."""
+    K = (3 / a_rad * (k_B / (mu_gas * M_U)) ** 4 * (1 - b) / b**4) ** (1 / 3)
+    return 4 * math.pi * omega3 * (K / (math.pi * G)) ** 1.5
+
+M_max = mass_of_beta_r(0.5)
+alpha_1e9 = brentq(lambda k: math.log(T_ign(k * alpha0) / 1e9), 5, 30)
+scale = (hbar * c / G) ** 1.5 / M_U**2
+print(f"M(β_r = 1/2) = {M_max / M_sun:.0f} M☉ = {M_max / scale:.1f} (ħc/G)^(3/2)/m_u²")
+print(f"окно масс сейчас: M_max/M_min = {M_max / M_sun / M_min(alpha0):.0f};  T_ign = 10⁹ К при α = {alpha_1e9:.1f} α₀")
+```
+
+Наблюдаемые звёзды не тяжелее $\sim150$–$300\,M_\odot$, что согласуется
+с этим масштабом [У]{.status}; точное значение верхнего предела зависит
+и от потери массы, и от звездообразования [Г]{.status}.
+
+Итак, **окно масс звёзд** $[M_{\min}, M_{\max}]$ целиком сдвигается
+как $\alpha_G^{-3/2}$ при изменении гравитации, а его ширина зависит
+от $\alpha$ и $\beta$. При росте $\alpha$ нижняя граница поднимается,
+но не выше предела Чандрасекара $4{,}2\,M_\odot$, который лежит
+ниже $M_{\max}$: в рамках модели водородные звёзды существуют при
+любом $\alpha$ (@fig-window). Однако при $\alpha \gtrsim 16\,\alpha_0$
+температура зажигания превышает $10^9$ К ($kT \approx 0{,}17\,m_ec^2$):
+там рождаются электрон-позитронные пары и уносящие энергию нейтрино,
+которых модель не учитывает, и звёзды узкого диапазона масс вблизи
+предела вряд ли были бы похожи на наши [Г]{.status}. Детальный анализ
+(Адамс, 2008) с полуаналитической моделью звезды и варьированием $G$,
+$\alpha$ и ядерных скоростей показал, что звёзды с устойчивым
+термоядерным горением возможны примерно в четверти логарифмически
+широкого пространства параметров [Г]{.status} (доля зависит от
+выбранных пределов изменения параметров).
+
+```{python}
+#| label: fig-window
+#| fig-cap: "Слева: максимальная центральная температура звезды солнечного состава в одно-зонной модели (точки и линия — точный расчёт с электронами Ферми–Дирака, штриховая — формула ∝ M^{4/3}) и температуры зажигания водорода при α/α₀ = 1, 3, 10 (горизонтальные линии; T_ign растёт примерно как α²). Пересечения дают нижнюю границу масс горения; вертикальная пунктирная линия — одно-зонный предел Чандрасекара, у которого T_max неограниченно растёт. Справа: окно масс звёзд как функция α при неизменных G и m_e/m_p: нижняя граница M_min(α), верхняя граница по давлению излучения (β_r = 1/2) и предел Чандрасекара; при α ≈ 12α₀ нижняя граница практически упирается в него."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+M_grid = np.logspace(math.log10(masses[0]), math.log10(masses[-1]), 300)
+ax1.loglog(masses, T_exact, "o", color="tab:blue", ms=4)
+ax1.loglog(M_grid, 10 ** np.interp(np.log10(M_grid), lgM, lgT), color="tab:blue", label="T_max, точный расчёт")
+ax1.loglog(M_grid[M_grid < 2], [T_max_analytic(M * M_sun) for M in M_grid[M_grid < 2]],
+           color="tab:blue", ls="--", lw=1, label=r"$\propto M^{4/3}$")
+for k, col in ((1, "tab:green"), (3, "tab:orange"), (10, "tab:red")):
+    ax1.axhline(T_ign(k * alpha0), color=col, lw=1, label=f"T_ign при α = {k}α₀")
+ax1.axvline(M_lim / M_sun, color="0.4", ls=":", lw=1)
+ax1.set(xlabel="M / M☉", ylabel="T, К", ylim=(1e5, 3e10))
+ax1.legend(fontsize=7.5, loc="upper left")
+ax1.grid(alpha=0.2, which="both")
+alpha_edge = brentq(lambda k: math.log(T_ign(k * alpha0) / T_exact[-1]), 5, 20)   # M_min = 4,15 M☉
+ar = np.logspace(math.log10(0.3), math.log10(alpha_edge), 40)
+Mm = [M_min(k * alpha0) for k in ar]
+ax2.fill_between(ar, Mm, M_max / M_sun, color="tab:blue", alpha=0.15, label="окно масс звёзд")
+ax2.loglog(ar, Mm, color="tab:blue", label="M_min(α)")
+ax2.axhline(M_max / M_sun, color="tab:red", ls="--", label="M_max (β_r = 1/2)")
+ax2.axhline(M_lim / M_sun, color="0.4", ls=":", label="предел Чандрасекара (одно-зонный)")
+ax2.axvline(1, color="0.6", lw=0.8)
+ax2.set(xlabel="α / α₀", ylabel="M / M☉", ylim=(0.01, 500))
+ax2.legend(fontsize=7.5, loc="lower right")
+ax2.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+## Время жизни звезды
+
+Время жизни звезды на главной последовательности — запас ядерной
+энергии $\varepsilon Mc^2$ (на долю сгорающего вещества) делённый на
+светимость. Для лучистой звезды с томсоновской непрозрачностью
+гомология (тема «Уравнения строения звезды») даёт
+$L \propto (ac/\kappa)\,G^4M^3(\mu m_p/k)^4$, где
+$a = \pi^2k^4/(15\hbar^3c^3)$ и $\kappa = \sigma_T/m_p$. Проверим, как
+время жизни зависит от констант при фиксированной «безразмерной массе»
+$\mathcal N = M\alpha_G^{3/2}/m_p$:
+
+```{python}
+kB_s, Ns = sp.symbols("k_B mathcal_N", positive=True)
+a_s = sp.pi**2 * kB_s**4 / (15 * hb**3 * cs**3)
+sigma_T_s = sp.Rational(8, 3) * sp.pi * al**2 * (hb / (me_s * cs)) ** 2
+kappa_s = sigma_T_s / mp_s
+M_s = Ns * (hb * cs / Gs) ** sp.Rational(3, 2) / mp_s**2
+L_s = a_s * cs / kappa_s * Gs**4 * M_s**3 * (mp_s / kB_s) ** 4          # с точностью до множителя
+t_s = eps_n * M_s * cs**2 / L_s
+t_dimless = sp.simplify((t_s / (hb / (mp_s * cs**2))).subs({Gs: aG * hb * cs / mp_s**2, me_s: be * mp_s}))
+print("t / (ħ/m_p c²) =", t_dimless)
+print("показатели α, α_G, β, 𝒩:", [sp.simplify(v * sp.diff(sp.log(t_dimless), v)) for v in (al, aG, be, Ns)])
+```
+
+$$
+t_\star \propto \varepsilon\,\alpha^2\alpha_G^{-1}\beta^{-2}\,\mathcal N^{-2}\,\frac{\hbar}{m_pc^2}
+$$
+— та же комбинация, что и в эддингтоновском времени [У]{.status} (в
+рамках гомологии; у реальных звёзд малой массы непрозрачность выше
+томсоновской, что меняет множитель, но не порядок величины для
+звёзд вблизи $\mathcal N \sim 1$). Поэтому, например, при гравитации в
+100 раз сильнее звёзды были бы в $100^{3/2} = 1000$ раз легче, а жили
+бы при той же $\mathcal N$ в 100 раз меньше: «Солнце» такого мира
+светило бы около 100 млн лет [У]{.status} (в модели). Хватит ли этого
+для чего-то, кроме звёзд, — вопрос уже не физики звёзд [С]{.status}.
+
+## Совпадение Картера
+
+Картер (1974) заметил, что
+$$
+\alpha_G \sim \alpha^{12}\beta^4
+$$
+— и связал это с тем, что звёзды типичной массы находятся на границе
+между полностью конвективными (красные карлики) и лучистыми (голубые
+гиганты) [У]{.status} как утверждение о числах. Вывод (Картер, 1974;
+Карр и Рис, 1979) сравнивает эффективную температуру поверхности звезды
+массы $\sim\alpha_G^{-3/2}m_p$ с температурой ионизации водорода
+$\sim\alpha^2m_ec^2$: при равенстве оболочка звезды на границе
+конвективной неустойчивости. Сравним числа:
+
+```{python}
+carter = alpha0**12 * beta0**4
+print(f"α¹²β⁴ = {carter:.2e},  α_G = {alphaG0:.2e},  отношение α_G/(α¹²β⁴) = {alphaG0 / carter:.1f}")
+print(f"чтобы отношение изменилось в 10 раз, достаточно изменить α на {(10 ** (1 / 12) - 1) * 100:.0f} %")
+```
+
+Совпадение — в пределах множителя 3, и оно «острое» по $\alpha$:
+показатель 12 означает, что изменение $\alpha$ на 20 % сдвигает
+баланс в 10 раз. Картер предположил, что без звёзд обоих типов не было
+бы либо планет (если образование планет связано с конвективными
+звёздами), либо сверхновых, и это — пример антропного рассуждения
+[С]{.status}: связь между типом звезды и возможностью жизни не
+установлена. Сам числовой факт [У]{.status} — пример того, как
+степень константы в формуле превращает малое изменение в большое.
+
+## Физика и наблюдательный статус
+
+- Масштабы атомов, планет и звёзд как степени $\alpha$, $\alpha_G$,
+  $\beta$ — следствия известной физики [У]{.status}; численные
+  множители требуют полного расчёта.
+- В одно-зонной модели окно масс звёзд сдвигается как
+  $\alpha_G^{-3/2}$, а его нижняя граница растёт как
+  $\alpha^{3/2}\beta^{-3/4}$; модель воспроизводит наблюдаемые пределы
+  ($\sim0{,}1$ и $\sim10^2\,M_\odot$) с точностью до множителя порядка
+  единицы [У]{.status}.
+- Утверждение «при другой $\alpha$ звёзд бы не было» в такой простой
+  форме неверно: водородные звёзды существуют в широком диапазоне $G$
+  и $\alpha$ [Г]{.status} (Адамс, 2008); что меняется — их массы,
+  времена жизни и спектры.
+- Связи между структурой звёзд и возможностью жизни, на которых
+  строятся аргументы о тонкой настройке, — [С]{.status}; более
+  чувствительные к константам процессы (резонанс Хойла, стабильность
+  ядер, первичный нуклеосинтез) — темы «Чувствительность резонанса
+  Хойла к константам» и «Альтернативные вселенные».
+
+## Итоги
+
+- Три параметра $\alpha$, $\alpha_G$, $\beta$ задают масштабы
+  макромира; масса звезды $\sim\alpha_G^{-3/2}m_p$, время жизни
+  $\propto\alpha^2\alpha_G^{-1}\beta^{-2}\hbar/(m_pc^2)$.
+- Максимальная температура газового шара
+  $kT_{\max} = C\alpha_G^2(M/m_p)^{4/3}m_ec^2$; для массы
+  $\mathcal N\alpha_G^{-3/2}m_p$ это $C\mathcal N^{4/3}m_ec^2$ — не
+  зависит от $G$.
+- $T_{\rm ign} \propto \alpha^2$; нижняя граница масс горения
+  $\propto\alpha_G^{-3/2}\alpha^{3/2}\beta^{-3/4}$, верхняя
+  $\propto\alpha_G^{-3/2}$; окно закрывается лишь у предела
+  Чандрасекара.
+- Совпадение Картера $\alpha_G \approx 3\,\alpha^{12}\beta^4$ — пример
+  высокой чувствительности, но не доказательство тонкой настройки.
+
+## Упражнения
+
+1. Во сколько раз изменились бы масса наибольшей холодной планеты и
+   боровский радиус, если бы $\alpha$ была вдвое больше?
+2. Как изменилась бы нижняя граница масс горения водорода, если бы
+   электрон был вдвое тяжелее (в нерелятивистском приближении)?
+3. Найдите эддингтоновское время $t_E$ при $\alpha_G$ в $10^3$ раз
+   больше нынешнего и при $\alpha$ вдвое больше нынешней.
+4. Найдите, при каком $\alpha/\alpha_0$ температура зажигания водорода
+   достигает $10^9$ К, если считать $T_{\rm ign} \propto \alpha^2$ от
+   нынешних $2{,}5\cdot10^6$ К. Сравните с точным расчётом в статье.
+5. На сколько процентов надо изменить $\beta$, чтобы отношение
+   $\alpha_G/(\alpha^{12}\beta^4)$ изменилось в 10 раз?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. Масса планеты $\propto\alpha^{3/2}$ — в 2,83 раза больше; $a_0
+   \propto\alpha^{-1}$ — вдвое меньше.
+2. $M_{\min} \propto\beta^{-3/4}$: в $2^{-3/4} = 0{,}59$ раза (на 41 %
+   меньше).
+3. $t_E \propto\alpha^2\alpha_G^{-1}$: $3{,}2$ млн лет $\times 4/1000$
+   $= 1{,}3\cdot10^4$ лет.
+4. $\alpha/\alpha_0 = (10^9/2{,}5\cdot10^6)^{1/2} = 20$; учёт
+   логарифмических поправок даёт 16: температура зажигания растёт
+   чуть быстрее $\alpha^2$.
+5. $10^{1/4} = 1{,}78$: увеличить $\beta$ на 78 % (или уменьшить на
+   44 %).
+:::
+
+## Литература
+
+- Carter B. Large number coincidences and the anthropic principle in
+  cosmology. In: *Confrontation of Cosmological Theories with
+  Observational Data* (IAU Symp. 63) / Ed. M. S. Longair. — Dordrecht:
+  Reidel, 1974. P. 291.
+- Carr B. J., Rees M. J. The anthropic principle and the structure of
+  the physical world. *Nature* **278**, 605 (1979).
+- Press W. H., Lightman A. P. Dependence of macrophysical phenomena on
+  the values of the fundamental constants. *Phil. Trans. R. Soc. Lond.
+  A* **310**, 323 (1983).
+- Barrow J. D., Tipler F. J. *The Anthropic Cosmological Principle.* —
+  Oxford: Clarendon Press, 1986.
+- Chabrier G., Baraffe I. Theory of low-mass stars and substellar
+  objects. *Annu. Rev. Astron. Astrophys.* **38**, 337 (2000).
+- Adams F. C. Stars in other universes: stellar structure with
+  different fundamental constants. *JCAP* **2008**(08), 010 (2008);
+  arXiv:0807.3697.
+- Barnes L. A. The fine-tuning of the universe for intelligent life.
+  *Publ. Astron. Soc. Aust.* **29**, 529 (2012).
+- Adams F. C. The degree of fine-tuning in our universe — and others.
+  *Phys. Rep.* **807**, 1 (2019).
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert f"{alphaG0:.1e}" == "5.9e-39" and round(1 / alpha0) == 137 and round(1 / beta0) == 1836
+assert abs(math.pi**2 * alpha0**2 * m_p * c**2 / MeV - 0.49) < 0.005
+assert abs(t_E_cgs / t_E_dimless - 1) < 1e-3 and round(t_E_cgs / yr / 1e6, 1) == 3.2
+assert sp.simplify(C_coef - 5 * mu * mue ** sp.Rational(5, 3) * Wn**2 / (4 * (3 * sp.pi**2) ** sp.Rational(2, 3))) == 0
+assert abs(M_lim / M_sun - 4.2) < 0.02 and abs(M_lim / M_sun - 5.83 / MU_E**2) < 0.02
+assert all(1.4 < T_exact[i] / T_max_analytic(masses[i] * M_sun) < 1.6 for i in range(7))
+assert 0.08 < T_ign(2 * alpha0) / T_ign0 / 4 - 1 < 0.12 and 0.3 < T_ign(10 * alpha0) / T_ign0 / 100 - 1 < 0.45
+assert 2e6 < T_ign0 < 3e6
+assert abs(M_min(alpha0) - 0.1) < 0.02
+assert abs(M_max / M_sun - 140) < 10
+assert round(alpha_1e9) == 16
+assert round(alpha_edge) == 12
+assert np.all(np.diff(Mmin_vals) > 0) and Mmin_vals[-1] < M_lim / M_sun < M_max / M_sun
+assert sp.simplify(t_dimless.subs(Ns, 1) / (eps_n * al**2 / (aG * be**2))).is_number
+assert [sp.simplify(v * sp.diff(sp.log(t_dimless), v)) for v in (al, aG, be, Ns)] == [2, -1, -2, -2]
+assert 2 < alphaG0 / carter < 4 and round((10 ** (1 / 12) - 1) * 100) == 21
+# 1
+assert round(2**1.5, 2) == 2.83
+# 2
+assert round(2 ** -0.75, 2) == 0.59
+# 3
+assert f"{t_E_cgs / yr * 4 / 1000:.1e}" == "1.3e+04"
+# 4
+assert round(math.sqrt(1e9 / T_ign0)) == 20
+# 5
+assert round(10**0.25, 2) == 1.78 and round((1 - 10**-0.25) * 100) == 44
+```
