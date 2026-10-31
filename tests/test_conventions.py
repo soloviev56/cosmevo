@@ -97,6 +97,16 @@ def test_landauer_at_room_temperature():
 
 # --- Данные ---------------------------------------------------------------------
 
+def test_body_temperature_units():
+    # биофизика: kT при 310 К в Дж и кДж/моль; заряд мембраны 1 мкФ/см² × 100 мВ
+    kT = (const.k_B * 310 * u.K).to(u.J)
+    assert close(kT.value, 4.28e-21)
+    assert close((kT * const.N_A).to(u.kJ / u.mol).value, 2.58, rel=2e-3)
+    q = (1 * u.uF / u.cm**2 * 100 * u.mV).to(u.C / u.cm**2)
+    assert close(q.value, 1e-7, rel=1e-12)
+    assert close((q / const.e.si).to(u.cm**-2).value, 6.24e11)
+
+
 def test_data_dir():
     from cosmevo import DATA_DIR
     for name in ("ame2020.csv", "gstar_lattice.csv", "firas_monopole.txt"):
