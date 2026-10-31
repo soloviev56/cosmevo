@@ -1,0 +1,475 @@
+---
+title: "Запрет клонирования и квантовая телепортация"
+topic: no-cloning-teleportation
+order: 3
+description: "Теорема о запрете клонирования и её связь с невозможностью сигналов; оптимальный универсальный клонер Бужека–Хиллери (верность 5/6); классический предел 2/3 для схемы «измерить и приготовить»; протокол телепортации, роль двух классических битов и e-бита; телепортация через зашумлённую пару (состояние Вернера); плотное кодирование; эксперименты от Инсбрука (1997) до спутника «Мо-цзы» (2017)"
+---
+
+В теме «Запутанность и неравенства Белла» мы видели, что запутанность
+сама по себе не передаёт сигналов. Здесь — две теоремы, которые
+показывают, что она *может* сделать вместе с классическим каналом, и
+одна, которая показывает, чего не может сделать никто: скопировать
+неизвестное квантовое состояние. Обе стороны важны для пособия. Запрет
+клонирования — причина того, что квантовую информацию нельзя
+«резервировать» и она уходит в окружение безвозвратно (тема
+«Декогеренция и открытые квантовые системы»); телепортация — точный
+пример того, как информация о состоянии переносится без переноса
+вещества, и точная граница разговоров о «телепортации разума» в
+разделах о далёком будущем.
+
+В этой статье:
+
+- докажем запрет клонирования и найдём наилучшее приближённое
+  копирование;
+- найдём классический предел верности передачи состояния;
+- выведем протокол телепортации и проверим его численно, в том числе
+  с зашумлённой парой;
+- разберём эксперименты.
+
+## Запрет клонирования
+
+::: {#def-cloner}
+**Клонер** — физический процесс, который для любого состояния
+$|\psi\rangle$ системы $A$ делает
+$|\psi\rangle_A|0\rangle_B|M\rangle_E \to |\psi\rangle_A|\psi\rangle_B|M_\psi\rangle_E$,
+где $B$ — заготовка копии, $E$ — аппарат в начальном состоянии
+$|M\rangle$.
+:::
+
+**Теорема** (Вуттерс и Зурек, 1982; Дикс, 1982) [У]{.status}. Клонера
+не существует. Доказательство: процесс унитарен (с учётом аппарата),
+поэтому сохраняет скалярные произведения. Для двух входов
+$$
+\langle\psi|\varphi\rangle = \langle\psi|\varphi\rangle^2\,\langle M_\psi|M_\varphi\rangle ,
+$$
+и при $|\langle M_\psi|M_\varphi\rangle| \le 1$ это возможно, только
+если $\langle\psi|\varphi\rangle = 0$ или $|\langle\psi|\varphi\rangle| = 1$.
+Копировать можно лишь элементы заранее известного ортонормированного
+набора — то есть классическую информацию. Второе доказательство —
+линейность: если $|0\rangle \to |00\rangle$ и $|1\rangle \to |11\rangle$,
+то $|+\rangle \to (|00\rangle + |11\rangle)/\sqrt2$ — запутанная пара, а
+не $|{+}{+}\rangle$:
+
+```{python}
+import itertools
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+
+a, b = sp.symbols("a b")
+k0, k1 = sp.Matrix([1, 0]), sp.Matrix([0, 1])
+tp = sp.kronecker_product
+# линейное продолжение копирования базиса |0⟩ → |00⟩, |1⟩ → |11⟩
+linear_copy = a * tp(k0, k0) + b * tp(k1, k1)
+true_clone = tp(a * k0 + b * k1, a * k0 + b * k1)
+print("линейное продолжение − истинная копия:", list(sp.expand(linear_copy - true_clone)))
+```
+
+Разность равна нулю только при $ab = 0$, то есть для базисных
+состояний.
+
+**Клонирование и сигналы.** Херберт (1982) предложил «FLASH» —
+сверхсветовой телеграф: Алиса измеряет свою половину синглета в базисе
+$z$ или $x$, Боб размножает свой фотон и по копиям узнаёт базис. Ошибка
+была именно в размножении; работы Вуттерса–Зурека и Дикса появились как
+ответ. Совершенный клонер позволил бы различать ансамбли с одной
+матрицей плотности, а значит, передавать сигналы через запутанность
+[У]{.status}.
+
+**Приближённое копирование.** Запрещено совершенное копирование;
+несовершенное — возможно. Бужек и Хиллери (1996) построили
+универсальный клонер кубита (с аппаратом из одного кубита):
+$$
+|0\rangle|0\rangle|M\rangle \to \sqrt{\tfrac23}\,|00\rangle|{\uparrow}\rangle + \sqrt{\tfrac16}\,(|01\rangle + |10\rangle)|{\downarrow}\rangle,\quad
+|1\rangle|0\rangle|M\rangle \to \sqrt{\tfrac23}\,|11\rangle|{\downarrow}\rangle + \sqrt{\tfrac16}\,(|01\rangle + |10\rangle)|{\uparrow}\rangle .
+$$
+Проверим, что это изометрия, и найдём верность копий
+$F = \langle\psi|\hat\rho_{\text{копии}}|\psi\rangle$ для случайных входов:
+
+```{python}
+ket0, ket1 = np.array([1, 0], complex), np.array([0, 1], complex)
+SIGMA = [np.array(m, complex) for m in ([[0, 1], [1, 0]], [[0, -1j], [1j, 0]], [[1, 0], [0, -1]])]
+
+def kron(*factors):
+    out = np.ones(1, complex)
+    for f in factors:
+        out = np.kron(out, f)
+    return out
+
+def random_qubit(rng):
+    v = rng.normal(size=2) + 1j * rng.normal(size=2)
+    return v / np.linalg.norm(v)
+
+def bloch_vector(rho):
+    return np.real([np.trace(rho @ s) for s in SIGMA])
+
+up, down = ket0, ket1                      # состояния аппарата
+cloner = np.column_stack([
+    math.sqrt(2 / 3) * kron(ket0, ket0, up) + math.sqrt(1 / 6) * (kron(ket0, ket1, down) + kron(ket1, ket0, down)),
+    math.sqrt(2 / 3) * kron(ket1, ket1, down) + math.sqrt(1 / 6) * (kron(ket0, ket1, up) + kron(ket1, ket0, up)),
+])                                         # изометрия: вход → (копия 1, копия 2, аппарат)
+
+def copies(psi):
+    out = cloner @ psi
+    rho = np.outer(out, out.conj()).reshape([2] * 6)
+    return np.einsum("abcdbc->ad", rho), np.einsum("abcadc->bd", rho)
+
+rng = np.random.default_rng(3)
+fidelities = []
+for _ in range(300):
+    psi = random_qubit(rng)
+    r1, r2 = copies(psi)
+    fidelities += [np.vdot(psi, r1 @ psi).real, np.vdot(psi, r2 @ psi).real]
+shrink = bloch_vector(copies(ket0)[0])
+print(f"V†V = 1: {np.allclose(cloner.conj().T @ cloner, np.eye(2))};  верность копий: от {min(fidelities):.6f} до {max(fidelities):.6f}")
+print("вектор Блоха копии при входе |0⟩:", np.round(shrink, 4))
+```
+
+Каждая копия — входное состояние, «сжатое» к центру шара Блоха в
+$2/3$ раза: $\hat\rho_{\text{копии}} = \frac23|\psi\rangle\langle\psi| + \frac13\cdot\frac12$,
+и верность $F = 5/6$ не зависит от входа. Это наилучший возможный
+универсальный клонер $1 \to 2$ (Гизин и Массар, 1997) [У]{.status}.
+
+## Классический предел передачи состояния
+
+Можно ли передать неизвестный кубит по классическому каналу: измерить,
+отправить результат, приготовить состояние заново? Пусть
+$|\psi\rangle$ равномерно распределено по сфере Блоха, измерение — в
+базисе $z$, и по исходу $\pm$ готовится $|0\rangle$ или $|1\rangle$.
+Средняя верность
+$$
+\bar F = \int\frac{\dd\Omega}{4\pi}\Big[\cos^2\tfrac\theta2\cdot\cos^2\tfrac\theta2 + \sin^2\tfrac\theta2\cdot\sin^2\tfrac\theta2\Big]:
+$$
+
+```{python}
+theta = sp.symbols("theta", nonnegative=True)
+F_mp = sp.integrate((sp.cos(theta / 2) ** 4 + sp.sin(theta / 2) ** 4) * sp.sin(theta) / 2, (theta, 0, sp.pi))
+F_guess = sp.integrate(sp.cos(theta / 2) ** 2 * sp.sin(theta) / 2, (theta, 0, sp.pi))
+print("измерить и приготовить: F =", sp.simplify(F_mp), ";  приготовить |0⟩ наугад: F =", sp.simplify(F_guess))
+```
+
+$\bar F = 2/3$, и это максимум для любой схемы «измерить и
+приготовить» с одной копией (Массар и Попеску, 1995) [У]{.status}.
+Верность выше $2/3$ — экспериментальный признак того, что передача
+была квантовой. Заметим, что $2/3 < 5/6$: клонер Бужека–Хиллери
+копирует лучше, чем «измерить и приготовить две копии», — копирование
+без измерения сохраняет больше.
+
+## Телепортация
+
+Алиса хочет передать Бобу неизвестное состояние
+$|\psi\rangle_1 = \alpha|0\rangle + \beta|1\rangle$. У них есть пара
+$|\Phi^+\rangle_{23} = (|00\rangle + |11\rangle)/\sqrt2$ (частица 2 у
+Алисы, 3 у Боба) и классический канал. Базис Белла частиц 1, 2:
+$$
+|\Phi^\pm\rangle = \frac{|00\rangle \pm |11\rangle}{\sqrt2},\qquad
+|\Psi^\pm\rangle = \frac{|01\rangle \pm |10\rangle}{\sqrt2}.
+$$
+Ключевое тождество (Беннетт и др., 1993):
+$$
+|\psi\rangle_1|\Phi^+\rangle_{23} = \frac12\Big[
+|\Phi^+\rangle_{12}\,|\psi\rangle_3 + |\Phi^-\rangle_{12}\,\hat Z|\psi\rangle_3
++ |\Psi^+\rangle_{12}\,\hat X|\psi\rangle_3 + |\Psi^-\rangle_{12}\,\hat X\hat Z|\psi\rangle_3\Big].
+$$
+Проверим его символьно:
+
+```{python}
+X = sp.Matrix([[0, 1], [1, 0]])
+Z = sp.Matrix([[1, 0], [0, -1]])
+I2 = sp.eye(2)
+alpha, beta = sp.symbols("alpha beta")
+psi_in = alpha * k0 + beta * k1
+phi_p, phi_m = (tp(k0, k0) + tp(k1, k1)) / sp.sqrt(2), (tp(k0, k0) - tp(k1, k1)) / sp.sqrt(2)
+psi_p, psi_m = (tp(k0, k1) + tp(k1, k0)) / sp.sqrt(2), (tp(k0, k1) - tp(k1, k0)) / sp.sqrt(2)
+corrections = {"Φ+": I2, "Φ−": Z, "Ψ+": X, "Ψ−": X * Z}
+bell_basis = {"Φ+": phi_p, "Φ−": phi_m, "Ψ+": psi_p, "Ψ−": psi_m}
+lhs = tp(psi_in, phi_p)
+rhs = sum((tp(bell_basis[k], corrections[k] * psi_in) for k in bell_basis), sp.zeros(8, 1)) / 2
+print("разность сторон тождества:", sp.simplify(lhs - rhs).T)
+```
+
+**Протокол.** Алиса измеряет частицы 1, 2 в базисе Белла и получает
+один из четырёх исходов, каждый с вероятностью $1/4$ — независимо от
+$|\psi\rangle$, так что исход ничего о состоянии не говорит. Она
+передаёт Бобу **два классических бита**; Боб применяет $\hat Z^{\,m}$,
+$\hat X^{\,n}$ (обратную к стоящему перед $|\psi\rangle$ поправку) и
+получает $|\psi\rangle$ точно [У]{.status}. Что важно:
+
+- **До прихода битов** состояние Боба — смесь четырёх равновероятных
+  $\hat\sigma|\psi\rangle$, то есть $1/2$: никакой информации о
+  $|\psi\rangle$, никакого сигнала быстрее света.
+- **Исходное состояние разрушено**: частица 1 после измерения в одном
+  из состояний Белла, $|\psi\rangle$ у Алисы не осталось — запрет
+  клонирования соблюдён.
+- **Затраты**: один e-бит и два бита на кубит. Меньше нельзя: обратный
+  протокол — **плотное кодирование** (Беннетт и Визнер, 1992) —
+  передаёт два классических бита одним кубитом при заранее разделённом
+  e-бите; если бы телепортация обходилась одним битом, их композиция
+  удваивала бы ёмкость классического канала.
+- Переносится состояние, а не вещество: частица 3 была у Боба с
+  самого начала.
+
+Смоделируем протокол как квантовую схему с измерением и проверим
+состояние Боба до и после поправки:
+
+```{python}
+H_gate = np.array([[1, 1], [1, -1]], complex) / math.sqrt(2)
+CNOT = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], complex)
+Xn, Zn = SIGMA[0], SIGMA[2]
+I2n = np.eye(2)
+
+def density(v):
+    return np.outer(v, v.conj())
+
+def teleport(rho_in, rho_pair):
+    """Телепортация: rho_in — частица 1, rho_pair — пара (2 у Алисы, 3 у Боба).
+    Возвращает список (вероятность, состояние Боба до поправки, после поправки)."""
+    rho = np.kron(rho_in, rho_pair)
+    U = np.kron(H_gate, np.eye(4)) @ np.kron(CNOT, I2n)          # базис Белла → вычислительный
+    rho = U @ rho @ U.conj().T
+    branches = []
+    for m, n in itertools.product(range(2), repeat=2):            # m — бит частицы 1, n — частицы 2
+        P = np.kron(density(np.eye(2)[m]), np.kron(density(np.eye(2)[n]), I2n))
+        rho_b = np.trace((P @ rho @ P).reshape(4, 2, 4, 2), axis1=0, axis2=2)
+        prob = np.trace(rho_b).real
+        rho_b = rho_b / prob
+        corr = np.linalg.matrix_power(Zn, m) @ np.linalg.matrix_power(Xn, n)
+        branches.append((prob, rho_b, corr @ rho_b @ corr.conj().T))
+    return branches
+
+phi_plus = (kron(ket0, ket0) + kron(ket1, ket1)) / math.sqrt(2)
+worst_F, worst_before = 1.0, 0.0
+for _ in range(200):
+    psi = random_qubit(rng)
+    for prob, before, after in teleport(density(psi), density(phi_plus)):
+        worst_F = min(worst_F, np.vdot(psi, after @ psi).real)
+        worst_before = max(worst_before, abs(prob - 0.25))
+    mixed_before = sum(prob * before for prob, before, _ in teleport(density(psi), density(phi_plus)))
+print(f"200 случайных состояний: наименьшая верность {worst_F:.12f}; "
+      f"|p(исход) − 1/4| ≤ {worst_before:.1e}")
+print("состояние Боба до прихода битов (среднее по исходам):\n", np.round(mixed_before, 12).real)
+```
+
+## Телепортация через зашумлённую пару
+
+Настоящая пара не идеальна. Возьмём вместо $|\Phi^+\rangle$ состояние
+Вернера $p|\Phi^+\rangle\langle\Phi^+| + (1 - p)/4$ (в теме о
+запутанности оно записано через синглет; это то же семейство после
+локального поворота). Средняя верность телепортации связана с
+**долей максимальной запутанности** $f = \langle\Phi^+|\hat\rho|\Phi^+\rangle$
+формулой $\bar F = (2f + 1)/3$ (Городецкие, 1999) [У]{.status}; для
+состояния Вернера $f = (1 + 3p)/4$ и $\bar F = (1 + p)/2$. Сверим с
+моделью схемы:
+
+```{python}
+def werner_phi(pp):
+    return pp * density(phi_plus) + (1 - pp) / 4 * np.eye(4)
+
+def mean_teleport_fidelity(rho_pair, rng, samples=400):
+    total = 0.0
+    for _ in range(samples):
+        psi = random_qubit(rng)
+        total += sum(prob * np.vdot(psi, after @ psi).real for prob, _, after in teleport(density(psi), rho_pair))
+    return total / samples
+
+p_values = np.linspace(0, 1, 11)
+F_sim = [mean_teleport_fidelity(werner_phi(pp), rng) for pp in p_values]
+for pp, f_s in zip(p_values[::2], F_sim[::2]):
+    print(f"p = {pp:.1f}: моделирование {f_s:.4f},  (1 + p)/2 = {(1 + pp) / 2:.4f}")
+```
+
+Верность выше классического предела $2/3$ при $p > 1/3$ — ровно там,
+где состояние Вернера запутано: для этого семейства порог полезности
+для телепортации совпадает с порогом запутанности, хотя нарушение CHSH
+начинается лишь с $p = 1/\sqrt2$ (Попеску, 1994). Порог $5/6$ — верность
+оптимального клонера — превышается при $p > 2/3$; выше этого порога
+телепортация не может быть подделана перехватом и копированием
+(@fig-teleport).
+
+```{python}
+#| label: fig-teleport
+#| fig-cap: "Средняя верность телепортации через состояние Вернера с долей p идеальной пары: моделирование схемы (точки, 400 случайных состояний на точку) и формула (1 + p)/2. Пунктир — классический предел 2/3 («измерить и приготовить»), штрих-пунктир — верность оптимального клонера 5/6; квадрат — эксперимент «Мо-цзы» (средняя верность 0,80 ± 0,01, Рен и др., 2017), отложенный на линии теории (доля p этого эксперимента не измерялась, по ней значение 0,80 соответствует p = 0,6)."
+fig, ax = plt.subplots(figsize=(6.0, 3.8))
+grid = np.linspace(0, 1, 200)
+ax.plot(grid, (1 + grid) / 2, color="tab:blue", label="(1 + p)/2")
+ax.plot(p_values, F_sim, "o", color="tab:blue", ms=4, label="моделирование")
+ax.axhline(2 / 3, color="0.3", ls="--", lw=1, label="классический предел 2/3")
+ax.axhline(5 / 6, color="tab:red", ls="-.", lw=1, label="клонер 5/6")
+ax.errorbar([0.6], [0.80], yerr=[0.01], fmt="s", color="tab:green", ms=5, capsize=3, label="«Мо-цзы», 2017")
+ax.set(xlabel="доля идеальной пары p", ylabel="средняя верность", xlim=(0, 1), ylim=(0.45, 1.02))
+ax.legend(fontsize=8, loc="upper left")
+ax.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+## Эксперименты
+
+Все опыты ниже — [У]{.status}:
+
+- **Инсбрук, 1997** (Боумейстер и др.): поляризация фотона,
+  параметрическое рассеяние; измерение Белла линейной оптикой
+  различает только один из четырёх исходов ($|\Psi^-\rangle$), поэтому
+  телепортация срабатывает в 1/4 случаев. **Рим, 1998** (Боски и др.) —
+  вариант с двумя степенями свободы одного фотона.
+- **Непрерывные переменные, 1998** (Фурусава и др.): телепортация
+  квадратур светового поля, без постселекции.
+- **Ионы, 2004** (Рибе и др., Инсбрук; Барретт и др., Боулдер):
+  детерминированная телепортация между ионами в ловушке — все четыре
+  исхода Белла и поправки по ним.
+- **143 км, 2012** (Ма и др.): между Канарскими островами Ла-Пальма и
+  Тенерифе, с активной поправкой.
+- **Земля–спутник, 2017** (Рен и др.): от наземной станции в Нгари
+  (Тибет) на спутник «Мо-цзы» на низкой орбите, расстояние до 1400 км,
+  средняя верность $0{,}80 \pm 0{,}01$ для шести входных состояний
+  при классическом пределе $2/3$.
+
+Родственный протокол — **обмен запутанностью** (Жуковский и др., 1993):
+измерение Белла над частицами двух разных пар запутывает две частицы,
+никогда не взаимодействовавшие. Это основа квантовых повторителей и
+«событийно-готовой» схемы, использованной в эксперименте Хенсена и др.
+(2015) из темы о запутанности.
+
+## Физика и наблюдательный статус
+
+- Запрет клонирования, протокол телепортации, их ресурсы (e-бит и два
+  бита) — теоремы квантовой механики [У]{.status}; телепортация
+  выполнена на фотонах, ионах, атомах, сверхпроводящих кубитах, на
+  расстояниях до 1400 км.
+- Телепортация не передаёт ни вещества, ни сигналов быстрее света;
+  оригинал разрушается.
+- **«Телепортация человека»** в смысле протокола — перенос квантового
+  состояния всех степеней свободы тела — потребовала бы запутанности
+  и классического канала с числом битов порядка числа степеней свободы
+  ($\sim10^{28}$ атомов), идеально изолированных от окружения. Это не
+  запрещено известной физикой, но далеко за пределами любой техники;
+  к тому же неясно, нужна ли для «копии личности» квантовая точность
+  или хватит классического описания (которое, в отличие от квантового,
+  можно копировать) [С]{.status}. Это вопрос тем о мозге и разуме,
+  а не квантовой информатики.
+
+## Итоги
+
+- Неизвестное квантовое состояние нельзя скопировать: унитарность
+  сохраняет скалярные произведения, а копирование их возводит в
+  квадрат. Копируется только классическая (ортогональная) информация.
+- Наилучшая универсальная копия кубита имеет верность $5/6$;
+  передача через измерение — $2/3$.
+- Телепортация переносит кубит, расходуя один e-бит и два классических
+  бита; до прихода битов у Боба нет никакой информации; оригинал
+  разрушается.
+- Через состояние Вернера $\bar F = (1 + p)/2$: квантовое преимущество
+  при $p > 1/3$.
+
+## Упражнения
+
+1. Докажите, что устройство, копирующее два *известных* неортогональных
+   состояния с перекрытием $|\langle\psi|\varphi\rangle| = 1/2$,
+   невозможно даже с аппаратом, — и оцените, во сколько раз
+   $|\langle M_\psi|M_\varphi\rangle|$ должно было бы превышать единицу.
+2. В телепортации исход Алисы — $|\Psi^-\rangle$. Какую поправку
+   применяет Боб? Проверьте прямой подстановкой для $|\psi\rangle = |+\rangle$.
+3. Найдите вектор Блоха копии на выходе клонера Бужека–Хиллери для
+   входа $|+\rangle$ и верность копии.
+4. Какую среднюю верность даёт телепортация через состояние Вернера с
+   $p = 0{,}6$? Какая доля максимальной запутанности $f$ нужна для
+   верности 0,9?
+5. Спутник на расстоянии 1400 км от станции. Через какое минимальное
+   время после измерения Алисы на Земле Боб на спутнике может
+   воспользоваться телепортированным состоянием? Сколько e-битов и
+   классических битов нужно, чтобы телепортировать регистр из 50
+   кубитов?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. Нужно $1/2 = (1/2)^2\,|\langle M_\psi|M_\varphi\rangle|$, то есть
+   $|\langle M_\psi|M_\varphi\rangle| = 2 > 1$ — противоречие; «превышение
+   в 2 раза».
+2. $|\Psi^-\rangle$ стоит при $\hat X\hat Z|\psi\rangle$, поэтому Боб
+   применяет $(\hat X\hat Z)^{-1} = \hat Z\hat X$ (с точностью до фазы
+   $\hat X\hat Z$); для $|+\rangle$: $\hat X\hat Z|+\rangle = \hat X|-\rangle = -|-\rangle$,
+   и $\hat Z\hat X(-|-\rangle) = |+\rangle$.
+3. $\mathbf r = (2/3, 0, 0)$, $F = 5/6$.
+4. $\bar F = 0{,}8$; $(2f + 1)/3 = 0{,}9$ при $f = 0{,}85$ ($p = 0{,}8$).
+5. $1400\ \text{км}/c = 4{,}67$ мс; 50 e-битов и 100 классических битов.
+:::
+
+## Литература
+
+- Wootters W. K., Zurek W. H. A single quantum cannot be cloned.
+  *Nature* **299**, 802 (1982).
+- Dieks D. Communication by EPR devices. *Phys. Lett. A* **92**, 271
+  (1982).
+- Herbert N. FLASH — a superluminal communicator based upon a new kind
+  of quantum measurement. *Found. Phys.* **12**, 1171 (1982).
+- Bennett C. H., Wiesner S. J. Communication via one- and two-particle
+  operators on Einstein-Podolsky-Rosen states. *Phys. Rev. Lett.* **69**,
+  2881 (1992).
+- Bennett C. H., Brassard G., Crépeau C., Jozsa R., Peres A.,
+  Wootters W. K. Teleporting an unknown quantum state via dual
+  classical and Einstein-Podolsky-Rosen channels. *Phys. Rev. Lett.*
+  **70**, 1895 (1993).
+- Żukowski M., Zeilinger A., Horne M. A., Ekert A. K.
+  "Event-ready-detectors" Bell experiment via entanglement swapping.
+  *Phys. Rev. Lett.* **71**, 4287 (1993).
+- Popescu S. Bell's inequalities versus teleportation: what is
+  nonlocality? *Phys. Rev. Lett.* **72**, 797 (1994).
+- Massar S., Popescu S. Optimal extraction of information from finite
+  quantum ensembles. *Phys. Rev. Lett.* **74**, 1259 (1995).
+- Bužek V., Hillery M. Quantum copying: beyond the no-cloning theorem.
+  *Phys. Rev. A* **54**, 1844 (1996).
+- Gisin N., Massar S. Optimal quantum cloning machines.
+  *Phys. Rev. Lett.* **79**, 2153 (1997).
+- Bouwmeester D., Pan J.-W., Mattle K., Eibl M., Weinfurter H.,
+  Zeilinger A. Experimental quantum teleportation. *Nature* **390**, 575
+  (1997).
+- Boschi D., Branca S., De Martini F., Hardy L., Popescu S. Experimental
+  realization of teleporting an unknown pure quantum state via dual
+  classical and Einstein-Podolsky-Rosen channels. *Phys. Rev. Lett.*
+  **80**, 1121 (1998).
+- Furusawa A., Sørensen J. L., Braunstein S. L., Fuchs C. A., Kimble H. J.,
+  Polzik E. S. Unconditional quantum teleportation. *Science* **282**,
+  706 (1998).
+- Horodecki M., Horodecki P., Horodecki R. General teleportation
+  channel, singlet fraction, and quasidistillation. *Phys. Rev. A*
+  **60**, 1888 (1999).
+- Riebe M. et al. Deterministic quantum teleportation with atoms.
+  *Nature* **429**, 734 (2004).
+- Barrett M. D. et al. Deterministic quantum teleportation of atomic
+  qubits. *Nature* **429**, 737 (2004).
+- Ma X.-S. et al. Quantum teleportation over 143 kilometres using
+  active feed-forward. *Nature* **489**, 269 (2012).
+- Ren J.-G. et al. Ground-to-satellite quantum teleportation. *Nature*
+  **549**, 70 (2017); arXiv:1707.00934.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert sp.expand(linear_copy - true_clone) == sp.Matrix([a - a**2, -a * b, -a * b, b - b**2])
+assert np.allclose(cloner.conj().T @ cloner, np.eye(2))
+assert abs(min(fidelities) - 5 / 6) < 1e-12 and abs(max(fidelities) - 5 / 6) < 1e-12
+assert np.allclose(shrink, [0, 0, 2 / 3])
+assert F_mp == sp.Rational(2, 3) and F_guess == sp.Rational(1, 2)
+assert sp.simplify(lhs - rhs) == sp.zeros(8, 1)
+assert worst_F > 1 - 1e-12 and worst_before < 1e-12 and np.allclose(mixed_before, np.eye(2) / 2)
+for pp, f_s in zip(p_values, F_sim):
+    assert abs(f_s - (1 + pp) / 2) < 1e-9          # верность от входа не зависит — совпадение точное
+# порог клонера 5/6 и классический 2/3 по формуле (1 + p)/2
+assert sp.solve(sp.Rational(1, 2) * (1 + sp.Symbol("q")) - sp.Rational(5, 6))[0] == sp.Rational(2, 3)
+assert sp.solve(sp.Rational(1, 2) * (1 + sp.Symbol("q")) - sp.Rational(2, 3))[0] == sp.Rational(1, 3)
+# точка «Мо-цзы» лежит на теории при p = 0,6
+assert abs((1 + 0.6) / 2 - 0.80) < 1e-12
+# 2
+plus = (ket0 + ket1) / math.sqrt(2)
+assert np.allclose(Zn @ Xn @ (Xn @ Zn @ plus), plus)
+# 3
+r3 = bloch_vector(copies(plus)[0])
+assert np.allclose(r3, [2 / 3, 0, 0]) and abs(np.vdot(plus, copies(plus)[0] @ plus).real - 5 / 6) < 1e-12
+# 4
+assert abs((1 + 0.6) / 2 - 0.8) < 1e-12 and abs((3 * 0.9 - 1) / 2 - 0.85) < 1e-12 and abs((4 * 0.85 - 1) / 3 - 0.8) < 1e-12
+# 5
+import astropy.constants as const
+assert round(1400e3 / const.c.value * 1e3, 2) == 4.67
+```
