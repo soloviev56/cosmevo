@@ -1,0 +1,618 @@
+---
+title: "Жёсткие системы ОДУ"
+topic: numerics-stiff
+order: 1
+description: "Жёсткость как разброс временных масштабов; тестовое уравнение y′ = λy и функции устойчивости явных и неявных методов (Эйлер, Дорманд–Принс, Радо IIA — выводом из таблицы Бутчера); A- и L-устойчивость, барьеры Дальквиста; задача Робертсона: число шагов явного метода из спектра якобиана, решатели Radau, BDF, LSODA, роль atol; одно-зонная pp-цепочка с отношением масштабов 10¹⁶; квазистационарное приближение"
+---
+
+Почти каждая кинетическая задача пособия — горение водорода в звезде,
+первичный нуклеосинтез, отрыв частиц в ранней Вселенной, химия
+межзвёздной среды — сводится к системе обыкновенных дифференциальных
+уравнений, в которой одни процессы идут за доли секунды, а другие — за
+миллиарды лет. Такие системы называют жёсткими. Их нельзя решать «в лоб»
+явными методами: шаг ограничен не точностью, а устойчивостью, и
+определяется самым быстрым процессом, даже когда тот давно пришёл в
+равновесие и на решение не влияет. Здесь разберём, откуда берётся это
+ограничение, как его снимают неявные методы и как пользоваться
+решателями `scipy.integrate.solve_ivp` так, чтобы получать правильный
+ответ.
+
+В этой статье:
+
+- выведем функции устойчивости явных и неявных методов и поймём, почему
+  явные методы обречены на жёстких задачах;
+- решим классическую задачу Робертсона и сравним решатели;
+- построим одно-зонную модель pp-цепочки, где отношение временных
+  масштабов $\sim10^{16}$;
+- обсудим допуски, якобиан и квазистационарное приближение.
+
+## Что такое жёсткость
+
+Рассмотрим систему $\dot{\mathbf y} = \mathbf f(t, \mathbf y)$ и её
+линеаризацию около решения: возмущение $\delta\mathbf y$ подчиняется
+$\delta\dot{\mathbf y} = J\,\delta\mathbf y$, где $J = \partial\mathbf
+f/\partial\mathbf y$ — якобиан. Собственные значения $\lambda_i$ якобиана
+задают локальные временные масштабы $|\mathrm{Re}\,\lambda_i|^{-1}$.
+
+::: {#def-stiff}
+**Жёсткая система** — система, у которой на интервале интегрирования
+есть собственные значения якобиана с $\mathrm{Re}\,\lambda \ll 0$,
+соответствующие быстро затухающим модам, а само решение меняется на
+масштабе, много большем $|\mathrm{Re}\,\lambda|^{-1}$. Практическое
+определение (Хайрер и Ваннер, 1996): явные методы на ней вынуждены
+делать шаг, много меньший, чем того требует точность. **Коэффициент
+жёсткости** — отношение
+$\max|\mathrm{Re}\,\lambda_i|/\min|\mathrm{Re}\,\lambda_i|$ по
+затухающим модам.
+:::
+
+Определение намеренно нестрогое: жёсткость — свойство не только
+уравнений, но и интервала интегрирования и требуемой точности. Если
+нужно разрешить именно быструю моду, задача не жёсткая. Термин
+появился в работе Кертисса и Хиршфельдера (1952) о химической
+кинетике [У]{.status}.
+
+## Тестовое уравнение и функции устойчивости
+
+Поведение метода на жёсткой задаче определяется тем, как он решает
+тестовое уравнение Дальквиста $y' = \lambda y$, $\mathrm{Re}\,\lambda <
+0$: точное решение затухает, и численное должно затухать тоже. Одношаговый
+метод с шагом $h$ даёт $y_{n+1} = R(z)\,y_n$, $z = h\lambda$; функция
+$R(z)$ называется **функцией устойчивости**, а множество
+$\{z: |R(z)| \le 1\}$ — **областью устойчивости**.
+
+Для метода Рунге–Кутты с таблицей Бутчера $(A, \mathbf b, \mathbf c)$
+стадии $k_i = \lambda(y_n + h\sum_j a_{ij}k_j)$, откуда в векторной
+форме $h\mathbf k = z(I - zA)^{-1}\mathbf 1\,y_n$ и
+$$
+R(z) = 1 + z\,\mathbf b^{\mathsf T}(I - zA)^{-1}\mathbf 1 .
+$$
+Для явного метода матрица $A$ строго нижнетреугольная, $(I - zA)^{-1}$ —
+многочлен по $z$, и $R(z)$ — **многочлен**. Проверим на методе
+Дорманда–Принса 5(4), который стоит в `solve_ivp` по умолчанию
+(`method="RK45"`), взяв его таблицу прямо из SciPy:
+
+```{python}
+import math
+import time
+from fractions import Fraction
+
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import RK45, solve_ivp
+from scipy.optimize import brentq
+
+from cosmevo.nuclear import gamow_energy, sigma_v
+
+z = sp.symbols("z")
+
+def stability_function(A, b):
+    """R(z) = 1 + z bᵀ(I − zA)⁻¹·1 для таблицы Бутчера (A, b)."""
+    A, b = sp.Matrix(A), sp.Matrix(b)
+    n = A.shape[0]
+    return sp.simplify(1 + z * (b.T * (sp.eye(n) - z * A).inv() * sp.ones(n, 1))[0])
+
+def rational(x):
+    """Коэффициенты таблицы SciPy (float) → точные дроби."""
+    return sp.Rational(str(Fraction(x).limit_denominator(10**7)))
+
+A_dp = [[rational(x) for x in row] + [0] for row in RK45.A]     # дополняем до 6×6
+b_dp = [rational(x) for x in RK45.B]
+R_dp = sp.expand(stability_function(A_dp, b_dp))
+print("R(z) Дорманда–Принса:", R_dp)
+print("R(z) − e^z =", sp.series(R_dp - sp.exp(z), z, 0, 8))
+R_dp_num = sp.lambdify(z, R_dp)
+x_dp = brentq(lambda x: abs(R_dp_num(x)) - 1, -4, -2)
+print(f"граница устойчивости на отрицательной полуоси: z = {x_dp:.3f}")
+```
+
+Многочлен совпадает с рядом $e^z$ до $z^5$ (пятый порядок), а при
+$z \to -\infty$ растёт как $z^6/600$. Отсюда главное ограничение
+[У]{.status}: **ни один явный метод Рунге–Кутты не устойчив при всех
+$\mathrm{Re}\,z < 0$**, и для затухающей моды с $\lambda < 0$ шаг обязан
+удовлетворять $h < 3{,}31/|\lambda|$ — сколь бы мала ни была эта мода
+в решении. Ошибка округления или аппроксимации возбуждает её снова на
+каждом шаге, и при $h|\lambda| > 3{,}31$ она растёт экспоненциально.
+
+**Неявные методы.** Неявный метод Эйлера
+$y_{n+1} = y_n + hf(y_{n+1})$ даёт $R(z) = 1/(1 - z)$: $|R| < 1$ во всей
+левой полуплоскости. Метод трапеций $R = (1 + z/2)/(1 - z/2)$ — тоже, но
+$R(-\infty) = -1$: жёсткие моды не затухают, а меняют знак на каждом
+шаге (упражнение 2).
+
+::: {#def-astable}
+Метод **A-устойчив**, если его область устойчивости содержит всю
+левую полуплоскость $\mathrm{Re}\,z \le 0$, и **L-устойчив**, если
+вдобавок $R(z) \to 0$ при $z \to -\infty$ (жёсткие моды гасятся за один
+шаг).
+:::
+
+Решатель `Radau` в SciPy — трёхстадийный метод Радо IIA пятого порядка
+(Хайрер и Ваннер, 1996). Это коллокационный метод: узлы $c_i$ — корни
+полинома Радо на $[0, 1]$ с $c_3 = 1$, а
+$a_{ij} = \int_0^{c_i}\ell_j(t)\,\dd t$, $b_j = \int_0^1 \ell_j(t)\,\dd t$,
+где $\ell_j$ — интерполяционные многочлены Лагранжа по узлам.
+Построим таблицу и функцию устойчивости:
+
+```{python}
+t = sp.symbols("t")
+c_radau = [(4 - sp.sqrt(6)) / 10, (4 + sp.sqrt(6)) / 10, sp.Integer(1)]
+
+def lagrange(j, nodes):
+    return sp.prod([(t - nodes[m]) / (nodes[j] - nodes[m]) for m in range(len(nodes)) if m != j])
+
+A_radau = [[sp.integrate(lagrange(j, c_radau), (t, 0, ci)) for j in range(3)] for ci in c_radau]
+b_radau = [sp.integrate(lagrange(j, c_radau), (t, 0, 1)) for j in range(3)]
+R_radau = sp.factor(sp.radsimp(stability_function(A_radau, b_radau)))
+pade = (1 + 2 * z / 5 + z**2 / 20) / (1 - 3 * z / 5 + 3 * z**2 / 20 - z**3 / 60)
+print("R(z) Радо IIA:", R_radau)
+print("совпадает с аппроксимацией Паде (2, 3) экспоненты:", sp.simplify(R_radau - pade) == 0)
+print("R(z) − e^z =", sp.series(R_radau - sp.exp(z), z, 0, 7))
+print("R(−∞) =", sp.limit(R_radau, z, -sp.oo))
+# A-устойчивость: полюсы в правой полуплоскости и |R(iy)| ≤ 1 на мнимой оси
+y_im = sp.symbols("y", real=True)
+poles = sp.Poly(sp.denom(sp.together(R_radau)), z).nroots()
+print("Re полюсов:", [round(float(sp.re(p)), 3) for p in poles])
+mod2 = sp.simplify(sp.expand(sp.Abs(R_radau.subs(z, sp.I * y_im))**2))
+print("1 − |R(iy)|² =", sp.factor(sp.simplify(1 - mod2)))
+```
+
+$R(z)$ — аппроксимация Паде экспоненты с числителем степени 2 и
+знаменателем степени 3: порядок 5, все полюсы в правой полуплоскости,
+$|R(iy)| \le 1$ на мнимой оси (по принципу максимума — и во всей левой
+полуплоскости), $R(-\infty) = 0$. Метод L-устойчив [У]{.status}.
+
+Цена неявности — на каждом шаге нужно решить нелинейную систему
+относительно стадий. Её решают упрощённым методом Ньютона с матрицей
+вида $I - h\gamma J$, то есть нужен якобиан (аналитический или
+конечно-разностный) и LU-разложение — $\mathcal O(N^3)$ операций для
+плотной матрицы $N\times N$. Зато шаг ограничен только точностью: на
+медленном участке решения он может быть на много порядков больше
+$1/|\lambda_{\max}|$ (в задаче Робертсона ниже — в $10^{14}$ раз).
+
+**Многошаговые методы.** Формулы дифференцирования назад (BDF, метод
+Гира) порядка $k$ аппроксимируют $\dot y_{n+1}$ производной
+интерполяционного многочлена по $k + 1$ точкам. Для линейных
+многошаговых методов действует второй барьер Дальквиста
+[У]{.status}: A-устойчивый метод имеет порядок не выше 2 (Дальквист,
+1963). BDF порядков 3–6 не A-устойчивы, но устойчивы в секторе вокруг
+отрицательной полуоси (A(α)-устойчивость), чего хватает для задач с
+вещественными $\lambda$; при $k \ge 7$ BDF неустойчивы вообще. В SciPy
+`method="BDF"` — вариант NDF переменного порядка 1–5 (Шампайн и
+Райхельт, 1997), а `LSODA` (Петцольд, 1983) автоматически переключается
+между явным методом Адамса и BDF по оценке жёсткости.
+
+```{python}
+#| label: fig-stability
+#| fig-cap: "Области устойчивости |R(z)| ≤ 1 (закрашены) в плоскости z = hλ. Явный метод Эйлера — круг |1 + z| ≤ 1; метод Дорманда–Принса (RK45 в SciPy) — ограниченная область (плюс два маленьких островка в правой полуплоскости), пересекающая отрицательную полуось в точке z = −3,31; неявный метод Радо IIA устойчив всюду, кроме ограниченной области в правой полуплоскости (белая), поэтому для затухающих мод (Re z < 0) шаг не ограничен."
+x_grid, y_grid = np.meshgrid(np.linspace(-6, 14, 801), np.linspace(-7, 7, 561))
+zz = x_grid + 1j * y_grid
+R_radau_num = sp.lambdify(z, R_radau, "numpy")
+panels = [("явный Эйлер", np.abs(1 + zz)),
+          ("Дорманд–Принс 5(4)", np.abs(R_dp_num(zz))),
+          ("Радо IIA (порядок 5)", np.abs(R_radau_num(zz)))]
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.6), sharey=True)
+for ax, (name, absR) in zip(axes, panels):
+    ax.contourf(x_grid, y_grid, (absR <= 1).astype(float), levels=[0.5, 1.5], colors=["tab:blue"], alpha=0.35)
+    ax.contour(x_grid, y_grid, absR, levels=[1], colors="tab:blue", linewidths=1)
+    ax.axhline(0, color="0.4", lw=0.6)
+    ax.axvline(0, color="0.4", lw=0.6)
+    ax.set(title=name, xlabel="Re z", xlim=(-6, 14), ylim=(-7, 7), aspect="equal")
+axes[0].set_ylabel("Im z")
+fig.tight_layout()
+```
+
+## Задача Робертсона
+
+Классический тест жёстких решателей — схема химической кинетики
+Робертсона (1966):
+$$
+A \xrightarrow{k_1} B,\qquad 2B \xrightarrow{k_2} B + C,\qquad
+B + C \xrightarrow{k_3} A + C,
+$$
+$k_1 = 0{,}04$, $k_2 = 3\cdot10^7$, $k_3 = 10^4$ (концентрации
+безразмерны, $y_A + y_B + y_C = 1$), в начале $y = (1, 0, 0)$. Константы
+различаются на девять порядков; промежуточное вещество $B$ рождается
+медленно, а гибнет быстро, и его концентрация всё время мала.
+
+```{python}
+K1, K2, K3 = 0.04, 3e7, 1e4
+
+def robertson(t, y):
+    a, b, c = y
+    return [-K1 * a + K3 * b * c, K1 * a - K3 * b * c - K2 * b**2, K2 * b**2]
+
+def robertson_jac(t, y):
+    a, b, c = y
+    return [[-K1, K3 * c, K3 * b], [K1, -K3 * c - 2 * K2 * b, -K3 * b], [0, 2 * K2 * b, 0]]
+
+ref = solve_ivp(robertson, [0, 1e11], [1, 0, 0], method="Radau", jac=robertson_jac,
+                rtol=1e-10, atol=1e-14, dense_output=True)
+print(" t          y_A        y_B        y_C      собственные значения J")
+for t_k in (1e-3, 1, 40, 1e4, 1e8, 1e11):
+    y_k = ref.sol(t_k)
+    lam = np.sort(np.linalg.eigvals(robertson_jac(t_k, y_k)).real)
+    print(f"{t_k:7.0e}  {y_k[0]:.3e}  {y_k[1]:.3e}  {y_k[2]:.3e}   {lam[0]:.3e}  {lam[1]:.3e}  {lam[2]:+.0e}")
+```
+
+Одно собственное значение — нуль (закон сохранения $\sum y = 1$),
+второе медленное, третье $\lambda_{\rm fast} \approx -(k_3y_C +
+2k_2y_B)$ уже при $t = 10^{-3}$ равно $-1{,}7\cdot10^3$, а к концу
+$-10^4$. Коэффициент жёсткости растёт от $5\cdot10^3$ при $t = 10^{-3}$
+до $5\cdot10^{14}$ при $t = 10^{11}$.
+
+**Сколько шагов нужно явному методу.** Если шаг ограничен только
+устойчивостью, то $h(t) \approx 3{,}31/|\lambda_{\rm fast}(t)|$ и число
+шагов $N \approx \int|\lambda_{\rm fast}|\,\dd t/3{,}31$. Сравним эту
+оценку с реальной работой RK45 до $t = 40$ и с неявными решателями:
+
+```{python}
+def lam_fast(t_k):
+    return np.linalg.eigvals(robertson_jac(t_k, ref.sol(t_k))).real.min()
+
+t_q = np.logspace(-6, math.log10(40), 4000)
+lam_q = np.array([lam_fast(t_k) for t_k in t_q])
+N_est = np.trapezoid(-lam_q, t_q) / -x_dp
+print(f"оценка числа шагов RK45 до t = 40: {N_est:.0f}")
+
+def run(method, t_end, jac=None, atol=1e-10, rtol=1e-6):
+    kw = {"jac": jac} if jac is not None else {}
+    t0 = time.perf_counter()
+    sol = solve_ivp(robertson, [0, t_end], [1, 0, 0], method=method, rtol=rtol, atol=atol, **kw)
+    return sol, time.perf_counter() - t0
+
+runs = {}
+for method, t_end in [("RK45", 40), ("Radau", 40), ("BDF", 40), ("LSODA", 40),
+                      ("Radau", 1e11), ("BDF", 1e11), ("LSODA", 1e11)]:
+    sol, dt = run(method, t_end, jac=None if method == "RK45" else robertson_jac)
+    runs[method, t_end] = sol
+    err = abs(sol.y[0, -1] / ref.sol(t_end)[0] - 1)
+    print(f"{method:5s} до t = {t_end:5.0e}: шагов {len(sol.t) - 1:6d}, вызовов f {sol.nfev:6d}, "
+          f"LU {sol.nlu:4d}, {dt:5.2f} с, отн. ошибка y_A = {err:.1e}")
+```
+
+Явный метод сделал почти столько шагов, сколько предсказывает оценка
+по спектру якобиана, — он идёт по границе устойчивости, и точность тут
+ни при чём [У]{.status}. До $t = 10^{11}$ ему понадобилось бы
+$\sim10^{14}$ шагов. Неявные методы проходят весь интервал за сотни
+шагов: их шаг растёт вместе с масштабом изменения решения
+(@fig-robertson).
+
+```{python}
+#| label: fig-robertson
+#| fig-cap: "Задача Робертсона. Слева: концентрации (y_B умножена на 10⁴) в логарифмическом времени. Справа: шаг решателя Radau (точки) растёт почти пропорционально t, а предельный шаг явного метода Дорманда–Принса 3,31/|λ_fast| (линия) после t ≈ 10⁻³ не превышает 2·10⁻³; заштрихован интервал до t = 40, на котором RK45 действительно сделал около 3,5·10⁴ шагов."
+t_plot = np.logspace(-6, 11, 400)
+y_plot = ref.sol(t_plot)
+rad = runs["Radau", 1e11]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.5, 3.8))
+ax1.semilogx(t_plot, y_plot[0], label="$y_A$")
+ax1.semilogx(t_plot, 1e4 * y_plot[1], label=r"$10^4\,y_B$")
+ax1.semilogx(t_plot, y_plot[2], label="$y_C$")
+ax1.set(xlabel="t", ylabel="концентрация", ylim=(-0.03, 1.03))
+ax1.legend(fontsize=8, loc="center left")
+ax1.grid(alpha=0.2)
+t_mid = np.sqrt(rad.t[1:] * rad.t[:-1])
+ax2.loglog(t_mid, np.diff(rad.t), "o", ms=2.5, color="tab:red", label="шаг Radau")
+t_lim = np.logspace(-6, 11, 300)
+ax2.loglog(t_lim, -x_dp / -np.array([lam_fast(t_k) for t_k in t_lim]), color="k", lw=1,
+           label=r"3,31/|$\lambda_{\rm fast}$| (предел RK45)")
+ax2.axvspan(1e-6, 40, color="0.85", zorder=0)
+ax2.set(xlabel="t", ylabel="шаг h")
+ax2.legend(fontsize=8, loc="upper left")
+ax2.grid(alpha=0.2, which="major")
+fig.tight_layout()
+```
+
+**Допуски.** `solve_ivp` контролирует ошибку покомпонентно:
+$|e_i| \le \mathrm{atol} + \mathrm{rtol}\,|y_i|$. Если концентрация
+меньше `atol`, решатель её не контролирует вовсе, и малые, но
+важные компоненты могут уйти в отрицательную область. На задаче
+Робертсона это видно сразу:
+
+```{python}
+for method in ("Radau", "BDF", "LSODA"):
+    row = []
+    for atol in (1e-6, 1e-8, 1e-10):
+        sol, _ = run(method, 1e11, jac=robertson_jac, atol=atol, rtol=1e-4)
+        row.append(f"atol = {atol:.0e}: y_A = {sol.y[0, -1]:+.3e}")
+    print(f"{method:5s}  " + ";  ".join(row))
+print(f"эталон: y_A(10¹¹) = {ref.sol(1e11)[0]:.4e}")
+```
+
+При $\mathrm{atol} = 10^{-6}$ (значение по умолчанию) ни один решатель
+не даёт верного $y_A(10^{11})$, а BDF и вовсе получает
+$y_A \approx -3\cdot10^6$: $y_B \sim 10^{-13}$ ушла в минус, и
+отрицательная концентрация промежуточного вещества запустила рост
+$C\to A$ с обратным знаком. Правило [У]{.status}: `atol` должен быть
+меньше наименьшей концентрации, которая влияет на ответ; для
+содержаний, различающихся на много порядков, удобно задавать `atol`
+вектором или решать уравнения для $\ln y$.
+
+## Сеть реакций: pp-цепочка в одной зоне
+
+Ядерная сеть звезды — ещё более жёсткий пример. Возьмём ветвь pp-I
+горения водорода:
+$$
+p + p \to d + e^+ + \nu,\qquad d + p \to {}^3\mathrm{He} + \gamma,\qquad
+{}^3\mathrm{He} + {}^3\mathrm{He} \to {}^4\mathrm{He} + 2p,
+$$
+со скоростями $\langle\sigma v\rangle$ при постоянных S-факторах
+(тема «Скорости термоядерных реакций»; функция
+`cosmevo.nuclear.sigma_v`). Приближения: одна зона при постоянных
+плотности $\rho = 150$ г/см³ и температуре $T = 1{,}57\cdot10^7$ К
+(центр нынешнего Солнца), без экранирования, без ветвей pp-II и pp-III,
+начальный состав $X = 0{,}70$, $Y = 0{,}28$. Уравнения для числа ядер на
+единицу массы в а. е. м., $Y_i = n_i/(\rho N_A)$ (так $Y_i$ — число ядер
+сорта $i$, приходящееся на один нуклон):
+$$
+\dot Y_p = -2r_1 - r_2 + 2r_3,\quad \dot Y_d = r_1 - r_2,\quad
+\dot Y_3 = r_2 - 2r_3,\quad \dot Y_4 = r_3,
+$$
+$r_1 = \tfrac12\rho N_AY_p^2\langle\sigma v\rangle_{pp}$,
+$r_2 = \rho N_AY_pY_d\langle\sigma v\rangle_{pd}$,
+$r_3 = \tfrac12\rho N_AY_3^2\langle\sigma v\rangle_{33}$
+(множители $\tfrac12$ — для одинаковых частиц). S-факторы при нулевой
+энергии (Адельбергер и др., 2011): $S_{11} = 4{,}01\cdot10^{-22}$,
+$S_{12} = 2{,}14\cdot10^{-4}$, $S_{33} = 5{,}21\cdot10^3$ кэВ·барн.
+
+```{python}
+T_c, RHO_C = 1.57e7, 150.0
+M_P, M_D, M_HE3, M_HE4 = 1.007276, 2.013553, 3.014932, 4.001506     # массы ядер, а. е. м.
+YR = u.yr.to(u.s)
+N_RHO = RHO_C / (1 * u.u).to(u.g).value                             # ρN_A, см⁻³
+SV_PP = sigma_v(4.01e-22, 1, 1, M_P, M_P, T_c)
+SV_PD = sigma_v(2.14e-4, 1, 1, M_D, M_P, T_c)
+SV_33 = sigma_v(5.21e3, 2, 2, M_HE3, M_HE3, T_c)
+print(f"⟨σv⟩: pp {SV_PP:.2e}, pd {SV_PD:.2e}, ³He³He {SV_33:.2e} см³/с")
+
+def pp_chain(t, Y):
+    p, d, h3, _ = Y
+    r1 = 0.5 * N_RHO * p**2 * SV_PP
+    r2 = N_RHO * p * d * SV_PD
+    r3 = 0.5 * N_RHO * h3**2 * SV_33
+    return [-2 * r1 - r2 + 2 * r3, r1 - r2, r2 - 2 * r3, r3]
+
+def pp_jac(t, Y):
+    p, d, h3, _ = Y
+    return N_RHO * np.array([[-2 * p * SV_PP - d * SV_PD, -p * SV_PD, 2 * h3 * SV_33, 0],
+                             [p * SV_PP - d * SV_PD, -p * SV_PD, 0, 0],
+                             [d * SV_PD, p * SV_PD, -2 * h3 * SV_33, 0],
+                             [0, 0, h3 * SV_33, 0]])
+
+Y0 = [0.70 / M_P, 0.0, 0.0, 0.28 / M_HE4]
+t_end = 1e10 * YR
+pp = solve_ivp(pp_chain, [0, t_end], Y0, method="Radau", jac=pp_jac, rtol=1e-8,
+               atol=[1e-12, 1e-30, 1e-20, 1e-12], dense_output=True)
+A_nuc = np.array([1, 2, 3, 4])
+print(f"Radau: {len(pp.t) - 1} шагов до 10¹⁰ лет; "
+      f"нарушение сохранения нуклонов {np.abs(A_nuc @ pp.y / (A_nuc @ pp.y[:, 0]) - 1).max():.0e}")
+print("  t, лет     X = Y_p·m_p   D/H        ³He/H      собственные значения J, с⁻¹")
+for t_yr in (1e-7, 1e3, 1e5, 1e6, 1e9, 5e9):
+    Y_k = pp.sol(t_yr * YR)
+    lam = np.sort(np.linalg.eigvals(pp_jac(0, Y_k)).real)
+    print(f"  {t_yr:7.0e}  {Y_k[0] * M_P:.4f}       {Y_k[1] / Y_k[0]:.2e}   {Y_k[2] / Y_k[0]:.2e}"
+          f"   {lam[0]:.2e}  {lam[1]:.2e}  {lam[2]:.2e}")
+```
+
+Три ненулевых масштаба видны в спектре якобиана [У]{.status} (в рамках
+модели):
+
+- **дейтерий** выгорает за $\tau_d = 1/(n_p\langle\sigma v\rangle_{pd})
+  \approx 1$ с и всё время находится в равновесии
+  $\mathrm{D/H} = \langle\sigma v\rangle_{pp}/(2\langle\sigma v\rangle_{pd})$;
+- **гелий-3** приходит в равновесие
+  $^3\mathrm{He/H} = \sqrt{\langle\sigma v\rangle_{pp}/(2\langle\sigma
+  v\rangle_{33})}$ за $\sim10^5$ лет (время линейной релаксации
+  $3\cdot10^4$ лет);
+- **водород** выгорает за миллиарды лет.
+
+```{python}
+p0 = Y0[0]
+tau_d = 1 / (N_RHO * p0 * SV_PD)
+DH_eq = SV_PP / (2 * SV_PD)
+He3_eq = math.sqrt(SV_PP / (2 * SV_33))
+tau_3 = 1 / (2 * N_RHO * p0 * He3_eq * SV_33) / YR          # линейная релаксация ³He
+lam_pp = np.sort(np.linalg.eigvals(pp_jac(0, pp.sol(1e6 * YR))).real)
+stiffness = lam_pp[0] / lam_pp[2]
+N_explicit = -lam_pp[0] * t_end / -x_dp
+print(f"τ_d = {tau_d:.2f} с;  D/H = {DH_eq:.2e};  ³He/H = {He3_eq:.2e};  τ(³He) = {tau_3:.1e} лет")
+print(f"коэффициент жёсткости ≈ {stiffness:.0e};  шагов RK45 до 10¹⁰ лет ≈ {N_explicit:.0e}")
+```
+
+Явный метод сделал бы $\sim10^{17}$ шагов только для того, чтобы
+удержать от раскачки равновесие дейтерия, которое на ответ не влияет.
+Радо проходит 10 млрд лет за несколько сотен шагов. Реальные звёздные
+сети содержат от десятков до тысяч изотопов, и их интегрируют только
+неявными методами — обычно неявным Эйлером или полу-неявными схемами с
+разреженным якобианом, согласованными с шагом гидродинамики (Тиммс,
+1999) [У]{.status}. В SciPy структуру разреженности якобиана передают
+аргументом `jac_sparsity` (BDF и Radau).
+
+## Квазистационарное приближение
+
+Жёсткость — признак того, что у задачи есть малый параметр, и его
+можно использовать аналитически. Быстрые компоненты за время
+$|\lambda_{\rm fast}|^{-1}$ выходят на «медленное многообразие»
+$\dot y_{\rm fast} \approx 0$ и дальше следуют за медленными
+(теорема Тихонова о сингулярно возмущённых системах) [У]{.status}.
+Так получены равновесные D/H и ³He/H выше. Для задачи Робертсона на
+больших временах: $y_C \approx 1$, и из $\dot y_B \approx 0$ следует
+$y_B \approx k_1y_A/k_3$; тогда $\dot y_A = -k_1y_A + k_3y_By_C$
+обращается в нуль в главном порядке, и убыль $A$ определяется медленной
+реакцией $2B \to B + C$:
+$\dot y_A \approx -k_2y_B^2 = -(k_2k_1^2/k_3^2)\,y_A^2$, откуда
+$$
+y_A(t) \approx \frac{k_3^2}{k_1^2k_2\,t},\qquad t \gg 10^4 .
+$$
+
+```{python}
+for t_k in (1e6, 1e8, 1e11):
+    qss = K3**2 / (K1**2 * K2 * t_k)
+    print(f"t = {t_k:.0e}: y_A = {ref.sol(t_k)[0]:.4e}, квазистационарно {qss:.4e}")
+```
+
+При $t = 10^6$ ошибка около 2,5 %, к $t = 10^8$ — меньше 0,1 %.
+Квазистационарное приближение (QSSA) и его обобщения
+используются и как численный приём: быстрые компоненты исключают
+алгебраически и интегрируют только медленные. Но оно требует
+понимания, какие компоненты быстрые, и ломается там, где масштабы
+меняются местами (например, при закалке реакций в расширяющейся
+Вселенной — тема «Кинетическое уравнение в расширяющейся Вселенной»).
+Неявный решатель с хорошими допусками этого понимания не требует.
+
+## Итоги
+
+- Жёсткость — разброс временных масштабов: решение медленное, а у
+  якобиана есть собственные значения с $|\mathrm{Re}\,\lambda|$, много
+  большим обратного масштаба решения.
+- У явных методов Рунге–Кутты функция устойчивости — многочлен, и шаг
+  ограничен устойчивостью: $h < 3{,}31/|\lambda|$ для RK45. Неявные
+  методы бывают A- и L-устойчивыми; Радо IIA (аппроксимация Паде (2, 3)
+  экспоненты) — L-устойчив, порядок 5.
+- Линейные многошаговые A-устойчивые методы — порядка не выше 2
+  (барьер Дальквиста); BDF высших порядков работают на задачах с почти
+  вещественным спектром.
+- Задача Робертсона: RK45 до $t = 40$ делает $3{,}5\cdot10^4$ шагов
+  (столько, сколько требует устойчивость), Radau до $t = 10^{11}$ —
+  сотни. Слишком большой `atol` даёт отрицательные концентрации и
+  неверный ответ.
+- В одно-зонной pp-цепочке коэффициент жёсткости $\sim10^{16}$;
+  дейтерий и гелий-3 находятся в квазистационарном равновесии.
+
+## Упражнения
+
+1. Сколько шагов сделал бы явный метод Эйлера на уравнении
+   $\dot y = -10^3(y - \cos t)$ до $t = 10$, если шаг ограничен только
+   устойчивостью? Чему равно решение при больших $t$ с точностью до
+   $10^{-3}$?
+2. Метод трапеций A-устойчив. Найдите множитель $R(z)$ за шаг для моды
+   с $\lambda = -10^6$ при $h = 0{,}1$ и сравните с неявным методом
+   Эйлера. Через сколько шагов мода метода трапеций затухнет в $e$ раз?
+3. Найдите вещественную границу устойчивости классического метода
+   Рунге–Кутты четвёртого порядка, $R(z) = 1 + z + z^2/2 + z^3/6 +
+   z^4/24$. Выгоднее ли он, чем RK45, на жёсткой задаче, если считать
+   цену шага по числу вычислений $f$ (4 у RK4 и 6 у RK45)?
+4. В модели pp-цепочки найдите равновесное отношение D/H, если
+   температуру поднять на 10 %. Почему оно почти не меняется, хотя
+   обе скорости растут сильно?
+5. Для задачи Робертсона в квазистационарном приближении найдите
+   $y_B(t)$ на больших временах и момент, когда $y_A$ упадёт до
+   $10^{-6}$. Сравните с численным решением.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. Граница устойчивости явного Эйлера $h < 2/|\lambda| = 2\cdot10^{-3}$,
+   то есть не меньше $5\cdot10^3$ шагов. Решение быстро выходит на
+   $y \approx \cos t + 10^{-3}\sin t$ (поправка $\dot y/|\lambda|$), то
+   есть с точностью $10^{-3}$ $y \approx \cos t$: на медленном
+   многообразии точности хватило бы и при $h \sim 0{,}1$.
+2. $z = -10^5$: $R = (1 - 5\cdot10^4)/(1 + 5\cdot10^4) = -0{,}99996$ —
+   мода меняет знак каждый шаг и затухает в $e$ раз лишь за
+   $2{,}5\cdot10^4$ шагов. У неявного Эйлера $R = 1/(1 + 10^5) =
+   1{,}0\cdot10^{-5}$: мода гаснет за шаг (L-устойчивость).
+3. $z = -2{,}785$. На одно вычисление $f$ приходится $2{,}785/4 = 0{,}70$
+   у RK4 и $3{,}31/6 = 0{,}55$ у RK45: RK4 выгоднее на 26 %, но оба
+   безнадёжны — число шагов всё равно $\propto |\lambda|T$.
+4. $\mathrm{D/H} = 4{,}0\cdot10^{-18}$ при $T = 1{,}57\cdot10^7$ К и
+   $3{,}9\cdot10^{-18}$ при $T = 1{,}73\cdot10^7$ К (−4 %): у реакций
+   p + p и d + p одинаковые заряды ($Z_1Z_2 = 1$), а энергии Гамова
+   различаются только приведённой массой ($\mu = 0{,}50$ и $0{,}67$),
+   так что $\tau \propto E_G^{1/3}$ равны 13,5 и 14,9. Показатели
+   $\nu = (\tau - 2)/3$ отличаются лишь на 0,45, и
+   $\mathrm{D/H} \propto T^{-0{,}45}$: сильные зависимости почти
+   сокращаются.
+5. $y_B \approx k_1y_A/k_3 = k_3/(k_1k_2t)$, то есть
+   $y_B \approx 8{,}3\cdot10^{-3}/t$. $y_A = 10^{-6}$ при
+   $t = k_3^2/(k_1^2k_2\cdot10^{-6}) = 2{,}08\cdot10^9$; численно
+   $2{,}08\cdot10^9$.
+:::
+
+## Литература
+
+- Curtiss C. F., Hirschfelder J. O. Integration of stiff equations.
+  *PNAS* **38**, 235 (1952).
+- Dahlquist G. A special stability problem for linear multistep methods.
+  *BIT* **3**, 27 (1963).
+- Robertson H. H. The solution of a set of reaction rate equations. In:
+  Walsh J. (ed.) *Numerical Analysis: An Introduction.* — London:
+  Academic Press, 1966. P. 178–182.
+- Gear C. W. *Numerical Initial Value Problems in Ordinary Differential
+  Equations.* — Englewood Cliffs: Prentice-Hall, 1971.
+- Dormand J. R., Prince P. J. A family of embedded Runge–Kutta formulae.
+  *J. Comput. Appl. Math.* **6**, 19 (1980).
+- Petzold L. Automatic selection of methods for solving stiff and
+  nonstiff systems of ordinary differential equations. *SIAM J. Sci.
+  Stat. Comput.* **4**, 136 (1983).
+- Hairer E., Wanner G. *Solving Ordinary Differential Equations II:
+  Stiff and Differential-Algebraic Problems.* 2nd ed. — Berlin:
+  Springer, 1996.
+- Shampine L. F., Reichelt M. W. The MATLAB ODE suite. *SIAM J. Sci.
+  Comput.* **18**, 1 (1997).
+- Timmes F. X. Integration of nuclear reaction networks for stellar
+  hydrodynamics. *Astrophys. J. Suppl.* **124**, 241 (1999).
+- Virtanen P. et al. SciPy 1.0: fundamental algorithms for scientific
+  computing in Python. *Nature Methods* **17**, 261 (2020).
+- Adelberger E. G. et al. Solar fusion cross sections. II. The pp chain
+  and CNO cycles. *Rev. Mod. Phys.* **83**, 195 (2011), arXiv:1004.2318.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert sp.expand(R_dp - sum(z**k / sp.factorial(k) for k in range(6)) - z**6 / 600) == 0
+assert round(x_dp, 2) == -3.31
+assert sp.simplify(R_radau - pade) == 0 and sp.limit(R_radau, z, -sp.oo) == 0
+assert all(float(sp.re(p)) > 0 for p in poles)
+assert sp.series(R_radau - sp.exp(z), z, 0, 6).removeO() == 0
+lam_40 = np.linalg.eigvals(robertson_jac(0, ref.sol(1e-3))).real.min()
+assert round(lam_40, -2) == -1.7e3 and round(lam_40 / np.sort(np.linalg.eigvals(robertson_jac(0, ref.sol(1e-3))).real)[1], -3) == 5e3
+assert round(tau_3, -4) == 3e4
+assert 0.024 < abs(K3**2 / (K1**2 * K2 * 1e6) / ref.sol(1e6)[0] - 1) < 0.027 and abs(lam_fast(1e11) / -1e4 - 1) < 0.01
+lam_late = np.sort(np.linalg.eigvals(robertson_jac(0, ref.sol(1e11))).real)
+assert 2e14 < lam_late[0] / lam_late[1] < 8e14                    # «5·10¹⁴»
+n_rk = len(runs["RK45", 40].t) - 1
+assert 3.3e4 < n_rk < 3.7e4 and abs(N_est / n_rk - 1) < 0.15      # «3,5·10⁴», «почти столько»
+assert 1e14 < np.trapezoid(-np.array([lam_fast(t_k) for t_k in np.logspace(1, 11, 2000)]),
+                           np.logspace(1, 11, 2000)) / -x_dp < 1e15
+assert 1e14 < np.diff(runs['Radau', 1e11].t).max() * 1e4 < 1e15
+assert max(-x_dp / -lam_fast(t_k) for t_k in np.logspace(-3, 11, 300)) < 2e-3
+assert all(100 < len(runs[m, 1e11].t) < 1000 for m in ("Radau", "BDF", "LSODA"))
+bdf_bad, _ = run("BDF", 1e11, jac=robertson_jac, atol=1e-6, rtol=1e-4)
+assert -4e6 < bdf_bad.y[0, -1] < -2e6
+for m in ("Radau", "LSODA"):
+    s_bad, _ = run(m, 1e11, jac=robertson_jac, atol=1e-6, rtol=1e-4)
+    assert abs(s_bad.y[0, -1] / ref.sol(1e11)[0] - 1) > 0.05
+assert 0.5 < tau_d < 2 and f"{DH_eq:.1e}" == "4.0e-18"
+assert 1e4 < tau_3 < 1e6 and 1e16 < stiffness < 1e17 and 1e16 < N_explicit < 1e18
+assert 100 < len(pp.t) < 1000
+assert abs(K3**2 / (K1**2 * K2 * 1e6) / ref.sol(1e6)[0] - 1) < 0.03
+for t_k in (1e8, 1e11):
+    assert abs(K3**2 / (K1**2 * K2 * t_k) / ref.sol(t_k)[0] - 1) < 0.001
+# 1
+assert abs(1 / 1e3 * 2e0 - 2e-3) < 1e-15 and 10 / 2e-3 == 5e3
+# 2
+R_tr = lambda x: (1 + x / 2) / (1 - x / 2)
+assert round(R_tr(-1e5), 5) == -0.99996 and round(-1 / math.log(-R_tr(-1e5)), -3) == 2.5e4
+assert f"{1 / (1 + 1e5):.1e}" == "1.0e-05"
+# 3
+R4 = lambda x: 1 + x + x**2 / 2 + x**3 / 6 + x**4 / 24
+x_rk4 = brentq(lambda x: abs(R4(x)) - 1, -3, -2)
+assert round(x_rk4, 3) == -2.785 and round(-x_rk4 / 4, 2) == 0.70 and round(-x_dp / 6, 2) == 0.55
+assert round((-x_rk4 / 4) / (-x_dp / 6) - 1, 2) == 0.26
+# 4
+T_hot = 1.1 * T_c
+DH_hot = sigma_v(4.01e-22, 1, 1, M_P, M_P, T_hot) / (2 * sigma_v(2.14e-4, 1, 1, M_D, M_P, T_hot))
+assert f"{DH_hot:.1e}" == "3.9e-18" and round(DH_hot / DH_eq - 1, 2) == -0.04
+tau_pp = 3 * (gamow_energy(1, 1, M_P, M_P) * (const_kT := 1.380649e-16 * T_c / 1.602176634e-9)**2 / 4)**(1 / 3) / const_kT
+tau_pd = tau_pp * (gamow_energy(1, 1, M_D, M_P) / gamow_energy(1, 1, M_P, M_P))**(1 / 3)
+assert round(tau_pp, 1) == 13.5 and round(tau_pd, 1) == 14.9 and round((tau_pd - tau_pp) / 3, 2) == 0.45
+assert abs(1.1**-0.45 * DH_eq / DH_hot - 1) < 0.01
+assert round(M_P / 2, 2) == 0.50 and round(M_D * M_P / (M_D + M_P), 2) == 0.67
+# 5
+assert round(K3 / (K1 * K2), 4) == 0.0083
+t_6 = K3**2 / (K1**2 * K2 * 1e-6)
+t_num = brentq(lambda t_k: ref.sol(t_k)[0] - 1e-6, 1e8, 1e11)
+assert round(t_6 / 1e9, 2) == 2.08 and round(t_num / 1e9, 2) == 2.08
+```

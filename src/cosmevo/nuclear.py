@@ -1,11 +1,17 @@
-"""Энергии связи ядер: таблица AME2020 и формула Вайцзеккера.
+"""Энергии связи ядер (таблица AME2020, формула Вайцзеккера) и скорости
+нерезонансных термоядерных реакций.
 
 Таблица `data/ame2020.csv` извлечена из оценки атомных масс AME2020
 (Wang M. et al., Chinese Phys. C 45, 030003, 2021) скриптом
 `scripts/data/make_ame2020.py`. Энергии — в МэВ.
 """
 
+import math
+
+import astropy.constants as const
+import astropy.units as u
 import numpy as np
+from scipy.integrate import quad
 
 from cosmevo import DATA_DIR
 
@@ -65,3 +71,37 @@ def fit_weizsacker(Z, A, B, A_min=1):
     M = weizsacker_terms(np.asarray(Z)[sel], np.asarray(A)[sel])
     coeffs, *_ = np.linalg.lstsq(M, np.asarray(B)[sel], rcond=None)
     return coeffs
+
+
+# ---------------------------------------------------------------------------
+# Нерезонансные реакции заряженных частиц (тема «Скорости термоядерных реакций»)
+
+_KEV = u.keV.to(u.erg)
+_BARN = 1e-24                                     # см²
+_K_B = const.k_B.cgs.value
+_AMU_G = (1 * u.u).to(u.g).value
+_AMU_KEV = (1 * u.u * const.c**2).to(u.keV).value
+
+
+def gamow_energy(Z1, Z2, A1, A2):
+    """Энергия Гамова E_G = 2μc²(παZ₁Z₂)², кэВ; A₁, A₂ — массы ядер в а. е. м."""
+    mu = A1 * A2 / (A1 + A2)
+    return 2 * mu * _AMU_KEV * (math.pi * const.alpha.value * Z1 * Z2) ** 2
+
+
+def sigma_v(S0, Z1, Z2, A1, A2, T):
+    """Скорость ⟨σv⟩ (см³/с) нерезонансной реакции при постоянном
+    астрофизическом S-факторе S0 (кэВ·барн) и температуре T (К):
+
+        ⟨σv⟩ = √(8/πμ) (kT)^{-3/2} S0 ∫ exp(−E/kT − √(E_G/E)) dE.
+
+    Без электронного экранирования; интеграл берётся численно вокруг
+    гамовского пика E₀ = (E_G (kT)²/4)^{1/3}.
+    """
+    kT, EG = _K_B * T / _KEV, gamow_energy(Z1, Z2, A1, A2)
+    mu = A1 * A2 / (A1 + A2) * _AMU_G
+    E0 = (EG * kT**2 / 4) ** (1 / 3)
+    integral = quad(lambda E: math.exp(-E / kT - math.sqrt(EG / E)), 0, 60 * E0,
+                    points=[E0], limit=200)[0]                       # кэВ
+    return (math.sqrt(8 / (math.pi * mu)) * (kT * _KEV) ** -1.5
+            * (S0 * _KEV * _BARN) * integral * _KEV)
