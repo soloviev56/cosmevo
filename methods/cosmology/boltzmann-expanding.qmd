@@ -1,0 +1,446 @@
+---
+title: "Кинетическое уравнение в расширяющейся Вселенной"
+topic: boltzmann-expanding
+order: 5
+description: "Уравнение Больцмана в метрике ФЛРУ: оператор Лиувилля, интегрирование по импульсам, dn/dt + 3Hn = C; интеграл столкновений аннигиляции и уравнение Ли–Вайнберга; переменные Y = n/s, x = m/T; закалка (freeze-out): численное решение жёсткого уравнения, аналитическая оценка x_f и Y_∞; реликтовая плотность WIMP (⟨σv⟩ ≈ 2·10⁻²⁶ см³/с для Ωh² = 0,12); горячие реликты и Ω_νh² = Σm_ν/94 эВ"
+---
+
+Пока скорость реакций, поддерживающих равновесие, велика по сравнению
+с темпом расширения $H$, плазма ранней Вселенной проходит через
+последовательность равновесных состояний (тема «Термодинамика
+расширяющейся Вселенной»). Всё интересное — реликтовые нейтрино,
+первичные ядра, атомы, возможная тёмная материя — возникло там, где
+равновесие нарушалось: реакции «замерзали», и концентрация частиц
+переставала следовать за равновесной. Инструмент, который описывает
+этот переход, — кинетическое уравнение Больцмана в метрике ФЛРУ. Здесь
+выведем его, сведём к уравнению для числа частиц и решим задачу о
+закалке (freeze-out) реликта — главный пример неравновесного процесса
+в космологии и образец для нуклеосинтеза и рекомбинации.
+
+В этой статье (натуральные единицы $\hbar = c = k_B = 1$,
+$\Mpl = G^{-1/2}$):
+
+- выведем уравнение Больцмана для однородной изотропной функции
+  распределения и уравнение для концентрации;
+- получим уравнение Ли–Вайнберга для аннигилирующих частиц;
+- решим его численно (оно жёсткое) и аналитически;
+- найдём реликтовую плотность холодного и горячего реликта.
+
+## Уравнение Больцмана в метрике ФЛРУ
+
+::: {#def-boltzmann}
+**Кинетическое уравнение Больцмана** для функции распределения
+$f(x^\mu, p^\mu)$ частиц массы $m$ в искривлённом пространстве-времени:
+$$
+\hat L[f] \equiv p^\mu\pd{f}{x^\mu} - \Gamma^\mu_{\alpha\beta}p^\alpha p^\beta\pd{f}{p^\mu} = \hat C[f],
+$$
+где $\hat L$ — оператор Лиувилля (производная вдоль геодезических в
+фазовом пространстве), а $\hat C$ — интеграл столкновений.
+:::
+
+В однородной изотропной Вселенной $f = f(t, p)$, где $p = |\mathbf p|$ —
+физический импульс. Для метрики ФЛРУ геодезическое уравнение даёт
+$\dot p = -Hp$ — импульс свободной частицы убывает как $1/a$ (тема
+«Метрика Фридмана–Леметра–Робертсона–Уокера»). Деля на $E = p^0$,
+$$
+\pd{f}{t} - Hp\,\pd{f}{p} = \frac{\hat C[f]}{E}.
+$$
+Без столкновений решение — любая функция $F(ap)$: распределение
+сохраняет форму, а импульсы краснеют. Проинтегрируем по импульсам с
+мерой $g\,\dd^3p/(2\pi)^3$: член с $\partial f/\partial p$ берётся по
+частям ($\int p^3\partial_pf\,\dd p = -3\int p^2f\,\dd p$), и
+$$
+\dot n + 3Hn = \frac{g}{(2\pi)^3}\int\frac{\hat C[f]}{E}\,\dd^3p,
+\qquad n = \frac{g}{(2\pi)^3}\int f\,\dd^3p .
+$$
+Левая часть — $a^{-3}\,\dd(na^3)/\dd t$: без реакций число частиц в
+сопутствующем объёме сохраняется [У]{.status}.
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from astropy.cosmology import Planck18
+from scipy.integrate import solve_ivp
+from scipy.optimize import brentq
+
+from cosmevo.thermo import g_star_lattice
+from cosmevo.units import natural
+
+t, p, P = sp.symbols("t p P", positive=True)
+a = sp.Function("a")(t)
+F = sp.Function("F")
+H = sp.diff(a, t) / a
+f_free = F(a * p)
+print("∂f/∂t − Hp ∂f/∂p для f = F(ap):", sp.simplify(sp.diff(f_free, t) - H * p * sp.diff(f_free, p)))
+f_test = sp.exp(-p**2 / P**2)
+lhs = sp.integrate(p**3 * sp.diff(f_test, p), (p, 0, sp.oo))
+print("∫p³ ∂f/∂p dp + 3∫p² f dp =", sp.simplify(lhs + 3 * sp.integrate(p**2 * f_test, (p, 0, sp.oo))))
+```
+
+## Интеграл столкновений аннигиляции
+
+Пусть стабильные частицы $\chi$ (для простоты — истинно нейтральные,
+$\chi = \bar\chi$, число внутренних состояний $g$) аннигилируют в лёгкие
+частицы, $\chi\chi \leftrightarrow \psi\bar\psi$, а $\psi$ находятся в
+тепловом равновесии с плазмой. Три предположения [У]{.status} (их
+нарушение требует решать уравнение для $f$, а не для $n$):
+
+1. **Кинетическое равновесие** $\chi$: упругие столкновения с плазмой
+   идут гораздо быстрее аннигиляции, поэтому
+   $f_\chi = (n/n_{\rm eq})\,f_{\rm eq}$ — форма равновесная, меняется
+   только нормировка.
+2. **Статистика Больцмана** ($T \lesssim m$, вырождение и блокировка
+   Паули несущественны).
+3. **$T$-инвариантность**: сечения прямой и обратной реакции связаны
+   детальным равновесием.
+
+Тогда в интеграле столкновений обратный процесс пропорционален
+$f_\psi f_{\bar\psi} = e^{-(E_3 + E_4)/T} = e^{-(E_1 + E_2)/T} =
+f_{1,\rm eq}f_{2,\rm eq}$ по сохранению энергии, и
+$$
+\dot n + 3Hn = -\langle\sigma v\rangle\big(n^2 - n_{\rm eq}^2\big)
+$$
+— **уравнение Ли–Вайнберга** (Ли и Вайнберг, 1977). Здесь
+$\langle\sigma v\rangle$ — сечение аннигиляции, умноженное на
+относительную скорость и усреднённое по равновесным распределениям
+(аккуратное определение — Гондоло и Джельмини, 1991). Сомножители
+$\tfrac12$ за тождественные частицы в начальном состоянии и 2 за две
+исчезающие частицы в каждом акте сокращаются.
+
+**Переменные.** Расширение убирают делением на плотность энтропии
+$s = \frac{2\pi^2}{45}g_{*s}T^3$: при сохранении энтропии в
+сопутствующем объёме ($sa^3 = {\rm const}$) величина $Y = n/s$ меняется
+только из-за реакций. Время заменим на $x = m/T$. В эпоху излучения с
+постоянными $g_*$, $g_{*s}$ $H = \sqrt{8\pi^3g_*/90}\,T^2/\Mpl =
+H(m)/x^2$ и $\dot x = Hx$, откуда
+$$
+\frac{\dd Y}{\dd x} = -\frac{\lambda}{x^2}\big(Y^2 - Y_{\rm eq}^2\big),
+\qquad
+\lambda = \frac{s(m)\langle\sigma v\rangle}{H(m)}
+= \sqrt{\frac{\pi}{45}}\,\frac{g_{*s}}{\sqrt{g_*}}\,m\Mpl\langle\sigma v\rangle,
+$$
+$$
+Y_{\rm eq}(x) = \frac{g}{s}\left(\frac{mT}{2\pi}\right)^{3/2}e^{-m/T}
+= \frac{45}{2\pi^4}\sqrt{\frac{\pi}{8}}\,\frac{g}{g_{*s}}\,x^{3/2}e^{-x}
+\quad (x \gg 1).
+$$
+Проверим замену переменных и коэффициенты:
+
+```{python}
+x, m, sv, gs, gr, Mpl, Yf, g = sp.symbols("x m sigma_v g_s g_r M_Pl Y g", positive=True)
+T_x = m / x
+s_T = 2 * sp.pi**2 / 45 * gs * T_x**3
+H_T = sp.sqrt(8 * sp.pi**3 * gr / 90) * T_x**2 / Mpl
+# dY/dt = −⟨σv⟩ s (Y² − Y_eq²), dx/dt = H x  ⇒  dY/dx = −⟨σv⟩ s/(H x) (Y² − Y_eq²)
+coef = sv * s_T / (H_T * x)
+lam_formula = sp.sqrt(sp.pi / 45) * gs / sp.sqrt(gr) * m * Mpl * sv
+print("коэффициент = λ/x²:", sp.simplify(coef - lam_formula / x**2) == 0)
+n_eq = g * (m * T_x / (2 * sp.pi))**sp.Rational(3, 2) * sp.exp(-x)
+Y_eq_formula = 45 / (2 * sp.pi**4) * sp.sqrt(sp.pi / 8) * g / gs * x**sp.Rational(3, 2) * sp.exp(-x)
+print("Y_eq = n_eq/s:", sp.simplify(n_eq / s_T - Y_eq_formula) == 0)
+```
+
+Для частиц с $\langle\sigma v\rangle \sim 10^{-26}$ см³/с и $m \sim
+100$ ГэВ параметр $\lambda \sim 10^{12}$: огромное число, и в этом
+источник и жёсткости, и простоты задачи.
+
+## Закалка: численное решение
+
+При $x \lesssim 1$ равновесие поддерживается с относительной точностью
+$\sim x^2/(\lambda Y_{\rm eq})$: любое отклонение $Y$ от $Y_{\rm eq}$
+затухает со скоростью $2\lambda Y_{\rm eq}/x^2$ — на много порядков
+быстрее, чем меняется сама $Y_{\rm eq}$. Это жёсткая задача (тема
+«Жёсткие системы ОДУ»): явный метод был бы вынужден делать шаги
+$\Delta x \sim x^2/(\lambda Y_{\rm eq}) \sim 10^{-10}$ уже при $x \approx 1$. Решаем неявным
+методом Радо для $W = \ln Y$ — логарифм удобен, потому что $Y$ меняется
+на десятки порядков и должна оставаться положительной:
+$$
+\frac{\dd W}{\dd x} = -\frac{\lambda}{x^2}\big(e^{W} - Y_{\rm eq}^2e^{-W}\big).
+$$
+
+Значения $g_*$, $g_{*s}$ возьмём из таблицы Сайкавы и Сираи (2018)
+(функция `cosmevo.thermo.g_star_lattice`) при $T = m/20$ — около
+момента закалки — и будем считать постоянными (приближение: на
+самом деле $g_*$ меняется, особенно около КХД-перехода). Начинаем с
+$Y = Y_{\rm eq}$ при $x = 1$: пока равновесие держится, начальное
+условие забывается за $\Delta x \sim 10^{-10}$, и неточность
+нерелятивистской $Y_{\rm eq}$ при $x \sim 1$ на ответ не влияет.
+
+```{python}
+M_PL = natural(np.sqrt(const.hbar * const.c / const.G)).value          # ГэВ
+CM3_S = natural(1 * u.cm**3 / u.s).value                                # 1 см³/с в ГэВ⁻²
+PER_CM3 = natural(1 * u.cm**-3).value                                   # 1 см⁻³ в ГэВ³
+T0 = natural(Planck18.Tcmb0).value
+S0 = 2 * math.pi**2 / 45 * (43 / 11) * T0**3 / PER_CM3                  # энтропия сегодня, см⁻³
+RHO_C_H2 = (3 * (100 * u.km / u.s / u.Mpc)**2 / (8 * math.pi * const.G) * const.c**2).to(u.GeV / u.cm**3).value
+print(f"M_Pl = {M_PL:.4e} ГэВ;  1 см³/с = {CM3_S:.4e} ГэВ⁻²;  s₀ = {S0:.1f} см⁻³;  ρ_c/h² = {RHO_C_H2:.4e} ГэВ/см³")
+
+def y_eq(x, g, g_s):
+    return 45 / (2 * math.pi**4) * math.sqrt(math.pi / 8) * g / g_s * x**1.5 * np.exp(-x)
+
+def freeze_out(m, sv_cm3s, g=2, x_end=1000.0):
+    """Решение уравнения Ли–Вайнберга. m в ГэВ, ⟨σv⟩ в см³/с (s-волна).
+    Возвращает Y_∞, Ωh², λ и решение (dense_output) для W = ln Y."""
+    g_r, g_s = (float(v) for v in g_star_lattice(m / 20))
+    lam = math.sqrt(math.pi / 45) * g_s / math.sqrt(g_r) * m * M_PL * sv_cm3s * CM3_S
+    def rhs(x, W):
+        Y, Ye = math.exp(W[0]), y_eq(x, g, g_s)
+        return [-lam / x**2 * (Y - Ye**2 / Y)]
+    def jac(x, W):
+        Y, Ye = math.exp(W[0]), y_eq(x, g, g_s)
+        return [[-lam / x**2 * (Y + Ye**2 / Y)]]
+    sol = solve_ivp(rhs, [1.0, x_end], [math.log(y_eq(1.0, g, g_s))], method="Radau",
+                    jac=jac, rtol=1e-9, atol=1e-12, dense_output=True)
+    Y_inf = math.exp(sol.y[0, -1])
+    return Y_inf, Y_inf * m * S0 / RHO_C_H2, lam, sol, (g_r, g_s)
+
+for m_chi in (10.0, 100.0, 1000.0):
+    Y_inf, Oh2, lam, sol, (g_r, g_s) = freeze_out(m_chi, 2.2e-26)
+    print(f"m = {m_chi:6.0f} ГэВ: g_* = {g_r:.1f}, λ = {lam:.2e}, Y_∞ = {Y_inf:.3e}, "
+          f"Ωh² = {Oh2:.3f}  ({len(sol.t) - 1} шагов Радо)")
+
+sv_needed = brentq(lambda sv: freeze_out(100.0, sv * 1e-26)[1] - 0.12, 0.5, 10) * 1e-26
+print(f"Ωh² = 0,12 при m = 100 ГэВ требует ⟨σv⟩ = {sv_needed:.2e} см³/с")
+```
+
+```{python}
+#| label: fig-freeze-out
+#| fig-cap: "Закалка частиц массой 100 ГэВ (g = 2): отношение концентрации к плотности энтропии Y = n/s как функция x = m/T для трёх значений ⟨σv⟩ (численное решение уравнения Ли–Вайнберга). Штриховая — равновесная Y_eq ∝ x^{3/2}e^{−x} (нерелятивистская формула; при x ≲ 3 она лишь качественна, но начальное условие быстро забывается). Чем больше сечение, тем дольше частицы следуют за равновесием и тем меньше их остаётся. Тонкие горизонтальные линии — аналитическая оценка Y_∞ ≈ x_f/λ."
+x_plot = np.logspace(0, 3, 400)
+fig, ax = plt.subplots(figsize=(6.8, 4.2))
+g_r100, g_s100 = (float(v) for v in g_star_lattice(100.0 / 20))
+ax.loglog(x_plot, y_eq(x_plot, 2, g_s100), "k--", lw=1, label=r"$Y_{\rm eq}$")
+analytic = {}
+for sv_k, color, label in [(2.2e-28, "tab:blue", r"2{,}2\cdot10^{-28}"), (2.2e-26, "tab:orange", r"2{,}2\cdot10^{-26}"),
+                           (2.2e-24, "tab:red", r"2{,}2\cdot10^{-24}")]:
+    Y_inf, Oh2, lam, sol, _ = freeze_out(100.0, sv_k)
+    ax.loglog(x_plot, np.exp(sol.sol(x_plot)[0]), color=color,
+              label=rf"$\langle\sigma v\rangle = {label}$ см³/с")
+    x_f = brentq(lambda xx: lam * y_eq(xx, 2, g_s100) / xx - 1, 2, 200)
+    analytic[sv_k] = (x_f, x_f / lam, Y_inf)
+    ax.axhline(x_f / lam, color=color, lw=0.6, ls=":")
+ax.set(xlabel="x = m/T", ylabel="Y = n/s", ylim=(1e-16, 1e-2))
+ax.legend(fontsize=8, loc="lower left")
+ax.grid(alpha=0.2, which="major")
+fig.tight_layout()
+```
+
+## Аналитическая оценка
+
+Решение имеет две стадии [У]{.status} (в рамках приближений выше).
+
+- **До закалки** $Y \approx Y_{\rm eq}$. Отклонение
+  $\Delta = Y - Y_{\rm eq}$ подчиняется $\Delta' \approx -Y_{\rm eq}' -
+  (2\lambda Y_{\rm eq}/x^2)\Delta$, то есть $\Delta \approx
+  x^2/(2\lambda)$ при $Y_{\rm eq}' \approx -Y_{\rm eq}$. Равновесие
+  нарушается, когда $\Delta \sim Y_{\rm eq}$, — когда скорость
+  аннигиляции $\Gamma = n_{\rm eq}\langle\sigma v\rangle$ сравнивается с
+  $H$. В переменных $x$: $\Gamma/H = \lambda Y_{\rm eq}(x)/x$, и
+  **момент закалки** $x_f$ определяется условием
+  $\lambda Y_{\rm eq}(x_f)/x_f \approx 1$, то есть
+  $$
+  x_f \approx \ln\!\big[0{,}145\,(g/g_{*s})\,\lambda\big]
+  + \tfrac12\ln x_f .
+  $$
+- **После закалки** $Y_{\rm eq} \ll Y$, и $\dd Y/\dd x = -\lambda
+  Y^2/x^2$ интегрируется: $1/Y_\infty = 1/Y(x_f) + \lambda/x_f \approx
+  \lambda/x_f$. Итак,
+  $$
+  Y_\infty \approx \frac{x_f}{\lambda},\qquad
+  \Omega_\chi h^2 = \frac{m\,s_0\,Y_\infty}{\rho_c/h^2}
+  \propto \frac{x_f}{\langle\sigma v\rangle}.
+  $$
+
+```{python}
+for sv_k, (x_f, Y_an, Y_num) in analytic.items():
+    print(f"⟨σv⟩ = {sv_k:.1e}: x_f = {x_f:.1f},  Y_∞ ≈ x_f/λ = {Y_an:.3e},  "
+          f"численно {Y_num:.3e}  (отношение {Y_an / Y_num:.2f})")
+print(f"0,145 = (45/2π⁴)√(π/8) = {45 / (2 * math.pi**4) * math.sqrt(math.pi / 8):.4f}")
+```
+
+Простая оценка завышает $Y_\infty$ на 10–16 %
+(закалка не мгновенна, после $x_f$ аннигиляция ещё идёт), но
+главное она объясняет [У]{.status}:
+
+- реликтовая плотность **обратно пропорциональна сечению** и почти не
+  зависит от массы (масса входит через логарифм в $x_f$: 25 при
+  $m = 100$ ГэВ, 28 при 1 ТэВ для сечения слабого масштаба);
+- для $\Omega_\chi h^2 = 0{,}12$ (Planck 2018) нужно
+  $\langle\sigma v\rangle \approx 2\cdot10^{-26}$ см³/с — сечение
+  порядка слабого взаимодействия при $m \sim 100$ ГэВ. Наш расчёт с
+  постоянным $g_*$ даёт $2{,}1\cdot10^{-26}$; точный (с $g_*(T)$)
+  — $2{,}2\cdot10^{-26}$ см³/с при $m > 10$ ГэВ (Стейгман, Дасгупта,
+  Бикон, 2012).
+
+Это совпадение называют «чудом WIMP» (слабо взаимодействующих
+массивных частиц): частица с массой и сечением электрослабого
+масштаба автоматически даёт нужное количество тёмной материи. Что
+тёмная материя — термический реликт такого рода, — гипотеза
+[Г]{.status}; по данным на 2025 г. прямые, косвенные и ускорительные
+поиски WIMP сигнала не дали, а простейшие модели заметно стеснены
+(тема «Тёмная материя»).
+
+## Горячие реликты
+
+Если частицы отрываются, будучи **релятивистскими** ($x_f \lesssim 3$),
+их число в сопутствующем объёме замораживается на равновесном
+значении $Y_\infty = Y_{\rm eq}(x_f)$ — без экспоненциального
+подавления — и не зависит от сечения. Так ведут себя нейтрино: они
+отрываются при $T \approx 1$–2 МэВ, и сегодня на каждый сорт
+приходится $n_{\nu\bar\nu} = \tfrac{3}{11}n_\gamma$ (тема
+«Термодинамика расширяющейся Вселенной»). Если нейтрино сегодня
+нерелятивистские,
+$$
+\Omega_\nu h^2 = \frac{\sum m_\nu}{94~\text{эВ}}
+$$
+(граница Герштейна–Зельдовича, 1966):
+
+```{python}
+zeta3 = 1.2020569031595942
+n_gamma = 2 * zeta3 / math.pi**2 * T0**3 / PER_CM3
+n_nu = 3 / 11 * n_gamma                                   # ν + ν̄ одного сорта, см⁻³
+m_for_unity = RHO_C_H2 / n_nu * 1e9                       # эВ
+print(f"n_γ = {n_gamma:.1f} см⁻³, n_ν+ν̄ = {n_nu:.1f} см⁻³ на сорт;  Ω_ν h² = Σm_ν / {m_for_unity:.1f} эВ")
+for sum_m in (0.06, 0.064, 0.12):
+    print(f"Σm_ν = {sum_m} эВ: Ω_ν h² = {sum_m / m_for_unity:.1e}, доля от Ω_c h² = 0,12: {sum_m / m_for_unity / 0.12:.1%}")
+```
+
+Осцилляции нейтрино требуют $\sum m_\nu \ge 0{,}06$ эВ [У]{.status},
+а космология ограничивает сумму сверху: $< 0{,}12$ эВ по данным
+Planck 2018 с БАО и $< 0{,}064$ эВ (95 %) по данным DESI DR2 с
+реликтовым излучением в модели ΛCDM (на 2025 г.). Значит, нейтрино —
+доли процента тёмной материи, а горячая тёмная материя как основная
+компонента исключена [У]{.status}.
+
+## Итоги
+
+- В метрике ФЛРУ уравнение Больцмана для однородной изотропной
+  $f(t, p)$: $\partial_tf - Hp\,\partial_pf = \hat C/E$; интегрирование
+  по импульсам даёт $\dot n + 3Hn = \int\hat C$.
+- Для аннигиляции при кинетическом равновесии, статистике Больцмана и
+  детальном равновесии — уравнение Ли–Вайнберга
+  $\dot n + 3Hn = -\langle\sigma v\rangle(n^2 - n_{\rm eq}^2)$; в
+  переменных $Y = n/s$, $x = m/T$ — $Y' = -\lambda(Y^2 - Y_{\rm eq}^2)/x^2$
+  с $\lambda \sim 10^{12}$.
+- Уравнение жёсткое; решают неявным методом для $\ln Y$.
+- Закалка при $x_f \approx 20$–30; $Y_\infty \approx x_f/\lambda$,
+  $\Omega h^2 \propto 1/\langle\sigma v\rangle$; $\Omega h^2 = 0{,}12$ при
+  $\langle\sigma v\rangle \approx 2\cdot10^{-26}$ см³/с.
+- Горячий реликт сохраняет равновесное число частиц:
+  $\Omega_\nu h^2 = \sum m_\nu/94$ эВ.
+
+## Упражнения
+
+1. Найдите $Y_{\rm eq}$ при $x = 20$ и $x = 25$ для $g = 2$,
+   $g_{*s} = 80$. Во сколько раз она падает при изменении $x$ на 5?
+2. По формуле для $x_f$ оцените момент закалки частиц с $m = 1$ ТэВ и
+   $\langle\sigma v\rangle = 2{,}2\cdot10^{-26}$ см³/с ($g_* = g_{*s} = 93$).
+   Какой температуре он соответствует?
+3. Как изменится $\Omega h^2$, если при той же массе сечение
+   аннигиляции увеличить в 10 раз? Сравните численное решение с
+   оценкой $\Omega \propto x_f/\langle\sigma v\rangle$.
+4. Решите уравнение $Y' = -\lambda Y^2/x^2$ после закалки с
+   $Y(x_f) = Y_f$ и покажите, что $1/Y_\infty = 1/Y_f + \lambda/x_f$.
+   Какая доля частиц аннигилирует после $x_f$, если $Y_f = 2x_f/\lambda$?
+5. Оцените коэффициент жёсткости уравнения для $Y$ при $x = 2$
+   (частицы 100 ГэВ, $\langle\sigma v\rangle = 2{,}2\cdot10^{-26}$ см³/с):
+   отношение скорости затухания отклонений $2\lambda Y_{\rm eq}/x^2$ к
+   скорости изменения равновесия $|\dd\ln Y_{\rm eq}/\dd x|$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $Y_{\rm eq}(20) = 6{,}7\cdot10^{-10}$, $Y_{\rm eq}(25) =
+   6{,}3\cdot10^{-12}$ — падение в $(20/25)^{3/2}e^5 = 106$ раз.
+2. $\lambda = 5{,}9\cdot10^{13}$; итерации
+   $x_f = \ln[0{,}145\cdot(2/93)\lambda] + \tfrac12\ln x_f$ сходятся к
+   $x_f = 27{,}6$, $T_f = m/x_f = 36$ ГэВ.
+3. Численно $\Omega h^2$ падает с 0,114 до 0,0126 — в 9,05 раза, а не в
+   10: $x_f$ растёт с 25,3 до 27,7, и оценка
+   $10\cdot25{,}3/27{,}7 = 9{,}15$ близка к точному отношению.
+4. $\dd(1/Y)/\dd x = \lambda/x^2$ ⇒ $1/Y(x) = 1/Y_f + \lambda(1/x_f -
+   1/x)$, при $x \to \infty$ — указанная формула. При $Y_f = 2x_f/\lambda$:
+   $1/Y_\infty = 3\lambda/(2x_f)$, $Y_\infty = Y_f/3$ — после закалки
+   аннигилируют 2/3 частиц, поэтому оценка $Y_\infty \approx x_f/\lambda$
+   чувствительна к определению $x_f$ лишь логарифмически, а не по
+   порядку величины.
+5. $2\lambda Y_{\rm eq}/x^2 = 3{,}8\cdot10^9$, а $|\dd\ln
+   Y_{\rm eq}/\dd x| = |3/(2x) - 1| = 0{,}25$: отношение $1{,}5\cdot10^{10}$.
+   Явный метод при $x = 2$ сделал бы шаг $\Delta x \lesssim 10^{-9}$.
+:::
+
+## Литература
+
+- Gershtein S. S., Zeldovich Ya. B. Rest mass of muonic neutrino and
+  cosmology. *JETP Lett.* **4**, 120 (1966) [Герштейн С. С.,
+  Зельдович Я. Б. *Письма в ЖЭТФ* **4**, 174 (1966)].
+- Lee B. W., Weinberg S. Cosmological lower bound on heavy-neutrino
+  masses. *Phys. Rev. Lett.* **39**, 165 (1977).
+- Scherrer R. J., Turner M. S. On the relic, cosmic abundance of
+  stable, weakly interacting massive particles. *Phys. Rev. D* **33**,
+  1585 (1986).
+- Kolb E. W., Turner M. S. *The Early Universe.* — Redwood City:
+  Addison-Wesley, 1990.
+- Gondolo P., Gelmini G. Cosmic abundances of stable particles:
+  improved analysis. *Nucl. Phys. B* **360**, 145 (1991).
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной:
+  Теория горячего Большого взрыва.* — М.: URSS, 2008 (2-е изд.: М.:
+  ЛЕНАНД, 2016).
+- Steigman G., Dasgupta B., Beacom J. F. Precise relic WIMP abundance
+  and its impact on searches for dark matter annihilation. *Phys. Rev. D*
+  **86**, 023506 (2012), arXiv:1204.3622.
+- Saikawa K., Shirai S. Primordial gravitational waves, precisely: the
+  role of thermodynamics in the Standard Model. *JCAP* **05**, 035
+  (2018), arXiv:1803.01038.
+- Planck Collaboration (Aghanim N. et al.). Planck 2018 results. VI.
+  Cosmological parameters. *Astron. Astrophys.* **641**, A6 (2020),
+  arXiv:1807.06209.
+- DESI Collaboration (Abdul-Karim M. et al.). DESI DR2 Results II:
+  Measurements of baryon acoustic oscillations and cosmological
+  constraints. *Phys. Rev. D* **112**, 083515 (2025), arXiv:2503.14738.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert round(45 / (2 * math.pi**4) * math.sqrt(math.pi / 8), 3) == 0.145
+lam100 = freeze_out(100.0, 2.2e-26)[2]
+assert 1e12 < lam100 < 1e13
+assert round(sv_needed / 1e-26, 1) == 2.1
+assert all(0.10 < freeze_out(mm, 2.2e-26)[1] < 0.13 for mm in (10.0, 100.0, 1000.0))
+xs = [v[0] for v in analytic.values()]
+ratios = [v[1] / v[2] for v in analytic.values()]
+assert 15 < analytic[2.2e-26][0] < 30
+assert round(m_for_unity) == 94 and round(n_nu) == 112
+assert f"{0.06 / m_for_unity:.1e}" == "6.4e-04"
+assert all(1.09 < r_ < 1.17 for r_ in ratios)
+xf_100 = analytic[2.2e-26][0]
+assert round(xf_100) == 25
+assert 1e-11 < 1 / (freeze_out(100.0, 2.2e-26)[2] * y_eq(1.0, 2, g_s100)) < 1e-9
+# 1
+assert f"{y_eq(20, 2, 80):.1e}" == "6.7e-10" and f"{y_eq(25, 2, 80):.1e}" == "6.3e-12"
+assert round(y_eq(20, 2, 80) / y_eq(25, 2, 80)) == 106 and round(0.8**1.5 * math.exp(5)) == 106
+# 2
+lam1 = math.sqrt(math.pi / 45) * 93 / math.sqrt(93) * 1000 * M_PL * 2.2e-26 * CM3_S
+x_it = 25.0
+for _ in range(50):
+    x_it = math.log(0.145 * 2 / 93 * lam1) + 0.5 * math.log(x_it)
+xf1000 = brentq(lambda xx: lam1 * y_eq(xx, 2, 93) / xx - 1, 2, 200)
+assert f"{lam1:.1e}" == "5.9e+13" and round(x_it, 1) == 27.6 and abs(x_it - xf1000) < 0.05
+assert round(1000 / xf1000) == 36
+xf_1tev = brentq(lambda xx: freeze_out(1000.0, 2.2e-26)[2] * y_eq(xx, 2, freeze_out(1000.0, 2.2e-26)[4][1]) / xx - 1, 2, 200)
+assert round(xf_1tev) == 28
+# 3
+O1, O2 = freeze_out(100.0, 2.2e-26), freeze_out(100.0, 2.2e-25)
+xf_a = brentq(lambda xx: O1[2] * y_eq(xx, 2, O1[4][1]) / xx - 1, 2, 200)
+xf_b = brentq(lambda xx: O2[2] * y_eq(xx, 2, O2[4][1]) / xx - 1, 2, 200)
+assert round(O1[1], 3) == 0.114 and round(O2[1], 4) == 0.0126 and round(O1[1] / O2[1], 2) == 9.05
+assert (round(xf_a, 1), round(xf_b, 1)) == (25.3, 27.7) and round(10 * xf_a / xf_b, 2) == 9.15
+# 5
+rate5 = 2 * O1[2] * y_eq(2.0, 2, O1[4][1]) / 4
+assert f"{rate5:.1e}" == "3.8e+09" and f"{rate5 / 0.25:.1e}" == "1.5e+10"
+```
