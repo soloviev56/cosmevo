@@ -105,3 +105,71 @@ def sigma_v(S0, Z1, Z2, A1, A2, T):
                     points=[E0], limit=200)[0]                       # кэВ
     return (math.sqrt(8 / (math.pi * mu)) * (kT * _KEV) ** -1.5
             * (S0 * _KEV * _BARN) * integral * _KEV)
+
+
+# ---------------------------------------------------------------------------
+# Ядерное статистическое равновесие (тема «Ядерное статистическое равновесие»)
+
+_MEV_K = (1 * u.MeV / const.k_B).to(u.K).value            # К на МэВ
+_AMU_MEV = (1 * u.u * const.c**2).to(u.MeV).value
+_HBARC_MEV_CM = (const.hbar * const.c).to(u.MeV * u.cm).value
+
+# Статистические веса g = 2J + 1 основных состояний лёгких ядер (Z, A) → g;
+# у остальных ядер g = 1 (у чётно-чётных это точно, у прочих — приближение).
+GROUND_G = {(0, 1): 2, (1, 1): 2, (1, 2): 3, (1, 3): 2, (2, 3): 2,
+            (3, 6): 3, (3, 7): 4, (4, 7): 4}
+
+
+def nse_network(A_max=70, measured_only=True):
+    """Набор ядер для расчёта равновесия: n, p и все нуклиды AME2020 с
+    A ≤ A_max. Словарь массивов Z, N, A, B (МэВ), g и el."""
+    d = load_ame(measured_only)
+    keep = d["A"] <= A_max
+    net = {k: np.concatenate([[z0, z1], d[k][keep]])
+           for k, z0, z1 in (("Z", 0, 1), ("N", 1, 0), ("A", 1, 1), ("B", 0.0, 0.0),
+                             ("el", "n", "p"))}
+    net["g"] = np.array([GROUND_G.get((int(z), int(a)), 1)
+                         for z, a in zip(net["Z"], net["A"])], float)
+    return net
+
+
+def nse(T, rho, Ye, net):
+    """Массовые доли X_i в ядерном статистическом равновесии.
+
+    T — температура (К), rho — плотность барионов (г/см³; n_B = ρ/m_u),
+    Ye — число протонов на нуклон (сохраняется, если слабые процессы
+    медленны). Невырожденный больцмановский газ ядер:
+
+        n_i = g_i A_i^{3/2} 2^{−A_i} n_Q^{1−A_i} n_p^{Z_i} n_n^{N_i} e^{B_i/kT},
+        n_Q = (m_u kT / 2πħ²)^{3/2}.
+
+    Приближения: массы в предэкспоненте равны A m_u; без возбуждённых
+    состояний ядер (статсумма = g основного состояния) и кулоновских
+    поправок. Химпотенциалы ищутся вложенными одномерными решениями
+    (сначала сохранение барионов, затем заряда), начальное приближение не
+    нужно. Возвращает (X, (ln n_p/n_Q, ln n_n/n_Q)).
+    """
+    from scipy.optimize import brentq
+    from scipy.special import logsumexp
+
+    kT = T / _MEV_K
+    nQ = (_AMU_MEV * kT / (2 * math.pi * _HBARC_MEV_CM**2)) ** 1.5
+    Z, N, A = (np.asarray(net[k], float) for k in ("Z", "N", "A"))
+    base = (np.log(net["g"]) + 1.5 * np.log(A) - A * math.log(2) + net["B"] / kT
+            + math.log(nQ * _AMU_G / rho))                # ln(n_i/n_B) без химпотенциалов
+
+    def ln_Y(up, un):
+        return base + Z * up + N * un
+
+    def un_for(up):                                       # Σ A_i Y_i = 1
+        return brentq(lambda un: logsumexp(ln_Y(up, un), b=A), -1e4, 1e3, xtol=1e-13)
+
+    def charge(up):                                       # Σ (Z_i − Ye A_i) Y_i = 0
+        lY = ln_Y(up, un_for(up))
+        return logsumexp(lY, b=Z) - logsumexp(lY, b=A) - math.log(Ye)
+
+    # при n_n → 0 остаются одни протоны: Y_p = e^{base_p + up} < 1 задаёт верхнюю границу up
+    up_max = -base[1] - 1e-10
+    up = brentq(charge, -1e4, up_max, xtol=1e-13)
+    un = un_for(up)
+    return A * np.exp(ln_Y(up, un)), (up, un)
