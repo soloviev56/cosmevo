@@ -1,0 +1,473 @@
+---
+title: "Первичный нуклеосинтез"
+topic: bbn
+order: 4
+description: "Полный расчёт первичного нуклеосинтеза: слабые скорости n ⇄ p в борновском приближении, закалка при 0,66 МэВ, сеть из 9 ядер и 70 реакций JINA REACLIB, решённая неявным методом; узкое место дейтерия и отрыв D от равновесия по Саха; выходы ⁴He, D, ³He, ⁷Li и их зависимость от η; барионная плотность по дейтерию против Planck; чувствительность к τ_n и N_eff; проблема лития"
+---
+
+Первичный нуклеосинтез (BBN, big bang nucleosynthesis) — самый ранний
+этап истории Вселенной, о котором у нас есть прямые количественные
+свидетельства: в первые минуты образовались ядра ⁴He, D, ³He и ⁷Li, и
+их содержания до сих пор можно измерить в веществе, почти не
+затронутом звёздами. Предсказания зависят от физики слабых и ядерных
+реакций, известной из лаборатории, от темпа расширения (то есть от
+числа релятивистских частиц) и от единственного свободного параметра
+— отношения числа барионов к числу фотонов $\eta$.
+
+В статье «Свидетельства горячего Большого взрыва» мы получили
+$Y_p \approx 2X_n$ по закалке нейтронов, в статье «Ядерное
+статистическое равновесие» — почему синтез откладывается до
+$T \approx 0{,}08$ МэВ. Теперь проведём полный расчёт — тот же, что
+делают коды PRIMAT, PArthENoPE или AlterBBN, но в упрощённом виде, —
+и сравним его с наблюдениями.
+
+## Уравнения
+
+::: {#def-bbn-network}
+**Сеть первичного нуклеосинтеза** — система уравнений для чисел частиц
+на нуклон $Y_i = n_i/n_B$ ($X_i = A_iY_i$ — массовые доли):
+$$
+\frac{\dd Y_i}{\dd t} = \sum_{j} \Bigl(N_i^{(j)} - M_i^{(j)}\Bigr)\,
+\frac{\rho_B^{\,m_j-1}\,\lambda_j(T)}{\prod_k M_k^{(j)}!}\prod_k Y_k^{M_k^{(j)}},
+$$
+где сумма идёт по реакциям $j$; $M_k^{(j)}$ и $N_k^{(j)}$ — числа
+ядер $k$ слева и справа, $m_j = \sum_k M_k^{(j)}$, а $\lambda_j$ —
+скорость: для распада — в с⁻¹, для двухчастичной реакции —
+$N_A\langle\sigma v\rangle$ в см³·моль⁻¹·с⁻¹ (при $Y$ в моль/г).
+Вместе с ними решаются уравнение расширения
+$\dd\ln T/\dd t = -H/(1 + \frac13\dd\ln g_{*s}/\dd\ln T)$ и
+$\rho_B \propto g_{*s}T^3$.
+:::
+
+Три входа этой системы и сделанные приближения:
+
+1. **Слабые реакции** $n\nu_e \leftrightarrow pe^-$,
+   $ne^+ \leftrightarrow p\bar\nu_e$, $n \leftrightarrow pe^-\bar\nu_e$ —
+   в борновском приближении с бесконечно тяжёлыми нуклонами; общий
+   множитель $G_F^2(1 + 3g_A^2)$ заменён нормировкой на время жизни
+   нейтрона $\tau_n = 878{,}4$ с [У]{.status}. Нейтрино имеют
+   температуру $T_\nu$, после аннигиляции $e^\pm$ — ниже $T$.
+   Кулоновские, радиационные и конечно-массовые поправки опущены.
+2. **Расширение** — $H = \sqrt{8\pi^3g_*/90}\,T^2/\Mpl$ с $g_*(T)$ по
+   таблице Сайкавы и Сираи (тема «Термодинамика расширяющейся
+   Вселенной»), включающей неполный отрыв нейтрино ($N_{\rm eff} = 3{,}045$).
+3. **Ядерные скорости** — база JINA REACLIB (Сайберт и соавторы, 2010):
+   9 ядер (n, p, d, t, ³He, ⁴He, ⁶Li, ⁷Li, ⁷Be) и все реакции между
+   ними, включая обратные (фоторасщепление), вычисленные базой из
+   детального равновесия. Скорости ключевых реакций в REACLIB взяты
+   в основном из компиляций NACRE и Декувмона и соавторов (2004);
+   современные коды используют более новые данные, например скорость
+   $d(p,\gamma){}^3$He по измерениям LUNA (Мосса и соавторы, 2020).
+
+Всё это реализовано в пакете: `cosmevo.reaclib` читает формат REACLIB
+и собирает сеть с аналитическим якобианом, `cosmevo.bbn` содержит
+слабые скорости, расширение и решатель.
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.cosmology import Planck18
+from scipy.optimize import brentq
+from scipy.special import zeta
+
+from cosmevo.bbn import (HBARC, SPECIES, TAU_N, baryon_density, final_abundances, hubble,
+                         network, solve_bbn, weak_rates)
+
+net = network()
+print(f"ядер: {len(SPECIES)}, реакций: {len(net.rates)} "
+      f"(из них обратных: {sum(r.reverse for r in net.rates)}), наборов коэффициентов: {len(net.coeffs)}")
+for r in sorted(net.rates, key=lambda r: -r.Q)[:6]:
+    print(f"  {r.name:22s} Q = {r.Q:6.2f} МэВ  [{', '.join(sorted(r.labels))}]")
+```
+
+Барионную плотность возьмём из опорной космологии Planck18:
+$\eta = \rho_B/(\bar m\,n_\gamma)$, где $\bar m$ — средняя масса на
+барион (с учётом гелия и электронов $\bar m \approx 1{,}0061\,m_u$):
+
+```{python}
+rho_B0 = (Planck18.Ob0 * Planck18.critical_density0).to(u.g / u.cm**3).value
+n_gamma0 = (2 * zeta(3) / math.pi**2
+            * (const.k_B * Planck18.Tcmb0 / (const.hbar * const.c))**3).to(u.cm**-3).value
+m_H, m_He = 1.007825, 4.002603                       # атомные массы, а. е. м.
+m_bar = 0.755 * m_H + 0.245 * m_He / 4               # на барион, а. е. м.
+eta_planck = rho_B0 / (m_bar * const.u.cgs.value) / n_gamma0
+print(f"Ω_b h² = {Planck18.Ob0 * Planck18.h**2:.5f}, n_γ = {n_gamma0:.1f} см⁻³, "
+      f"m̄ = {m_bar:.4f} а. е. м., η = {eta_planck:.3e}")
+```
+
+## Закалка нейтронов
+
+Слабые скорости на нейтрон и на протон сравним с темпом расширения:
+
+```{python}
+T_f = brentq(lambda T: sum(weak_rates(T)) - hubble(T), 0.3, 3)
+for T in (3.0, 1.0, T_f, 0.3):
+    l_np, l_pn = weak_rates(T)
+    print(f"T = {T:.3f} МэВ: λ(n→p) = {l_np:.3e} с⁻¹, λ(p→n) = {l_pn:.3e} с⁻¹, "
+          f"(λ_np + λ_pn)/H = {(l_np + l_pn) / hubble(T):.2f}, "
+          f"λ_pn/λ_np = {l_pn / l_np:.4f}, e^(−Q/T) = {math.exp(-1.29333 / T):.4f}")
+print(f"при T → 0: 1/λ(n→p) = {1 / weak_rates(1e-3)[0]:.1f} с")
+```
+
+При $T_\nu = T$ скорости удовлетворяют детальному равновесию
+$\lambda_{pn}/\lambda_{np} = e^{-Q/T}$ — это проверка интегралов, а
+при $T \to 0$ остаётся только распад с $1/\tau_n$. Суммарная скорость
+сравнивается с $H$ при $T_f \approx 0{,}66$ МэВ; как и в любой закалке,
+отношение $n/p$ отстаёт от равновесного плавно, а не скачком.
+
+## Решение сети
+
+Интегрируем от $T = 10$ МэВ: до $0{,}8$ МэВ — только $n \leftrightarrow p$,
+затем вся сеть, стартуя с состава по Саха (функция `saha_light`
+пользуется `cosmevo.nuclear.nse`). Система чрезвычайно жёсткая:
+фоторасщепление дейтерия при 0,8 МэВ идёт со скоростью $\sim10^{14}$ с⁻¹,
+а сама эволюция — за секунды и минуты; явный метод здесь безнадёжен
+(тема «Жёсткие системы ОДУ»), поэтому используется метод Радо с
+аналитическим якобианом.
+
+```{python}
+res = solve_bbn(eta_planck)
+final = final_abundances(res)
+T_res, time_res = res["T"], res["time"]
+s2 = res["sol"][1]
+print(f"шагов неявного метода: {s2.t.size}, вычислений правой части: {s2.nfev}, "
+      f"конец: T = {T_res[-1] * 1e3:.0f} кэВ, t = {time_res[-1] / 3600:.1f} ч")
+for key, value in final.items():
+    print(f"  {key:6s} = {value:.4g}")
+```
+
+```{python}
+#| label: fig-bbn-evolution
+#| fig-cap: "Первичный нуклеосинтез при η = 6,14·10⁻¹⁰ (Planck18): массовые доли X = AY как функции температуры (нижняя шкала) и времени (верхняя шкала). Нейтроны закаляются около 0,7 МэВ и затем медленно распадаются; дейтерий до T ≈ 80 кэВ следует равновесию по Саха со свободными n и p (тонкая штриховая), после чего лавинообразно перерабатывается в ⁴He. ⁷Li и ⁷Be показаны отдельно: при η Planck большая часть будущего лития рождается как ⁷Be."
+labels = {"n": "n", "p": "p", "d": "D", "t": "³H", "he3": "³He", "he4": "⁴He",
+          "li7": "⁷Li", "be7": "⁷Be", "li6": "⁶Li"}
+A_of = dict(zip(SPECIES, (1, 1, 2, 3, 3, 4, 6, 7, 7)))
+colors = dict(zip(labels, ["tab:blue", "0.4", "tab:orange", "tab:purple", "tab:green", "k",
+                           "tab:red", "tab:brown", "tab:pink"]))
+fig, ax = plt.subplots(figsize=(7, 4.6))
+for s in ("n", "p", "d", "t", "he3", "he4", "li7", "be7", "li6"):
+    ax.loglog(T_res, A_of[s] * np.maximum(res[s], 1e-40), color=colors[s],
+              lw=2 if s == "he4" else 1.2, label=labels[s])
+def X_d_saha(k):
+    """Дейтерий в равновесии по Саха с фактическими свободными n и p (точка k решения):
+    n_d = (3/4)(4π/(m_N T))^{3/2} e^{B_d/T} n_n n_p."""
+    T = T_res[k]
+    n_B = baryon_density(T, eta_planck) / const.u.cgs.value                  # см⁻³
+    factor = 0.75 * (4 * math.pi * HBARC**2 / (931.494 * T))**1.5 * math.exp(2.224566 / T)
+    return 2 * factor * res["n"][k] * res["p"][k] * n_B
+
+k_saha = np.flatnonzero((T_res < 0.8) & (T_res > 0.06))
+ax.loglog(T_res[k_saha], [X_d_saha(k) for k in k_saha], color="tab:orange", ls="--", lw=0.8)
+ax.set(xlabel="T, МэВ", ylabel="массовая доля X", xlim=(1, 5e-3), ylim=(1e-14, 2))
+ax.set_xticks([1, 0.1, 0.01], ["1", "0,1", "0,01"])
+top = ax.secondary_xaxis("top", functions=(lambda T: np.interp(-np.log(T), -np.log(T_res), time_res),
+                                           lambda t: np.interp(t, time_res, T_res)))
+top.set_xticks([1, 10, 100, 1000])
+top.set_xticklabels(["1 с", "10 с", "100 с", "1000 с"])
+ax.legend(fontsize=8, ncol=3, loc="lower left")
+ax.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Хронология по решению:
+
+```{python}
+def crossing(series, level):
+    """Первая температура, при которой series достигает level."""
+    k = np.argmax(series >= level)
+    return T_res[k], time_res[k]
+
+X_he4 = 4 * res["he4"]
+T_half, t_half = crossing(X_he4, final["Yp"] / 2)
+k_dmax = np.argmax(res["d"])
+print(f"половина ⁴He образовалась при T = {T_half * 1e3:.0f} кэВ, t = {t_half:.0f} с")
+print(f"максимум дейтерия: X_D = {2 * res['d'][k_dmax]:.2e} при T = {T_res[k_dmax] * 1e3:.0f} кэВ, "
+      f"t = {time_res[k_dmax]:.0f} с")
+def neutrons_total(k):
+    """Нейтроны на нуклон — свободные и в ядрах."""
+    return sum(res[s][k] * n for s, n in (("n", 1), ("d", 1), ("t", 2), ("he3", 1), ("he4", 2),
+                                          ("li6", 3), ("li7", 4), ("be7", 3)))
+
+k_onset = np.argmax(X_he4 >= 0.01 * final["Yp"])
+k_half = np.argmax(X_he4 >= 0.5 * final["Yp"])
+for k in (k_onset, k_half):
+    print(f"T = {T_res[k] * 1e3:.0f} кэВ, t = {time_res[k]:.0f} с: 2X_n(всего) = {2 * neutrons_total(k):.3f}")
+for T_check in (0.2, 0.1, 0.085, 0.075):
+    k = np.argmin(abs(T_res - T_check))
+    print(f"T = {T_res[k] * 1e3:.0f} кэВ: X_D(сеть)/X_D(Саха) = {2 * res['d'][k] / X_d_saha(k):.3f}")
+```
+
+Картина [У]{.status}:
+
+- Почти до самого начала синтеза (до $T \approx 80$ кэВ — с точностью
+  лучше процента) дейтерий находится в равновесии по Саха с нуклонами,
+  и его мало: фотоны разбивают его быстрее, чем он
+  накапливается. Нейтроны всё это время свободны и распадаются.
+- Около $T \approx 75$ кэВ ($t \approx 4$ мин) дейтерия становится
+  достаточно, чтобы цепочки $d(d,n){}^3\mathrm{He}$, $d(d,p)t$,
+  ${}^3\mathrm{He}(n,p)t$, $t(d,n){}^4\mathrm{He}$,
+  ${}^3\mathrm{He}(d,p){}^4\mathrm{He}$ за минуту собрали почти все
+  нейтроны в ⁴He. $Y_p$ близко к оценке $2X_n$ в момент синтеза (не
+  в момент закалки: от закалки до синтеза проходит несколько минут, и
+  распадается около 15 % нейтронов).
+- Дальше ⁴He почти ничего не идёт: стабильных ядер с $A = 5$ и $8$
+  нет, а реакции ${}^4\mathrm{He}({}^3\mathrm{He},\gamma){}^7\mathrm{Be}$
+  и ${}^4\mathrm{He}(t,\gamma){}^7\mathrm{Li}$ подавлены кулоновским
+  барьером при быстро падающих температуре и плотности. Остатки D и
+  ³He «замерзают» на уровне $10^{-5}$, лития — $10^{-10}$.
+
+## Итоговые содержания и наблюдения
+
+Наш упрощённый расчёт против точного кода PRIMAT (Питру и соавторы,
+2018) и против наблюдений (на 2025 г.):
+
+| | этот расчёт | PRIMAT | наблюдения |
+|---|---|---|---|
+| $Y_p$ | 0,2425 | $0{,}24709 \pm 0{,}00017$ | $0{,}2453 \pm 0{,}0034$ (Авер и соавторы, 2021) |
+| D/H | $2{,}48\cdot10^{-5}$ | — | $(2{,}527 \pm 0{,}030)\cdot10^{-5}$ (Кук, Петтини, Стайдел, 2018) |
+| ³He/H | $1{,}03\cdot10^{-5}$ | — | только верхняя граница по H II-областям Галактики |
+| ⁷Li/H | $4{,}7\cdot10^{-10}$ | — | $\approx 1{,}6\cdot10^{-10}$ (плато Спитов) |
+
+Различие $Y_p$ на $0{,}005$ (2 %) — в основном опущенные поправки к
+слабым скоростям: в борновском приближении нейтрон «живёт» в плазме
+немного не так, как с кулоновскими и радиационными поправками
+(Питру и соавторы, 2018, подробно разбирают каждую). Для D/H,
+³He/H и Li/H расхождения с точными кодами определяются в первую
+очередь ядерными скоростями: в REACLIB часть из них старше
+современных компиляций, использованных у Питру и соавторов (2018) и
+Филдса и соавторов (2020).
+
+Главный итог [У]{.status}: **гелий и дейтерий согласуются с
+наблюдениями при том же $\eta$, которое независимо измерено по
+акустическим пикам реликтового излучения** (через $\Omega_bh^2$).
+Это проверка физики при $T \sim 0{,}1$ МэВ и $t \sim$ минуты с точностью
+в проценты.
+
+## Зависимость от η
+
+```{python}
+eta_grid = np.geomspace(1.5e-10, 1.2e-9, 11)
+scan = [final_abundances(solve_bbn(e, rtol=1e-5)) for e in eta_grid]
+table = {k: np.array([s[k] for s in scan]) for k in scan[0]}
+for e, s in zip(eta_grid, scan):
+    print(f"η = {e:.2e}: Y_p = {s['Yp']:.4f}, D/H = {s['D/H']:.3e}, "
+          f"³He/H = {s['He3/H']:.3e}, ⁷Li/H = {s['Li7/H']:.3e}")
+```
+
+```{python}
+#| label: fig-bbn-eta
+#| fig-cap: "Выходы первичного нуклеосинтеза в зависимости от η (этот расчёт). Горизонтальные полосы — наблюдения: Y_p = 0,2453 ± 0,0034, D/H = (2,527 ± 0,030)·10⁻⁵ (полоса 2σ), ⁷Li/H ≈ 1,6·10⁻¹⁰ (плато Спитов, полоса — условные ±30 %). Вертикальная линия — η по Planck18. Гелий меняется логарифмически медленно, дейтерий — как η^{−1,56}; литий проходит через минимум (переход от ⁷Li к ⁷Be) и при η Planck втрое выше наблюдаемого."
+fig, axes = plt.subplots(3, 1, figsize=(6.4, 7.4), sharex=True,
+                         gridspec_kw={"height_ratios": [1, 1.4, 1]})
+ax = axes[0]
+ax.semilogx(eta_grid, table["Yp"], "k")
+ax.axhspan(0.2453 - 0.0034, 0.2453 + 0.0034, color="tab:blue", alpha=0.2)
+ax.set(ylabel="$Y_p$")
+ax = axes[1]
+ax.loglog(eta_grid, table["D/H"], color="tab:orange", label="D/H")
+ax.loglog(eta_grid, table["He3/H"], color="tab:green", label="³He/H")
+ax.axhspan(2.527e-5 - 0.06e-5, 2.527e-5 + 0.06e-5, color="tab:orange", alpha=0.3)
+ax.set(ylabel="на ядро H")
+ax.legend(fontsize=9)
+ax = axes[2]
+ax.loglog(eta_grid, table["Li7/H"], color="tab:red", label="⁷Li/H")
+ax.axhspan(1.6e-10 / 1.3, 1.6e-10 * 1.3, color="tab:red", alpha=0.2)
+ax.set(ylabel="⁷Li/H", xlabel="η = n_B / n_γ")
+for ax in axes:
+    ax.axvline(eta_planck, color="0.5", ls="--", lw=0.8)
+    ax.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+Обратная задача: найдём $\eta$ по наблюдаемому дейтерию. Возле
+$\eta_{\rm Planck}$ зависимость степенная, $\mathrm{D/H} \propto \eta^{-\beta}$:
+
+```{python}
+lnD = np.interp(np.log(eta_planck), np.log(eta_grid), np.log(table["D/H"]))
+beta = -np.polyfit(np.log(eta_grid[3:8]), np.log(table["D/H"][3:8]), 1)[0]
+D_obs, dD_obs = 2.527e-5, 0.030e-5
+eta_D = eta_planck * (math.exp(lnD) / D_obs) ** (1 / beta)
+d_eta = eta_D * dD_obs / D_obs / beta
+print(f"D/H ∝ η^(−{beta:.2f}); η по дейтерию = ({eta_D * 1e10:.2f} ± {d_eta * 1e10:.2f})·10⁻¹⁰, "
+      f"Planck: {eta_planck * 1e10:.2f}·10⁻¹⁰")
+```
+
+Дейтерий — лучший «бариометр»: точность измерения 1,2 % даёт $\eta$ с
+точностью около 0,8 %, сравнимой с реликтовым излучением.
+Наш $\eta_D$ на 1 % ниже $\eta_{\rm Planck}$ — в пределах неопределённости
+ядерных скоростей; в современных расчётах согласие на уровне
+$\sim1\sigma$ [У]{.status} (на 2025 г.). Обсуждавшееся в 2010-х
+расхождение было связано со скоростью $d(p,\gamma){}^3$He, которую
+затем измерили в подземной лаборатории LUNA (Мосса и соавторы, 2020).
+
+## Проблема лития
+
+При $\eta_{\rm Planck}$ предсказание ⁷Li/H в 3–4 раза выше содержания
+лития в атмосферах старых бедных металлами звёзд гало, которое почти
+не зависит от металличности («плато Спитов»; Спит и Спит, 1982). Это
+расхождение на 4–5σ (Филдс, 2011) [У]{.status} — **проблема лития**.
+
+Предлагаемые объяснения [Г]{.status}:
+
+- *астрофизика звёзд* — литий частично выгорает или опускается вглубь
+  в атмосферах звёзд (диффузия, турбулентное перемешивание); эта
+  версия сегодня считается наиболее вероятной, но количественно не
+  доказана;
+- *ядерная физика* — неучтённые резонансы в реакциях разрушения ⁷Be;
+  после измерений последних лет этот путь почти закрыт;
+- *новая физика* — распады долгоживущих частиц после нуклеосинтеза,
+  переменные константы и т. п. [С]{.status} для большинства конкретных
+  моделей: они обычно портят согласие по дейтерию.
+
+Для дальнейшего важно, что проблема касается следового элемента с
+содержанием $10^{-10}$ и не затрагивает основной результат: первичное
+вещество — это примерно 75 % водорода и 25 % гелия по массе.
+
+## Итоги
+
+- Первичный нуклеосинтез — решение сети кинетических уравнений
+  (9 ядер, 70 реакций) в расширяющейся Вселенной; система жёсткая и
+  требует неявного метода.
+- Отношение $n/p$ закаляется около $0{,}66$ МэВ; синтез идёт около
+  $75$ кэВ ($t \approx 4$ мин), когда дейтерий перестаёт разрушаться
+  фотонами; почти все нейтроны оказываются в ⁴He.
+- При $\eta = 6{,}14\cdot10^{-10}$: $Y_p = 0{,}2425$ (точный расчёт
+  0,2471), $\mathrm{D/H} = 2{,}5\cdot10^{-5}$, ³He/H $= 1{,}0\cdot10^{-5}$,
+  ⁷Li/H $= 4{,}7\cdot10^{-10}$.
+- Гелий и дейтерий согласуются с наблюдениями при $\eta$ по Planck
+  [У]{.status}; литий в 3–4 раза ниже предсказания — открытая
+  проблема, вероятно звёздной природы [Г]{.status}.
+
+## Упражнения
+
+1. Насколько $Y_p$ чувствителен к времени жизни нейтрона? Решите сеть
+   при $\tau_n = 878{,}4 \pm 10$ с и найдите $\dd Y_p/\dd\tau_n$.
+   Поясните оба механизма влияния (сравните с упражнением 4 статьи
+   «Свидетельства горячего Большого взрыва»).
+2. Добавьте один сорт безмассовых нейтрино ($\Delta N_{\rm eff} = 1$).
+   Как изменятся $Y_p$ и D/H? Почему $Y_p$ — «счётчик» релятивистских
+   степеней свободы?
+3. Найдите показатель $\beta$ в $\mathrm{D/H} \propto \eta^{-\beta}$ и
+   объясните, почему он заметно больше 1: при большем $\eta$
+   синтез начинается раньше *и* идёт быстрее.
+4. При каком $\eta$ (в пределах сетки рисунка) предсказание ⁷Li/H
+   минимально и чему равно? Объясните, почему при малых $\eta$ литий
+   рождается как ⁷Li, а при больших — как ⁷Be.
+5. Найдите полную долю нейтронов на нуклон (свободных и в ядрах)
+   $X_n^{\rm tot}$ в моменты, когда ⁴He набрал 1 % и 50 % конечного
+   значения, и сравните $2X_n^{\rm tot}$ с $Y_p$. Насколько изменился
+   бы $Y_p$, если бы синтез начался на 30 с позже?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $Y_p = 0{,}2404$ при $868{,}4$ с и $0{,}2445$ при $888{,}4$ с:
+   $\dd Y_p/\dd\tau_n \approx 2{,}0\cdot10^{-4}$ с⁻¹, т. е. ошибка
+   $\tau_n$ в 10 с сдвигает $Y_p$ на 0,002 — больше точности
+   современных расчётов. Длиннее $\tau_n$ — слабее слабые скорости
+   (раньше закалка, больше нейтронов) и меньше распадов до начала
+   синтеза; оба эффекта увеличивают $Y_p$. Спор о «пучковом» и
+   «бутылочном» значениях $\tau_n$ (разница около 10 с) поэтому
+   важен для BBN.
+2. $Y_p = 0{,}2550$ (+0,013), D/H $= 2{,}81\cdot10^{-5}$ (+13 %).
+   Быстрее расширение — раньше закалка при большем $n/p$ и меньше
+   времени на распад нейтронов; $Y_p$ почти не зависит от ядерных
+   скоростей и потому измеряет $H(T)$, т. е. $g_*$.
+3. $\beta = 1{,}56$ на интервале $\eta = (3{,}7$–$7{,}5)\cdot10^{-10}$.
+   Конечный D — то, что не успело сгореть в $d + d$ и $d + p$; при
+   большем $\eta$ скорости выгорания пропорционально больше ($\propto
+   \eta$), а синтез начинается при большей температуре и плотности
+   (узкое место проходится раньше), что добавляет ещё
+   $\approx\eta^{0{,}6}$.
+4. Минимум ⁷Li/H $\approx 1{,}1\cdot10^{-10}$ при $\eta \approx (2{,}3$–$2{,}8)\cdot10^{-10}$
+   (по сетке рисунка) — ниже наблюдаемого плато. При малых $\eta$ литий образуется как
+   ⁷Li в ${}^4$He$(t,\gamma)$ и разрушается в ${}^7$Li$(p,\alpha)$ —
+   выход падает с ростом $\eta$; при больших $\eta$ он рождается как
+   ⁷Be в ${}^4$He$({}^3$He$,\gamma)$, а ⁷Be разрушается медленнее
+   (через $(n,p)$), и выход растёт с $\eta$.
+5. Когда ⁴He набрал 1 % конечного ($T = 80$ кэВ, $t = 197$ с),
+   $2X_n^{\rm tot} = 0{,}257$; на половине ($T = 72$ кэВ, $t = 247$ с) —
+   $0{,}245$; итог $Y_p = 0{,}2425$. Нейтроны распадаются и во время
+   синтеза, поэтому оценка $2X_n$ точна лишь до процента. Задержка на
+   30 с: $Y_p \to Y_pe^{-30/\tau_n} = 0{,}234$.
+:::
+
+## Литература
+
+- Alpher R. A., Bethe H., Gamow G. The origin of chemical elements.
+  *Phys. Rev.* **73**, 803 (1948).
+- Wagoner R. V., Fowler W. A., Hoyle F. On the synthesis of elements at
+  very high temperatures. *Astrophys. J.* **148**, 3 (1967).
+- Cyburt R. H. et al. The JINA REACLIB database: its recent updates and
+  impact on type-I X-ray bursts. *Astrophys. J. Suppl.* **189**, 240
+  (2010).
+- Pitrou C., Coc A., Uzan J.-P., Vangioni E. Precision big bang
+  nucleosynthesis with improved Helium-4 predictions. *Phys. Rep.*
+  **754**, 1 (2018), arXiv:1801.08023.
+- Fields B. D., Olive K. A., Yeh T.-H., Young C. Big-Bang
+  nucleosynthesis after Planck. *J. Cosmol. Astropart. Phys.* **03**,
+  010 (2020), arXiv:1912.01132.
+- Mossa V. et al. The baryon density of the Universe from an improved
+  rate of deuterium burning. *Nature* **587**, 210 (2020).
+- Cooke R. J., Pettini M., Steidel C. C. One percent determination of
+  the primordial deuterium abundance. *Astrophys. J.* **855**, 102
+  (2018), arXiv:1710.11129.
+- Aver E. et al. Improving helium abundance determinations with Leo P
+  as a case study. *J. Cosmol. Astropart. Phys.* **03**, 027 (2021),
+  arXiv:2010.04180.
+- Spite F., Spite M. Lithium abundance at the formation of the Galaxy.
+  *Nature* **297**, 483 (1982).
+- Fields B. D. The primordial lithium problem. *Annu. Rev. Nucl.
+  Part. Sci.* **61**, 47 (2011), arXiv:1203.3551.
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной.
+  Теория горячего Большого взрыва.* — М.: ЛКИ, 2008. Гл. 8.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert len(SPECIES) == 9 and len(net.rates) == 70
+assert round(eta_planck * 1e10, 2) == 6.14 and round(m_bar, 4) == 1.0061
+assert round(T_f, 2) == 0.66
+assert abs(1 / weak_rates(1e-3)[0] - TAU_N) < 0.1
+l_np, l_pn = weak_rates(1.0)
+assert abs(l_pn / l_np / math.exp(-1.29333 / 1.0) - 1) < 1e-4
+assert round(final["Yp"], 4) == 0.2425
+assert round(final["D/H"] * 1e5, 2) == 2.48
+assert round(final["He3/H"] * 1e5, 2) == 1.03
+assert round(final["Li7/H"] * 1e10, 1) == 4.7
+assert res["be7"][-1] > res["li7"][-1]                         # «большая часть — как ⁷Be»
+assert round(0.24709 - final["Yp"], 3) == 0.005
+assert 70 < T_half * 1e3 < 80 and 210 < t_half < 270            # «около 75 кэВ, t ≈ 4 мин»
+for T_check in (0.2, 0.1, 0.085, 0.08):
+    k = np.argmin(abs(T_res - T_check))
+    assert abs(2 * res["d"][k] / X_d_saha(k) - 1) < 0.01        # «Саха с точностью до процентов»
+# ⁷Li/H предсказание / наблюдение
+assert 2.5 < final["Li7/H"] / 1.6e-10 < 3.5
+# η-скан
+assert np.all(np.diff(table["D/H"]) < 0) and np.all(np.diff(table["Yp"]) > 0)
+assert round(beta, 2) == 1.56
+assert round(eta_D * 1e10, 2) == 6.07 and round(d_eta / eta_D * 100, 1) == 0.8
+assert round(1 - eta_D / eta_planck, 2) == 0.01
+# 1
+r_lo = final_abundances(solve_bbn(eta_planck, tau_n=TAU_N - 10, rtol=1e-5))
+r_hi = final_abundances(solve_bbn(eta_planck, tau_n=TAU_N + 10, rtol=1e-5))
+assert round(r_lo["Yp"], 4) == 0.2404 and round(r_hi["Yp"], 4) == 0.2445
+assert round((r_hi["Yp"] - r_lo["Yp"]) / 20 * 1e4, 1) == 2.0
+# 2
+r_nu = final_abundances(solve_bbn(eta_planck, dNeff=1.0, rtol=1e-5))
+assert round(r_nu["Yp"], 4) == 0.2550 and round(r_nu["Yp"] - final["Yp"], 3) == 0.013
+assert round(r_nu["D/H"] * 1e5, 2) == 2.81 and round(r_nu["D/H"] / final["D/H"] - 1, 2) == 0.13
+# 4
+k_min = np.argmin(table["Li7/H"])
+assert round(table["Li7/H"][k_min] * 1e10, 1) == 1.1 and 2.2e-10 < eta_grid[k_min] < 2.9e-10
+assert table["Li7/H"][k_min] < 1.6e-10
+# 5
+assert round(T_res[k_onset] * 1e3) == 80 and round(time_res[k_onset]) == 197
+assert round(2 * neutrons_total(k_onset), 3) == 0.257 and round(2 * neutrons_total(k_half), 3) == 0.245
+assert round(T_half * 1e3) == 72 and round(t_half) == 247
+assert round(final["Yp"] * math.exp(-30 / TAU_N), 3) == 0.234
+```
