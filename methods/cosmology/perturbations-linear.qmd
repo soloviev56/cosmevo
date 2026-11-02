@@ -1,0 +1,503 @@
+---
+title: "Линейная теория возмущений"
+topic: perturbations-linear
+order: 6
+description: "Ньютоновские уравнения жидкости в расширяющейся Вселенной и их линеаризация (проверено SymPy); джинсовская неустойчивость и джинсовская масса барионов после рекомбинации; рост δ ∝ a в эпоху вещества, эффект Месароша в эпоху излучения, остановка роста при Λ; фактор роста D(a) и индекс роста γ ≈ 0,55 для Planck18; спектр мощности, σ_R и σ_8, масштаб нелинейности сегодня"
+---
+
+Сегодня Вселенная резко неоднородна: галактики плотнее среднего в
+$10^5$–$10^6$ раз. А на поверхности последнего рассеяния относительные
+неоднородности плотности были порядка $10^{-5}$ (тема
+«Свидетельства горячего Большого взрыва»). Связывает эти два состояния
+гравитационная неустойчивость: области чуть плотнее среднего притягивают
+вещество и уплотняются ещё сильнее. Пока контраст плотности мал, его
+эволюцию описывает **линейная теория** — система линейных уравнений,
+решения которой определяют, когда и какие структуры могут возникнуть
+(тема «Образование крупномасштабной структуры»).
+
+Мы ограничимся ньютоновским пределом: масштабы много меньше
+хаббловского радиуса $c/H$ и нерелятивистское вещество. Он точен для
+всей поздней эволюции структуры внутри горизонта; полная релятивистская
+теория (калибровки, сверхгоризонтные моды) нужна для начальных условий
+и реликтового излучения и выходит за рамки статьи.
+
+## Уравнения жидкости в расширяющейся Вселенной
+
+Возьмём идеальную жидкость с плотностью $\rho$, давлением $p$ и
+скоростью $\mathbf u$ в физических координатах $\mathbf r$ и перейдём к
+сопутствующим $\mathbf x = \mathbf r/a$. Скорость
+$\mathbf u = H\mathbf r + \mathbf v$, где $\mathbf v = a\dot{\mathbf x}$ —
+пекулярная скорость. Запишем
+$$
+\rho = \bar\rho(t)\,[1 + \delta(\mathbf x, t)],
+$$
+где $\bar\rho \propto a^{-3}$, а $\delta$ — **контраст плотности**.
+
+::: {#def-linear-eqs}
+**Линейные уравнения ньютоновской теории возмущений** (в сопутствующих
+координатах, $\nabla \equiv \partial/\partial\mathbf x$, $\phi$ —
+возмущение гравитационного потенциала, $c_s^2 = \partial p/\partial\rho$):
+$$
+\dot\delta + \frac1a\nabla\cdot\mathbf v = 0, \qquad
+\dot{\mathbf v} + H\mathbf v = -\frac{1}{a}\nabla\phi - \frac{c_s^2}{a}\nabla\delta, \qquad
+\nabla^2\phi = 4\pi G\bar\rho a^2\delta.
+$$
+Исключая $\mathbf v$ и $\phi$, для фурье-моды $\delta_{\mathbf k}$
+(волновое число $k$ — сопутствующее) получаем
+$$
+\ddot\delta_{\mathbf k} + 2H\dot\delta_{\mathbf k}
+= \left(4\pi G\bar\rho - \frac{c_s^2k^2}{a^2}\right)\delta_{\mathbf k}.
+$$
+:::
+
+Член $2H\dot\delta$ — «хаббловское трение»: расширение растягивает
+пекулярные движения ($\mathbf v \propto 1/a$ без сил). Проверим
+исключение символьно: возьмём дивергенцию уравнения Эйлера и подставим
+в продифференцированное уравнение непрерывности.
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+import astropy.constants as const
+import astropy.units as u
+from astropy.cosmology import Planck18
+from scipy.integrate import quad, solve_ivp
+from scipy.optimize import brentq
+
+t, k, G, cs = sp.symbols("t k G c_s", positive=True)
+a, rho, delta, theta = (sp.Function(name)(t) for name in ("a", "rho", "delta", "theta"))
+H = a.diff(t) / a
+# θ = ∇·v для фурье-моды; ∇² → −k²
+continuity = delta.diff(t) + theta / a                                   # = 0
+# ∇·(уравнение Эйлера): θ̇ + Hθ = −∇²φ/a − c²∇²δ/a, где ∇²φ = 4πGρa²δ, а ∇²δ → −k²δ
+euler_div = theta.diff(t) + H * theta + 4 * sp.pi * G * rho * a * delta - cs**2 * k**2 / a * delta
+theta_from_cont = -a * delta.diff(t)
+result = euler_div.subs(theta.diff(t), sp.diff(theta_from_cont, t)).subs(theta, theta_from_cont)
+target = -a * (delta.diff(t, 2) + 2 * H * delta.diff(t) - (4 * sp.pi * G * rho - cs**2 * k**2 / a**2) * delta)
+print("Эйлер ∘ непрерывность − (−a)·[уравнение для δ] =", sp.simplify(result - target))
+```
+
+## Джинсовская неустойчивость
+
+Без расширения ($H = 0$) уравнение имеет решения $e^{\pm\Gamma t}$ с
+$\Gamma^2 = 4\pi G\rho - c_s^2k_{\rm ph}^2$, где $k_{\rm ph} = k/a$:
+возмущения длиннее **джинсовской длины**
+$$
+\lambda_J = \frac{2\pi}{k_J} = c_s\sqrt{\frac{\pi}{G\rho}}
+$$
+растут экспоненциально, короче — осциллируют как звуковые волны.
+Масса в сфере диаметром $\lambda_J$ — **джинсовская масса**
+$M_J = \frac{\pi}{6}\rho\lambda_J^3$. В расширяющейся Вселенной
+критерий тот же, но рост выше джинсовского масштаба уже не
+экспоненциальный, а степенной: хаббловское трение и уменьшение
+$\bar\rho$ замедляют его.
+
+Самое важное применение — барионы после рекомбинации. До неё фотоны
+держат барионы давлением излучения (звуковая скорость $\sim c/\sqrt3$,
+$\lambda_J$ порядка горизонта); после — давление определяет газ с
+температурой, ещё привязанной к реликтовому излучению. Возьмём
+$z = 1000$, $T = T_0(1 + z)$, атомарный газ водорода и гелия
+($\mu = 1{,}22$), гравитирует вся материя:
+
+```{python}
+def jeans_mass(z, T, mu=1.22, gamma=5 / 3):
+    """M_J (в M☉) и λ_J (собственная длина, пк) для газа при красном смещении z."""
+    rho_m = (Planck18.Om0 * Planck18.critical_density0 * (1 + z)**3).cgs.value
+    c_s = math.sqrt(gamma * const.k_B.cgs.value * T / (mu * const.m_p.cgs.value))
+    lam = c_s * math.sqrt(math.pi / (const.G.cgs.value * rho_m))
+    M = math.pi / 6 * rho_m * lam**3
+    return M / const.M_sun.cgs.value, lam / const.pc.cgs.value, c_s
+
+z_dec = 1000
+M_J, lam_J, c_s = jeans_mass(z_dec, Planck18.Tcmb0.value * (1 + z_dec))
+print(f"z = {z_dec}: c_s = {c_s / 1e5:.1f} км/с, λ_J = {lam_J:.0f} пк (собственная), M_J = {M_J:.1e} M☉")
+```
+
+Около $3\cdot10^5\,M_\odot$ — масса типичного шарового скопления. Меньшие сгустки газа
+расти не могут [У]{.status}; это нижняя граница масс первых
+барионных структур (тема «Тёмные века, первые звёзды и реионизация»;
+после отрыва температуры газа от реликтового излучения при $z \lesssim 150$
+граница снижается).
+
+## Рост в эпоху вещества, излучения и Λ
+
+Для холодного вещества ($c_s \to 0$) уравнение не зависит от $k$:
+все масштабы растут одинаково, $\delta(\mathbf x, t) = D(t)\,\delta_0(\mathbf x)$.
+Перепишем его через $\ln a$ (штрих — $\dd/\dd\ln a$):
+$$
+D'' + \left(2 + \frac{\dd\ln H}{\dd\ln a}\right)D' = \frac32\,\Omega_m(a)\,D,
+\qquad \Omega_m(a) = \frac{8\pi G\bar\rho_m}{3H^2}.
+$$
+
+**Эпоха вещества** (Эйнштейн–де Ситтер): $\Omega_m = 1$,
+$\dd\ln H/\dd\ln a = -3/2$, и $D'' + \frac12D' - \frac32D = 0$ даёт
+$D \propto a$ (растущая мода) и $D \propto a^{-3/2} \propto t^{-1}$
+(затухающая).
+
+**Эпоха излучения.** Возмущения тёмной материи внутри горизонта
+растут лишь логарифмически: гравитирует в основном однородное
+излучение, а его возмущения внутри горизонта осциллируют и не
+поддерживают рост (эффект Месароша, 1974). В переменной
+$y = a/a_{\rm eq}$ уравнение для $\delta$ вещества (излучение не
+возмущено)
+$$
+\frac{\dd^2\delta}{\dd y^2} + \frac{2 + 3y}{2y(1+y)}\frac{\dd\delta}{\dd y}
+- \frac{3}{2y(1+y)}\delta = 0
+$$
+имеет точное решение $\delta \propto 1 + \frac32y$:
+
+```{python}
+y = sp.symbols("y", positive=True)
+D_mes = 1 + sp.Rational(3, 2) * y
+meszaros = D_mes.diff(y, 2) + (2 + 3 * y) / (2 * y * (1 + y)) * D_mes.diff(y) - 3 / (2 * y * (1 + y)) * D_mes
+print("подстановка δ = 1 + 3y/2:", sp.simplify(meszaros))
+print(f"рост от y = 0,01 до y = 1: в {float(D_mes.subs(y, 1) / D_mes.subs(y, 0.01)):.2f} раза "
+      f"(масштабный фактор — в 100 раз)")
+```
+
+За время, пока Вселенная расширилась в 100 раз в эпоху излучения,
+возмущение выросло лишь в 2,5 раза. Поэтому рост структуры фактически
+начинается в эпоху равенства $z_{\rm eq} \approx 3400$, и масштабы,
+вошедшие под горизонт раньше, оказываются подавлены — это определяет
+изгиб спектра мощности (см. ниже).
+
+**Эпоха Λ.** При $\Omega_m \to 0$ правая часть исчезает, а
+$\dd\ln H/\dd\ln a \to 0$: $D'' + 2D' = 0$, т. е. $D \to {\rm const}$.
+Рост структуры останавливается [У]{.status}.
+
+Для модели вещества и Λ существует точное решение (Хис, 1977):
+$$
+D(a) \propto H(a)\int_0^a\frac{\dd a'}{[a'H(a')]^3}.
+$$
+Решим уравнение численно для Planck18 (вещество, излучение и Λ;
+массивные нейтрино и давление барионов не учитываем) и сравним с
+интегралом:
+
+```{python}
+Om, OL = Planck18.Om0, Planck18.Ode0
+Or = Planck18.Ogamma0 * (1 + 3.046 * 7 / 8 * (4 / 11)**(4 / 3))   # фотоны + безмассовые ν
+
+def E(a, radiation=True):
+    """H/H₀."""
+    r = Or if radiation else 0.0
+    return math.sqrt(Om / a**3 + r / a**4 + (1 - Om - r))
+
+def growth_rhs(lna, Y, radiation=True):
+    a, h = math.exp(lna), 1e-4
+    dlnH = (math.log(E(a * math.exp(h), radiation)) - math.log(E(a * math.exp(-h), radiation))) / (2 * h)
+    Om_a = Om / a**3 / E(a, radiation)**2
+    return [Y[1], -(2 + dlnH) * Y[1] + 1.5 * Om_a * Y[0]]
+
+def growth(radiation=True, a_start=1e-5):
+    """Растущая мода D(a): старт в эпоху излучения с решения Месароша."""
+    a_eq = Or / Om if radiation else 1e-30
+    y0 = a_start / a_eq
+    D0, dD0 = (1 + 1.5 * y0, 1.5 * y0) if radiation else (a_start, a_start)
+    sol = solve_ivp(growth_rhs, [math.log(a_start), 0.0], [D0, dD0], args=(radiation,),
+                    rtol=1e-10, atol=1e-14, dense_output=True)
+    return lambda a: sol.sol(np.log(a))[0] / sol.sol(0.0)[0], lambda a: sol.sol(np.log(a))[1] / sol.sol(np.log(a))[0]
+
+D_full, f_full = growth(True)
+D_mL, f_mL = growth(False, a_start=1e-3)
+heath = lambda a: E(a, False) * quad(lambda x: 1 / (x * E(x, False))**3, 0, a)[0]
+for a_ in (0.001, 0.1, 0.5, 1.0):
+    print(f"a = {a_:5}: D (вещество+Λ, ОДУ) = {D_mL(a_):.5f}, интеграл Хиса = {heath(a_) / heath(1):.5f}, "
+          f"D (с излучением) = {D_full(a_):.5f}")
+z_eq = Om / Or - 1
+print(f"z_eq = {z_eq:.0f};  D(a=1)/a в долях эпохи вещества: {1 / (D_mL(1e-3) * 1e3):.3f}")
+```
+
+```{python}
+#| label: fig-growth
+#| fig-cap: "Фактор роста D(a) растущей моды возмущений холодного вещества для Planck18, нормированный на сегодня (сплошная линия; учтены вещество, излучение и Λ). Пунктир — рост δ ∝ a эпохи вещества, нормированный на ту же амплитуду при a = 10⁻²; штрих-пунктир — модель без излучения. До равенства (a_eq ≈ 3·10⁻⁴, серая линия) рост логарифмически медленный (эффект Месароша), после z ≈ 0,5 Λ его тормозит. Справа — темп роста f = d ln D/d ln a и приближение Ω_m(a)^0,55."
+a_grid = np.geomspace(1e-5, 1, 400)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+ax1.loglog(a_grid, D_full(a_grid), "k", label="D(a)")
+ax1.loglog(a_grid, a_grid * D_full(1e-2) / 1e-2, ":", color="tab:blue", label="∝ a")
+a_late = a_grid[a_grid >= 1e-3]
+ax1.loglog(a_late, D_mL(a_late), "-.", color="tab:orange", label="без излучения")
+ax1.axvline(Or / Om, color="0.6", lw=0.8)
+ax1.set(xlabel="a", ylabel="D(a)/D(1)", ylim=(1e-5, 2))
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.2)
+a_f = np.linspace(0.05, 1, 100)
+Om_of_a = Om / a_f**3 / np.array([E(x)**2 for x in a_f])
+ax2.plot(1 / a_f - 1, f_full(a_f), "k", label="f = d ln D/d ln a")
+ax2.plot(1 / a_f - 1, Om_of_a**0.55, "--", color="tab:red", label="$Ω_m(a)^{0,55}$")
+ax2.set(xlabel="z", ylabel="f", xlim=(0, 5), ylim=(0.4, 1.05))
+ax2.legend(fontsize=8)
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Темп роста $f \equiv \dd\ln D/\dd\ln a$ хорошо приближается
+$\Omega_m(a)^\gamma$ с **индексом роста** $\gamma \approx 0{,}55$ для
+ОТО с Λ (Линдер, 2005). Подберём $\gamma$ сами:
+
+```{python}
+z_fit = np.linspace(0, 3, 61)
+a_fit = 1 / (1 + z_fit)
+Om_fit = Om / a_fit**3 / np.array([E(x)**2 for x in a_fit])
+gamma_fit = np.mean(np.log(f_full(a_fit)) / np.log(Om_fit))
+gamma_each = np.log(f_full(a_fit)) / np.log(Om_fit)
+print(f"γ = {gamma_fit:.3f} (от {gamma_each.min():.3f} до {gamma_each.max():.3f} при 0 ≤ z ≤ 3); "
+      f"f(z = 0) = {f_full(1.0):.3f}, Ω_m^0,55 = {Om**0.55:.3f}")
+```
+
+Индекс роста — удобный тест гравитации: в модифицированных теориях
+он обычно другой. Его измеряют по искажениям в пространстве красных
+смещений (пекулярные скорости $\mathbf v \propto f$), получая
+комбинацию $f\sigma_8$; на 2025 г. измерения согласуются с
+$\gamma \approx 0{,}55$ в пределах ошибок порядка 10 % [У]{.status}.
+
+**Сколько выросли возмущения со времени рекомбинации?**
+
+```{python}
+a_rec = 1 / 1091
+print(f"D(1)/D(a_rec) = {1 / D_full(a_rec):.0f} при 1/a_rec = {1 / a_rec:.0f}")
+```
+
+Около 700 раз — меньше, чем $1/a_{\rm rec} \approx 1100$, из-за Λ и
+остаточного излучения. Значит, барионные возмущения $\delta_b \sim
+10^{-5}$ на момент рекомбинации выросли бы сегодня лишь до $\sim10^{-2}$,
+и ни одна галактика не образовалась бы. Наблюдаемая нелинейная
+структура требует, чтобы к рекомбинации уже существовали возмущения
+другой компоненты — не взаимодействующей с фотонами тёмной материи,
+начавшей расти с $z_{\rm eq}$ [У]{.status} (тема «Тёмная материя»;
+здесь установленный факт — необходимость несветящейся, не связанной
+с фотонами компоненты в рамках ОТО, а её природа — гипотеза).
+
+## Спектр мощности
+
+Возмущения — случайное поле. Для статистически однородного и изотропного
+поля
+$$
+\langle\delta_{\mathbf k}\delta^*_{\mathbf k'}\rangle = (2\pi)^3\delta_D(\mathbf k - \mathbf k')P(k)
+$$
+(преобразование Фурье $\delta_{\mathbf k} = \int\delta(\mathbf x)e^{-i\mathbf k\mathbf x}\dd^3x$).
+
+::: {#def-power-spectrum}
+**Спектр мощности** $P(k)$ — фурье-образ корреляционной функции
+$\xi(r) = \langle\delta(\mathbf x)\delta(\mathbf x + \mathbf r)\rangle$.
+**Дисперсия в сфере** радиуса $R$:
+$$
+\sigma_R^2 = \int_0^\infty\frac{k^2\dd k}{2\pi^2}P(k)\,W^2(kR), \qquad
+W(x) = \frac{3(\sin x - x\cos x)}{x^3}
+$$
+(сглаживание «цилиндрическим» окном). Величина $\sigma_8 \equiv
+\sigma_R$ при $R = 8\,h^{-1}$ Мпк сегодня задаёт нормировку.
+:::
+
+В линейной теории $P(k, a) = D^2(a)P(k, 1)$. Сегодняшняя форма —
+первичный спектр $P_{\rm prim} \propto k^{n_s}$ ($n_s = 0{,}9665$ по
+Planck), умноженный на квадрат **передаточной функции** $T(k)$:
+$T \approx 1$ для масштабов, вошедших под горизонт после равенства, и
+$T \propto k^{-2}\ln k$ для меньших (эффект Месароша). Используем
+аппроксимацию Бардина, Бонда, Кайзера и Шалая (BBKS, 1986) для
+холодной тёмной материи, $q = k/(\Gamma\,h\,{\rm Мпк}^{-1})$, $\Gamma = \Omega_mh$:
+$$
+T(q) = \frac{\ln(1 + 2{,}34q)}{2{,}34q}\left[1 + 3{,}89q + (16{,}1q)^2 + (5{,}46q)^3 + (6{,}71q)^4\right]^{-1/4}.
+$$
+Барионные акустические осцилляции и подавление барионами в ней не
+учтены — это оценка формы с точностью $\sim10$–20 %.
+Нормируем на $\sigma_8 = 0{,}8102$ (Planck18) и найдём масштаб, на
+котором флуктуации сегодня порядка единицы:
+
+```{python}
+h = Planck18.h
+n_s, sigma8 = Planck18.meta["n"], Planck18.meta["sigma8"]
+
+def transfer_bbks(k):
+    """k в h/Мпк."""
+    q = k / (Om * h)
+    return np.log(1 + 2.34 * q) / (2.34 * q) * (1 + 3.89 * q + (16.1 * q)**2 + (5.46 * q)**3 + (6.71 * q)**4)**-0.25
+
+def tophat(x):
+    return 3 * (np.sin(x) - x * np.cos(x)) / x**3
+
+def sigma_R(R, amplitude=1.0):
+    """σ_R сегодня; R в Мпк/h."""
+    integrand = lambda lnk: (np.exp(lnk)**3 / (2 * np.pi**2) * amplitude * np.exp(lnk)**n_s
+                             * transfer_bbks(np.exp(lnk))**2 * tophat(np.exp(lnk) * R)**2)
+    return math.sqrt(quad(integrand, math.log(1e-5), math.log(1e3 / R), limit=400)[0])
+
+A_norm = (sigma8 / sigma_R(8.0))**2
+P_lin = lambda k: A_norm * k**n_s * transfer_bbks(k)**2                    # (Мпк/h)³
+R_nl = brentq(lambda R: sigma_R(R, A_norm) - 1, 0.5, 20)
+rho_m0 = (Om * Planck18.critical_density0).to(u.M_sun / u.Mpc**3).value
+M_nl = 4 * math.pi / 3 * rho_m0 * (R_nl / h)**3
+k_peak = math.exp(brentq(lambda lnk: (math.log(P_lin(math.exp(lnk) * 1.001)) - math.log(P_lin(math.exp(lnk) / 1.001))),
+                          math.log(1e-3), math.log(0.1)))
+print(f"σ(R) = 1 при R = {R_nl:.1f} Мпк/h, M = {M_nl:.1e} M☉;  максимум P(k) при k = {k_peak:.4f} h/Мпк")
+for R in (1.0, 8.0, 30.0, 100.0):
+    print(f"  σ({R:5.1f} Мпк/h) = {sigma_R(R, A_norm):.3f}")
+k_eq = (Planck18.H0 / const.c).to(1 / u.Mpc).value * math.sqrt(2 * Om * (1 + z_eq)) / h
+print(f"k_eq = a_eq H_eq / c = {k_eq:.4f} h/Мпк")
+```
+
+```{python}
+#| label: fig-power
+#| fig-cap: "Линейный спектр мощности сегодня (аппроксимация BBKS, n_s = 0,9665, нормировка σ₈ = 0,8102). При малых k P ∝ k^{n_s} — первичный спектр масштабов, вошедших под горизонт после равенства; максимум — около k_eq (вертикальная линия); при больших k P ∝ k^{n_s−4}ln²k — подавление Месароша. Справа: σ(R) — линейная дисперсия в сфере; на масштабах меньше ~6 Мпк/h (σ > 1) линейная теория сегодня неприменима."
+k_grid = np.geomspace(1e-4, 10, 300)
+R_grid = np.geomspace(0.3, 200, 60)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+ax1.loglog(k_grid, P_lin(k_grid), "k")
+ax1.axvline(k_eq, color="0.6", lw=0.8)
+ax1.set(xlabel="k, h/Мпк", ylabel="P(k), (Мпк/h)³")
+ax1.grid(alpha=0.2)
+ax2.loglog(R_grid, [sigma_R(R, A_norm) for R in R_grid], "k")
+ax2.axhline(1, color="tab:red", lw=0.8, ls="--")
+ax2.axvline(8, color="0.6", lw=0.8)
+ax2.set(xlabel="R, Мпк/h", ylabel="σ(R)")
+ax2.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+Максимум $P(k)$ — при $k \approx 0{,}02\,h$/Мпк, вблизи
+$k_{\rm eq} = a_{\rm eq}H_{\rm eq} \approx 0{,}015\,h$/Мпк (обратный
+сопутствующий горизонт в эпоху равенства) [У]{.status}: положение максимума измерено по обзорам галактик и
+служит ещё одной мерой $\Omega_mh$. Сегодня нелинейны все масштабы
+меньше $\approx 6$ Мпк/$h$, т. е. массы до $\sim10^{14}\,M_\odot$
+— групп и скоплений галактик; бо́льшие масштабы ещё линейны, и
+крупнейшие связанные объекты Вселенной — скопления.
+
+## Физика и наблюдательный статус
+
+- Линейная теория — строгое следствие гидродинамики и ОТО (в
+  ньютоновском пределе — гидродинамики и уравнения Пуассона) при
+  $|\delta| \ll 1$ [У]{.status}.
+- Её предсказания с начальными условиями из реликтового излучения
+  количественно подтверждены: спектр мощности галактик, барионные
+  акустические осцилляции, рост $f\sigma_8$ [У]{.status}. Небольшая
+  напряжённость в величине $S_8 = \sigma_8\sqrt{\Omega_m/0{,}3}$ между
+  реликтовым излучением и слабым линзированием (на 2025 г. на уровне
+  $\lesssim 2$–$3\sigma$ и ослабевшая в новых данных) — предмет
+  обсуждения [Г]{.status}.
+- Линейная теория перестаёт работать при $\delta \sim 1$; дальше —
+  сферическая модель коллапса и численное моделирование (тема
+  «Образование крупномасштабной структуры»).
+
+## Итоги
+
+- $\ddot\delta + 2H\dot\delta = (4\pi G\bar\rho - c_s^2k^2/a^2)\delta$:
+  джинсовская неустойчивость, ослабленная хаббловским трением.
+- Барионы после рекомбинации: $M_J \approx 3\cdot10^5\,M_\odot$.
+- Холодное вещество: $\delta \propto a$ в эпоху вещества, почти не
+  растёт в эпоху излучения ($1 + \frac32 a/a_{\rm eq}$) и в эпоху Λ;
+  $f \approx \Omega_m(a)^{0{,}55}$.
+- Со времени рекомбинации $D$ вырос в $\sim700$ раз — недостаточно для
+  барионных возмущений $10^{-5}$; нужна тёмная материя.
+- $P(k) \propto k^{n_s}T^2(k)$ с максимумом при $k_{\rm eq}$;
+  сегодня нелинейны масштабы $\lesssim 6$ Мпк/$h$ (массы до $10^{14}\,M_\odot$).
+
+## Упражнения
+
+1. Покажите, что в пустой Вселенной де Ситтера ($\Omega_m \ll 1$,
+   $H = {\rm const}$) решения для $\delta$ — константа и $e^{-2Ht}$.
+   А в открытой пустой модели Милна ($a \propto t$)?
+2. Найдите джинсовскую массу барионов при $z = 200$, если температура
+   газа ещё равна температуре излучения, и при $z = 20$, если газ
+   остывает адиабатически с $z = 150$ ($T \propto (1+z)^2$).
+3. Решение Месароша $\delta = 1 + \frac32y$ — растущая мода. Найдите
+   вторую (затухающую) моду и её поведение при $y \to \infty$.
+4. Во сколько раз $D$ вырос бы с рекомбинации до сегодня в модели без
+   Λ с тем же $\Omega_mh^2$, т. е. в Эйнштейне–де Ситтере с излучением?
+   Как этот факт был использован в аргументах за Λ в 1990-х?
+5. Оцените $\sigma_8$ при $z = 1$ и $z = 6$. При каком $z$ флуктуации
+   масштаба 8 Мпк/$h$ были бы в 10 раз меньше нынешних?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. При $\Omega_m \to 0$: $\ddot\delta + 2H\dot\delta = 0$, т. е.
+   $\delta = C_1 + C_2e^{-2Ht}$. В модели Милна $H = 1/t$:
+   $\ddot\delta + (2/t)\dot\delta = 0$, $\delta = C_1 + C_2/t$. Рост
+   невозможен — нужна гравитирующая материя.
+2. $z = 200$, $T = 548$ К: $M_J = 2{,}8\cdot10^5\,M_\odot$ — то же, что при $z = 1000$ (масса почти не
+   зависит от $z$, пока $T \propto 1+z$: $M_J \propto T^{3/2}\rho^{-1/2}$).
+   $z = 20$ при $T \propto (1+z)^2$: $T = 2{,}7255\cdot151\cdot(21/151)^2 = 7{,}96$ К,
+   $M_J = 1{,}5\cdot10^4\,M_\odot$ — газ остыл, и граница опустилась
+   в 20 раз.
+3. Подставляя $\delta = (1 + \frac32y)\,u(y)$ (понижение порядка),
+   получаем вторую моду
+   $\delta_- = (1 + \frac32y)\ln\frac{\sqrt{1+y}+1}{\sqrt{1+y}-1} - 3\sqrt{1+y}$,
+   которая при $y \gg 1$ убывает как $y^{-3/2}$ — затухающая мода
+   эпохи вещества.
+4. В Эйнштейне–де Ситтере с излучением ($z_{\rm eq} \approx 3400$)
+   $D(1)/D(a_{\rm rec}) = 900$ против 705 в ΛCDM. В модели без Λ
+   при малом $\Omega_m \approx 0{,}3$ (открытой) рост был бы ещё
+   меньше; согласовать амплитуду структур сегодня с реликтовыми
+   анизотропиями при $\Omega_m \approx 0{,}3$ удаётся только с
+   плоской ΛCDM — один из аргументов наряду со сверхновыми.
+5. $\sigma_8(z=1) = 0{,}49$, $\sigma_8(z=6) = 0{,}15$; в 10 раз меньше —
+   при $z = 11{,}8$ (а не 9, как при $D \propto a$: Λ подавила
+   поздний рост, поэтому в прошлом амплитуда была ближе к нынешней).
+:::
+
+## Литература
+
+- Jeans J. H. The stability of a spherical nebula. *Phil. Trans. R.
+  Soc. Lond. A* **199**, 1 (1902).
+- Лифшиц Е. М. О гравитационной устойчивости расширяющегося мира.
+  *ЖЭТФ* **16**, 587 (1946).
+- Mészáros P. The behaviour of point masses in an expanding
+  cosmological substratum. *Astron. Astrophys.* **37**, 225 (1974).
+- Heath D. J. The growth of density perturbations in zero pressure
+  Friedmann–Lemaître universes. *Mon. Not. R. Astron. Soc.* **179**,
+  351 (1977).
+- Bardeen J. M., Bond J. R., Kaiser N., Szalay A. S. The statistics of
+  peaks of Gaussian random fields. *Astrophys. J.* **304**, 15 (1986).
+- Linder E. V. Cosmic growth history and expansion history. *Phys.
+  Rev. D* **72**, 043529 (2005), arXiv:astro-ph/0507263.
+- Planck Collaboration. Planck 2018 results. VI. Cosmological
+  parameters. *Astron. Astrophys.* **641**, A6 (2020),
+  arXiv:1807.06209.
+- Peebles P. J. E. *The Large-Scale Structure of the Universe.* —
+  Princeton: Princeton University Press, 1980.
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной.
+  Космологические возмущения. Инфляционная теория.* — М.: КРАСАНД, 2010.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert round(M_J / 1e5, 1) == 2.8
+assert abs(float(D_mes.subs(y, 1) / D_mes.subs(y, 0.01)) - 2.46) < 0.01
+for a_ in (0.1, 0.5, 1.0):
+    assert abs(D_mL(a_) - heath(a_) / heath(1)) < 1e-5
+assert round(z_eq, -2) == 3400
+assert 0.54 < gamma_fit < 0.56
+assert abs(f_full(1.0) - Om**0.55) < 0.01
+growth_rec = 1 / D_full(a_rec)
+assert round(growth_rec, -2) == 700 and round(growth_rec) == 705
+assert round(R_nl) == 6 and round(M_nl, -14) == 1e14
+assert round(k_peak, 2) == 0.02
+assert round(k_eq, 3) == 0.015
+assert abs(k_peak / k_eq - 1) < 0.5
+# 2
+M200 = jeans_mass(200, 2.7255 * 201)[0]
+T20 = 2.7255 * 151 * (21 / 151)**2
+M20 = jeans_mass(20, T20)[0]
+assert round(M200 / 1e5, 1) == 2.8 and round(T20, 2) == 7.96 and round(M20 / 1e4, 1) == 1.5
+assert round(M200 / M20) == 19
+# 3
+dminus = (1 + sp.Rational(3, 2) * y) * sp.log((sp.sqrt(1 + y) + 1) / (sp.sqrt(1 + y) - 1)) - 3 * sp.sqrt(1 + y)
+check = dminus.diff(y, 2) + (2 + 3 * y) / (2 * y * (1 + y)) * dminus.diff(y) - 3 / (2 * y * (1 + y)) * dminus
+assert abs(float(check.subs(y, 0.7))) < 1e-12 and abs(float(check.subs(y, 13))) < 1e-12
+tail = [float((dminus * y**sp.Rational(3, 2)).subs(y, v)) for v in (1e2, 1e4)]
+assert abs(tail[0] / tail[1] - 1) < 0.01                       # δ₋ ∝ y^(−3/2)
+# 4
+Om_saved, Or_saved = Om, Or
+Or = Or_saved / Om_saved / (1 + Or_saved / Om_saved)      # тот же a_eq = Ω_r/Ω_m, Ω_m + Ω_r = 1
+Om = 1 - Or
+D_eds, _ = growth(True)
+growth_eds = 1 / D_eds(a_rec)
+Om, Or = Om_saved, Or_saved
+assert round(growth_eds, -2) == 900
+# 5
+assert round(sigma8 * D_full(0.5), 2) == 0.49 and round(sigma8 * D_full(1 / 7), 2) == 0.15
+z10 = brentq(lambda z: D_full(1 / (1 + z)) - 0.1, 1, 20)
+assert round(z10, 1) == 11.8
+```
