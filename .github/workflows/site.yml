@@ -42,7 +42,18 @@ jobs:
         run: python -m pytest -q
 
       - name: Сборка сайта (с исполнением всего кода)
-        run: quarto render
+        run: |
+          set -o pipefail
+          quarto render 2>&1 | tee render.log
+
+      # Логи заданий доступны только администраторам, а аннотации — всем:
+      # при ошибке хвост лога сборки выводится аннотацией (видна через API).
+      - name: Хвост лога сборки при ошибке
+        if: failure()
+        run: |
+          [ -f render.log ] || exit 0
+          msg=$(grep -v "^\s*$" render.log | tail -n 80 | sed 's/%/%25/g' | sed 's/\r//g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=quarto render::${msg}"
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
