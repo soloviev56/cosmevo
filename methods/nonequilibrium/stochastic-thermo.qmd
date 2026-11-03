@@ -402,6 +402,10 @@ for t_end in (1.0, 10.0, 100.0):
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 from scipy.special import erfc
 assert sp.simplify(j) == 0 or sp.simplify(j.subs(D, kT / gam)) == 0
 assert sp.solve(sp.simplify(j / p_eq), D) == [kT / gam]
@@ -426,24 +430,24 @@ for t_end in (1.0, 10.0, 100.0):
 fr = [np.mean(samples[t] < 0) for t in (1.0, 10.0, 100.0)]
 assert fr[0] > fr[1] > fr[2]
 # 1
-assert round(math.exp(-1), 2) == 0.37 and round(0.5 * (1 - math.exp(-1))**2, 2) == 0.20 and round(math.exp(-1) - 0.5 * (1 - math.exp(-1))**2, 2) == 0.17
+assert near(math.exp(-1), 0.37, 2) and near(0.5 * (1 - math.exp(-1))**2, 0.20, 2) and near(math.exp(-1) - 0.5 * (1 - math.exp(-1))**2, 0.17, 2)
 i1 = 10                                   # t = τ_r
 assert abs((Q_tr[i1].mean()) - (math.exp(-1) - 0.5 * (1 - math.exp(-1))**2)) < 0.03
 # 2
 pneg = lambda w: 0.5 * erfc(math.sqrt(w / 4))
 w1, w4 = math.exp(-1), 4 - (1 - math.exp(-4))
-assert round(pneg(w1), 3) == 0.334 and round(w4, 2) == 3.02 and round(pneg(w4), 3) == 0.110
+assert near(pneg(w1), 0.334, 3) and near(w4, 3.02, 2) and near(pneg(w4), 0.110, 3)
 assert abs(np.mean(W_tr[10] < 0) - pneg(w1)) < 0.015 and abs(np.mean(W_tr[40] < 0) - pneg(w4)) < 0.015
 # 3
 W3 = gamma_bead * (1e-4)**2 * 1.0 / kT_room
-assert round(W3, 1) == 4.1 and round(math.sqrt(2 / W3), 1) == 0.7
+assert near(W3, 4.1, 1) and near(math.sqrt(2 / W3), 0.7, 1)
 # 4
 from scipy.optimize import brentq
 r4 = brentq(lambda r: (r - 1) * math.log(r) - 1, 1.01, 5)
-assert round(r4, 2) == 2.24
+assert near(r4, 2.24, 2)
 # 5
 kT310_pNnm = const.k_B.cgs.value * 310 * 1e14                # 1 эрг = 10¹⁴ пН·нм
-assert round(kT310_pNnm, 2) == 4.28 and round(20 * kT310_pNnm / 8, 1) == 10.7
+assert near(kT310_pNnm, 4.28, 2) and near(20 * kT310_pNnm / 8, 10.7, 1)
 assert 0.55 < 6.5 / (20 * kT310_pNnm / 8) < 0.65                     # КПД около 60 %
 assert 3 < math.sqrt(kT_room / gamma_bead**2 * kappa_trap) * 1e4 < 5   # «несколько микрон в секунду»
 ```

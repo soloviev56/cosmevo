@@ -423,24 +423,28 @@ fig.tight_layout()
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 assert T_mixed[0, 0] == sp.Derivative(phi, t)**2 / 2 + V(phi) or sp.simplify(T_mixed[0, 0] - (sp.diff(phi, t)**2 / 2 + V(phi))) == 0
 assert sp.simplify(-T_mixed[1, 1] - (sp.diff(phi, t)**2 / 2 - V(phi))) == 0
 assert sp.simplify(kg - (sp.diff(phi, t, 2) + 3 * sp.diff(a, t) / a * sp.diff(phi, t) + sp.Derivative(V(phi), phi))) == 0
 assert sp.simplify(dH + dph**2 / (2 * M**2)) == 0
 assert sp.simplify(eps_sr - eps_V) == 0
-assert round(phi60["m²φ²"], 1) == 15.6 and round(phi60["Старобинский"], 1) == 5.5
+assert near(phi60["m²φ²"], 15.6, 1) and near(phi60["Старобинский"], 5.5, 1)
 N_exact = {m: evolve(m, phi60[m]).y_events[0][0][2] for m in ("m²φ²", "Старобинский")}
 assert all(1.0 < N_exact[m] - 60 < 1.6 for m in N_exact)
 assert all(0.015 < (N_exact[m] - 60) / 60 < 0.03 for m in N_exact)
 N0, N20 = N_of_start(16.0), N_of_start(16.0, -20.0)
-assert round(N0 - N20, 1) == 6.3 and round(N0, 1) == 64.6
+assert near(N0 - N20, 6.3, 1) and near(N0, 64.6, 1)
 phi_eff20 = brentq(lambda f: N_of_start(f) - N20, 10, 20)
-assert round(16 - phi_eff20, 1) == 0.8
+assert near(16 - phi_eff20, 0.8, 1)
 for n in (2, 4, 6):
     w_mean, w_slope = averaged_w(n)
     assert abs(w_mean - (n - 2) / (n + 2)) < 0.002 and abs(w_slope - (n - 2) / (n + 2)) < 0.02
 # 1
-assert round(math.sqrt(8), 2) == 2.83 and round(math.sqrt(488), 1) == 22.1
+assert near(math.sqrt(8), 2.83, 2) and near(math.sqrt(488), 22.1, 1)
 # 2
 V2_, dV2_ = MODELS["m²φ²"]
 sol = evolve("m²φ²", 18.0)
@@ -449,14 +453,14 @@ f0, df0, _ = sol.sol(t60)
 H0_ = hubble(f0, df0, V2_)
 ratio2 = (-3 * H0_ * df0 - dV2_(f0)) / (3 * H0_ * df0)
 eps60 = 2 / f0**2
-assert round(ratio2 * 1e6) == -7 and round(eps60, 3) == 0.008 and abs(ratio2 / eps60**2 + 1 / 9) < 0.01
+assert round(ratio2 * 1e6) == -7 and near(eps60, 0.008, 3) and abs(ratio2 / eps60**2 + 1 / 9) < 0.01
 # 3
 Vs, dVs = MODELS["Старобинский"]
 f60 = phi60["Старобинский"]
 d2Vs = lambda f: 0.75 * 2 * SQ**2 * math.exp(-SQ * f) * (2 * math.exp(-SQ * f) - 1)
 eV3, etaV3 = 0.5 * (dVs(f60) / Vs(f60))**2, d2Vs(f60) / Vs(f60)
 assert round(2 / phi60['m²φ²']**2 / eV3) == 45
-assert round(eV3, 5) == 0.00019 and round(etaV3, 3) == -0.016 and round(abs(etaV3) / eV3) == 84
+assert near(eV3, 0.00019, 5) and near(etaV3, -0.016, 3) and round(abs(etaV3) / eV3) == 84
 # 5
 sol5 = evolve("m²φ²", 16.0, 2000.0, t_max=0.01, stop_at_end=False)
 f5, df5, N5 = sol5.sol(np.linspace(0, 0.001, 3))

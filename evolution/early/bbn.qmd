@@ -429,18 +429,22 @@ $\sim1\sigma$ [У]{.status} (на 2025 г.). Обсуждавшееся в 2010-
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 assert len(SPECIES) == 9 and len(net.rates) == 70
-assert round(eta_planck * 1e10, 2) == 6.14 and round(m_bar, 4) == 1.0061
-assert round(T_f, 2) == 0.66
+assert near(eta_planck * 1e10, 6.14, 2) and near(m_bar, 1.0061, 4)
+assert near(T_f, 0.66, 2)
 assert abs(1 / weak_rates(1e-3)[0] - TAU_N) < 0.1
 l_np, l_pn = weak_rates(1.0)
 assert abs(l_pn / l_np / math.exp(-1.29333 / 1.0) - 1) < 1e-4
-assert round(final["Yp"], 4) == 0.2425
-assert round(final["D/H"] * 1e5, 2) == 2.48
-assert round(final["He3/H"] * 1e5, 2) == 1.03
-assert round(final["Li7/H"] * 1e10, 1) == 4.7
+assert near(final["Yp"], 0.2425, 4)
+assert near(final["D/H"] * 1e5, 2.48, 2)
+assert near(final["He3/H"] * 1e5, 1.03, 2)
+assert near(final["Li7/H"] * 1e10, 4.7, 1)
 assert res["be7"][-1] > res["li7"][-1]                         # «большая часть — как ⁷Be»
-assert round(0.24709 - final["Yp"], 3) == 0.005
+assert near(0.24709 - final["Yp"], 0.005, 3)
 assert 70 < T_half * 1e3 < 80 and 210 < t_half < 270            # «около 75 кэВ, t ≈ 4 мин»
 for T_check in (0.2, 0.1, 0.085, 0.08):
     k = np.argmin(abs(T_res - T_check))
@@ -449,25 +453,25 @@ for T_check in (0.2, 0.1, 0.085, 0.08):
 assert 2.5 < final["Li7/H"] / 1.6e-10 < 3.5
 # η-скан
 assert np.all(np.diff(table["D/H"]) < 0) and np.all(np.diff(table["Yp"]) > 0)
-assert round(beta, 2) == 1.56
-assert round(eta_D * 1e10, 2) == 6.07 and round(d_eta / eta_D * 100, 1) == 0.8
-assert round(1 - eta_D / eta_planck, 2) == 0.01
+assert near(beta, 1.56, 2)
+assert near(eta_D * 1e10, 6.07, 2) and near(d_eta / eta_D * 100, 0.8, 1)
+assert near(1 - eta_D / eta_planck, 0.01, 2)
 # 1
 r_lo = final_abundances(solve_bbn(eta_planck, tau_n=TAU_N - 10, rtol=1e-5))
 r_hi = final_abundances(solve_bbn(eta_planck, tau_n=TAU_N + 10, rtol=1e-5))
-assert round(r_lo["Yp"], 4) == 0.2404 and round(r_hi["Yp"], 4) == 0.2445
-assert round((r_hi["Yp"] - r_lo["Yp"]) / 20 * 1e4, 1) == 2.0
+assert near(r_lo["Yp"], 0.2404, 4) and near(r_hi["Yp"], 0.2445, 4)
+assert near((r_hi["Yp"] - r_lo["Yp"]) / 20 * 1e4, 2.0, 1)
 # 2
 r_nu = final_abundances(solve_bbn(eta_planck, dNeff=1.0, rtol=1e-5))
-assert round(r_nu["Yp"], 4) == 0.2550 and round(r_nu["Yp"] - final["Yp"], 3) == 0.013
-assert round(r_nu["D/H"] * 1e5, 2) == 2.81 and round(r_nu["D/H"] / final["D/H"] - 1, 2) == 0.13
+assert near(r_nu["Yp"], 0.2550, 4) and near(r_nu["Yp"] - final["Yp"], 0.013, 3)
+assert near(r_nu["D/H"] * 1e5, 2.81, 2) and near(r_nu["D/H"] / final["D/H"] - 1, 0.13, 2)
 # 4
 k_min = np.argmin(table["Li7/H"])
-assert round(table["Li7/H"][k_min] * 1e10, 1) == 1.1 and 2.2e-10 < eta_grid[k_min] < 2.9e-10
+assert near(table["Li7/H"][k_min] * 1e10, 1.1, 1) and 2.2e-10 < eta_grid[k_min] < 2.9e-10
 assert table["Li7/H"][k_min] < 1.6e-10
 # 5
 assert round(T_res[k_onset] * 1e3) == 80 and round(time_res[k_onset]) == 197
-assert round(2 * neutrons_total(k_onset), 3) == 0.257 and round(2 * neutrons_total(k_half), 3) == 0.245
+assert near(2 * neutrons_total(k_onset), 0.257, 3) and near(2 * neutrons_total(k_half), 0.245, 3)
 assert round(T_half * 1e3) == 72 and round(t_half) == 247
-assert round(final["Yp"] * math.exp(-30 / TAU_N), 3) == 0.234
+assert near(final["Yp"] * math.exp(-30 / TAU_N), 0.234, 3)
 ```

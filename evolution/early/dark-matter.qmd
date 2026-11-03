@@ -419,22 +419,26 @@ fig.tight_layout()
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 R_peak = R_grid[np.argmax(v_disk(R_grid))]
 assert abs(R_peak - 2.15 * 3) < 0.1
 assert abs(v_tot(20.0) - 220) < 1e-6
 assert all(abs(v_tot(R) - 220) < 15 for R in (5, 10, 20, 30, 50))            # «почти плоская»
 assert v_bar(5) > v_nfw(5, rho_s) and v_bar(20) < v_nfw(20, rho_s)          # внутри — барионы, снаружи — гало
 assert v_bar(50) < 0.4 * v_tot(50) and v_bar(50) < v_bar(10)                  # барионная кривая падает
-assert round(1 - v_bar(10)**2 / v_tot(10)**2, 1) == 0.5 or 0.25 < 1 - v_bar(10)**2 / v_tot(10)**2 < 0.5
-assert round(M30 / 1e11, 1) == 3.4
-assert round(M_cl.value, -15) == 1e15
-assert round(f_b, 2) == 0.16
-assert round(Planck18.Odm0 * h2, 4) == 0.1193 and round(Planck18.Odm0 / Planck18.Ob0, 1) == 5.3
+assert near(1 - v_bar(10)**2 / v_tot(10)**2, 0.5, 1) or 0.25 < 1 - v_bar(10)**2 / v_tot(10)**2 < 0.5
+assert near(M30 / 1e11, 3.4, 1)
+assert near(M_cl.value, 1e15, -15)
+assert near(f_b, 0.16, 2)
+assert near(Planck18.Odm0 * h2, 0.1193, 4) and near(Planck18.Odm0 / Planck18.Ob0, 5.3, 1)
 assert 0.84 < Planck18.Odm0 / Planck18.Om0 < 0.85
 assert round(v_mond.value) == 171 or 160 < v_mond.value < 185
-assert round(sv_weak / 1e-25, 1) == 1.2
+assert near(sv_weak / 1e-25, 1.2, 1)
 assert 1 < rate < 10
-assert abs(rho_a3[-100000:].mean() - C_mis / 2) < 1e-3 and round(C_mis / 2, 2) == 0.37
+assert abs(rho_a3[-100000:].mean() - C_mis / 2) < 1e-3 and near(C_mis / 2, 0.37, 2)
 assert abs(misalignment_omega(1e-5, 1.1e13)[0] - 0.12) < 0.01
 assert abs(misalignment_omega(1.0, 6.1e11)[0] - 0.12) < 0.002
 assert abs(misalignment_omega(1.0, 1e12)[0] / misalignment_omega(1e-2, 1e12)[0] - 10) < 0.05
@@ -442,14 +446,14 @@ phi_1e5 = 10**brentq(lambda lp: math.log(misalignment_omega(1e-5, 10**lp)[0] / 0
 assert abs(phi_1e5 / (6.1e11 * (1e5)**0.25) - 1) < 0.03
 # 1
 rho_iso = ((220 * u.km / u.s)**2 / (4 * math.pi * const.G * (8 * u.kpc)**2) * const.c**2).to(u.GeV / u.cm**3)
-assert round(rho_iso.value, 2) == 0.53 and round(1 - v_bar(8)**2 / v_tot(8)**2, 1) == 0.4
+assert near(rho_iso.value, 0.53, 2) and near(1 - v_bar(8)**2 / v_tot(8)**2, 0.4, 1)
 # 2
 M2 = (3 * (700 * u.km / u.s)**2 * 1.5 * u.Mpc / const.G).to(u.M_sun).value
-assert round(M2 / 1e14, 1) == 5.1 and round(f_b * M2, -13) == 8e13
+assert near(M2 / 1e14, 5.1, 1) and near(f_b * M2, 8e13, -13)
 # 3
 rate3, _ = xenon_rate(m_chi=40.0, sigma_p=2.2e-48)
 assert round(rate3) == 1 and round(5 * rate3) == 5
 # 5
 v5 = ((const.G * 1e11 * u.M_sun * a0)**0.25).to(u.km / u.s).value
-assert round(v5, -1) == 200 and round(v_mond.value) == 176 and round((10 / 6)**0.25, 2) == 1.14
+assert near(v5, 200, -1) and round(v_mond.value) == 176 and near((10 / 6)**0.25, 1.14, 2)
 ```

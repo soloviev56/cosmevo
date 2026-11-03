@@ -485,25 +485,29 @@ $|\Psi|/3$. Барионы смещают нуль колебаний на $-R\P
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
-assert round(rec.B_H / eV, 3) == 13.598
-assert round(z_saha, -1) == 1370 and round(T_saha, -2) == 3700 and round(T_saha * k_B / eV, 2) == 0.32
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert near(rec.B_H / eV, 13.598, 3)
+assert near(z_saha, 1370, -1) and near(T_saha, 3700, -2) and near(T_saha * k_B / eV, 0.32, 2)
 assert round(rec.B_H / (k_B * T_saha)) == 42
-assert round(z_half, -1) == 1270
+assert near(z_half, 1270, -1)
 assert 1.5e-4 < x_e(0) < 2.5e-4
-assert round(rec.peebles_C(z_half, 0.5, T_of(z_half)), 4) == 0.0033
+assert near(rec.peebles_C(z_half, 0.5, T_of(z_half)), 0.0033, 4)
 assert rec.peebles_C(800, x_e(800), T_of(800)) > 0.75 and rec.peebles_C(1000, x_e(1000), T_of(1000)) < 0.1
-assert round(lya(1100), 1) == 3.3 and all(3 < lya(z) < 5.5 for z in (900, 1100, 1300))
+assert near(lya(1100), 3.3, 1) and all(3 < lya(z) < 5.5 for z in (900, 1100, 1300))
 assert all(1.5 < rec.LAMBDA_2S1S / lya(z) < 2.6 for z in (900, 1100, 1300))
 assert round(10 * lya(1100)) == 33
-assert round(z_dec_T, -1) == 120 and round(z_09, -1) == 240 and round(T_m(20)) == 9
+assert near(z_dec_T, 120, -1) and near(z_09, 240, -1) and round(T_m(20)) == 9
 assert abs(T_m(300) / T_of(300) - 1) < 0.2 and 0.98 < T_m(500) / T_of(500) < 0.995
 assert abs(T_m(30) / T_m(10) - (31 / 11)**2) / (31 / 11)**2 < 0.05     # адиабатика при z ≲ 30
-assert round(z_tau1, -1) == 1090 and abs(z_peak - 1080) < 10
+assert near(z_tau1, 1090, -1) and abs(z_peak - 1080) < 10
 assert 180 < above.max() - above.min() < 220
-assert round(t_age(z_tau1), -1) == 370
-assert round(r_s, 1) == 144.6 and round(100 * theta, 4) == 1.0412 and round(math.pi / theta) == 302
-assert round(sound_horizon(z_star, False), 1) == 162.1
-assert round(R_star, 2) == 0.62 and round(ratio, 2) == 4.74
+assert near(t_age(z_tau1), 370, -1)
+assert near(r_s, 144.6, 1) and near(100 * theta, 1.0412, 4) and round(math.pi / theta) == 302
+assert near(sound_horizon(z_star, False), 162.1, 1)
+assert near(R_star, 0.62, 2) and near(ratio, 4.74, 2)
 # 1
 from scipy.special import zeta
 m_over_B = (const.m_e * const.c**2).to(u.eV).value / (rec.B_H / eV)
@@ -512,12 +516,12 @@ eta_b = (Planck18.Ob0 * Planck18.critical_density0 / const.m_p).cgs.value / (
 y_it = 40.0
 for _ in range(30):
     y_it = math.log(math.sqrt(math.pi) / (2**1.5 * zeta(3) * (1 - rec.Y_P) * eta_b) * m_over_B**1.5) + 1.5 * math.log(y_it)
-assert abs(y_it - rec.B_H / (k_B * T_saha)) < 0.05 and round(y_it, 1) == 42.3
+assert abs(y_it - rec.B_H / (k_B * T_saha)) < 0.05 and near(y_it, 42.3, 1)
 # 3
 x_e_more, _ = rec.solve_recombination(baryon_factor=1.1)
-assert round(x_e_more(0) / x_e(0), 2) == 0.90
+assert near(x_e_more(0) / x_e(0), 0.90, 2)
 # 4
-assert round(math.pi / (sound_horizon(z_star, False) / D_M)) == 269 or round(math.pi / (sound_horizon(z_star, False) / D_M), -1) == 270
+assert round(math.pi / (sound_horizon(z_star, False) / D_M)) == 269 or near(math.pi / (sound_horizon(z_star, False) / D_M), 270, -1)
 # 5
-assert round(1 + 12 * R_star, 2) == 8.48
+assert near(1 + 12 * R_star, 8.48, 2)
 ```

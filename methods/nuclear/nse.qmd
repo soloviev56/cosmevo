@@ -529,44 +529,48 @@ print(f"d(1/T₉)/d lg ρ = {slope:.4f}, т. е. E = {E_slope:.1f} МэВ")
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 X1 = early_nse(1.0)
 assert fraction(X1, 1, 2) < 1e-11 and X1[net["A"] > 1].sum() < 1e-11
 X04 = early_nse(0.4)
 assert X04[net["A"] > 1].sum() < 1e-10                         # «почти все — нуклоны»
-assert round(T_he, 2) == 0.29
+assert near(T_he, 0.29, 2)
 grow = fraction(early_nse(0.25), 2, 4) / fraction(early_nse(0.30), 2, 4)
 assert 40 < grow < 50                                          # «в 45 раз»
 assert abs(fraction(early_nse(0.25), 2, 4) - 0.28) < 0.005
-assert round(T_heavy, 2) == 0.18
+assert near(T_heavy, 0.18, 2)
 top01 = np.argmax(np.where(net["A"] > 4, early_nse(0.1), 0))
 assert (net["Z"][top01], net["A"][top01]) == (28, 56)
 assert max(fraction(X, 1, 2) for X in X_grid) < 1e-10           # «дейтерий всегда редок»
 # скорости
-assert round(sv_np, 21) == 7.3e-20
+assert near(sv_np, 7.3e-20, 21)
 rd1, r41 = rates(1.0); rd28, r428 = rates(T_he); rd01, _ = rates(0.1)
 assert 2e2 < min(rd1, rd28, rd01) and max(rd1, rd28, rd01) < 3e3  # «от сотен до тысяч»
 assert round(-math.log10(r428)) == 16
-assert round(T_4, 2) == 0.08 and round(1 / (2 * hubble(T_4)), -1) == 210
+assert near(T_4, 0.08, 2) and near(1 / (2 * hubble(T_4)), 210, -1)
 # кремний
 assert fraction(nse(3.5e9, rho_si, 0.5, net)[0], 28, 56) > 0.98
 X_he_T = np.array([fraction(X, 2, 4) for X in X_T])
-assert round(T9_grid[np.argmax(X_he_T)], 1) == 8.4
+assert near(T9_grid[np.argmax(X_he_T)], 8.4, 1)
 nucleons = np.array([fraction(X, 0, 1) + fraction(X, 1, 1) for X in X_T])
 T9_nucl = brentq(lambda T9: np.interp(T9, T9_grid, nucleons - X_he_T), 10, 12)
-assert round(T9_nucl, 1) == 11.4
+assert near(T9_nucl, 11.4, 1)
 X_ni_T = np.array([fraction(X, 28, 56) for X in X_T])
 T9_ni_half = brentq(lambda T9: np.interp(T9, T9_grid, X_ni_T) - 0.5, 4, 7)
-assert round(T9_ni_half, 1) == 5.6
-assert round(np.interp(5.0, T9_grid, X_ni_T), 2) == 0.78
+assert near(T9_ni_half, 5.6, 1)
+assert near(np.interp(5.0, T9_grid, X_ni_T), 0.78, 2)
 assert {"Ni-56", "Fe-54", "Fe-56", "Fe-58", "Ni-64", "Ni-66"} == set(leaders)
 lead_range = lambda name: (min(leaders[name]), max(leaders[name]))
 assert lead_range("Ni-56")[1] == Ye_grid[-1]
 assert lead_range("Fe-54")[0] < 26 / 54 < lead_range("Fe-54")[1]
 assert lead_range("Fe-56")[0] < 26 / 56 < lead_range("Fe-56")[1]
-assert round(-slope, 3) == 0.026 and round(E_slope, 1) == 7.8
+assert near(-slope, 0.026, 3) and near(E_slope, 7.8, 1)
 inv = 1 / np.array(list(T9_photo.values()))
 assert np.all(np.abs(np.diff(inv) / slope - 1) < 0.05)          # 1/T₉ линейна по lg ρ
-assert round((396.1 - 483.99) / -13, 1) == 6.8 and round(14 * 28.2957, 1) == 396.1
+assert near((396.1 - 483.99) / -13, 6.8, 1) and near(14 * 28.2957, 396.1, 1)
 assert 7 < T9_photo[1e8] < 10
 # 2
 eta_saved = eta
@@ -574,12 +578,12 @@ eta = 10 * eta_saved
 T_he_10 = brentq(X_he4_minus_half, 0.2, 0.45, xtol=1e-5)
 eta = eta_saved
 B4 = 28.2957
-assert round(3 * T_he * math.log(10) / B4, 3) == 0.070
+assert near(3 * T_he * math.log(10) / B4, 0.070, 3)
 # точнее: d/dT [B/T − 9/2 ln T] δT = 3 ln10
 dT = 3 * math.log(10) / (B4 / T_he**2 + 4.5 / T_he)
-assert round(dT / T_he, 3) == 0.067
-assert round(T_he, 3) == 0.285 and round(T_he + dT, 3) == 0.304
-assert round(T_he_10, 3) == 0.308 and round(T_he_10 / T_he - 1, 2) == 0.08
+assert near(dT / T_he, 0.067, 3)
+assert near(T_he, 0.285, 3) and near(T_he + dT, 0.304, 3)
+assert near(T_he_10, 0.308, 3) and near(T_he_10 / T_he - 1, 0.08, 2)
 # 3
 ame = load_ame()
 B_of = lambda z, a: ame["B"][(ame["Z"] == z) & (ame["A"] == a)][0]
@@ -587,18 +591,18 @@ Q_alpha = B_of(26, 56) - 13 * B_of(2, 4)
 MeV_erg = u.MeV.to(u.erg)
 per_g = lambda Q: Q * MeV_erg / (56 * m_u)
 M_core = 1.4 * const.M_sun.cgs.value
-assert round(Q_alpha, 1) == 124.4 and round(B_of(26, 56), 1) == 492.3
-assert round(per_g(Q_alpha) / 1e18, 1) == 2.1 and round(per_g(B_of(26, 56)) / 1e18, 1) == 8.5
-assert round(per_g(Q_alpha) * M_core / 1e51, 1) == 6.0
-assert round(per_g(B_of(26, 56)) * M_core / 1e52, 1) == 2.4
+assert near(Q_alpha, 124.4, 1) and near(B_of(26, 56), 492.3, 1)
+assert near(per_g(Q_alpha) / 1e18, 2.1, 1) and near(per_g(B_of(26, 56)) / 1e18, 8.5, 1)
+assert near(per_g(Q_alpha) * M_core / 1e51, 6.0, 1)
+assert near(per_g(B_of(26, 56)) * M_core / 1e52, 2.4, 1)
 E_grav = const.G.cgs.value * M_core**2 / 3e8
-assert round(E_grav / 1e51, 1) == 1.7 and round(per_g(Q_alpha) * M_core / E_grav, 1) == 3.5
+assert near(E_grav / 1e51, 1.7, 1) and near(per_g(Q_alpha) * M_core / E_grav, 3.5, 1)
 # 4
 X62 = np.array([fraction(X, 28, 62) for X in X_Ye])
-assert round(X62.max(), 2) == 0.19 and round(Ye_grid[np.argmax(X62)], 3) == 0.452
+assert near(X62.max(), 0.19, 2) and near(Ye_grid[np.argmax(X62)], 0.452, 3)
 X_at = nse(T9_si * 1e9, rho_si, 28 / 62, net)[0]
 for z, a, val in ((26, 58, 0.43), (28, 62, 0.19), (26, 56, 0.16), (24, 54, 0.12)):
-    assert round(fraction(X_at, z, a), 2) == val
+    assert near(fraction(X_at, z, a), val, 2)
 assert np.argmax(X_at) == np.flatnonzero((net["Z"] == 26) & (net["A"] == 58))[0]
 # 5
 i56 = np.flatnonzero((net["Z"] == 28) & (net["A"] == 56))[0]
@@ -606,6 +610,6 @@ net10 = {k: v.copy() for k, v in net.items()}
 net10["g"][i56] = 10
 for T9, before, after in ((6.0, 0.27, 0.58), (3.5, 0.988, 0.998)):
     nd = 2 if T9 == 6.0 else 3
-    assert round(nse(T9 * 1e9, rho_si, 0.5, net)[0][i56], nd) == before
-    assert round(nse(T9 * 1e9, rho_si, 0.5, net10)[0][i56], nd) == after
+    assert near(nse(T9 * 1e9, rho_si, 0.5, net)[0][i56], before, nd)
+    assert near(nse(T9 * 1e9, rho_si, 0.5, net10)[0][i56], after, nd)
 ```

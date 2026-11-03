@@ -438,6 +438,10 @@ for label, n_ in (("воздух, 1 атм", n_air), ("сверхвысокий 
 #| echo: false
 #| output: false
 # Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
 assert sp.simplify(drho.trace()) == 0 and sp.simplify(drho - drho.H) == sp.zeros(2, 2)
 for t in (1.0, 3.0):
     r = sol.sol(t).reshape(2, 2)
@@ -467,7 +471,7 @@ assert 1e-4 < 1 / G_uhv < 1e-3                                              # «
 # 1
 lam1 = 0.5 * (1 + math.exp(-1)), 0.5 * (1 - math.exp(-1))
 S1 = -sum(p * math.log2(p) for p in lam1)
-assert round(lam1[0], 3) == 0.684 and round(S1, 3) == 0.900 and round(2 * S1, 2) == 1.80
+assert near(lam1[0], 0.684, 3) and near(S1, 0.900, 3) and near(2 * S1, 1.80, 2)
 r_deph = solve_ivp(lindblad_rhs(np.zeros((2, 2)), [math.sqrt(0.5) * sigma_z]), [0, 1],
                    (0.5 * np.ones((2, 2), complex)).ravel(), rtol=1e-10, atol=1e-12).y[:, -1].reshape(2, 2)
 assert abs(entropy_bits(r_deph) - S1) < 1e-6
@@ -480,15 +484,15 @@ r_l = solve_ivp(lindblad_rhs(np.zeros((2, 2)), [sigma_minus]), [0, 1], rho0.rave
 assert np.allclose(r_k, r_l, atol=1e-7)
 # 3
 n3 = -1 / math.log(math.cos(0.6))
-assert round(n3, 1) == 5.2 and round(1 / (2 * 0.3**2), 1) == 5.6
+assert near(n3, 5.2, 1) and near(1 / (2 * 0.3**2), 5.6, 1)
 coh3, _ = collisions(0.3, 6)
 assert coh3[4] > 0.5 * math.exp(-1) > coh3[5]
 # 4
 h2 = lambda q: -q * math.log2(q) - (1 - q) * math.log2(1 - q)
-assert round(h2((1 + math.cos(math.pi / 4)) / 2), 3) == 0.601 and round(h2((1 + math.cos(math.pi / 8)) / 2), 3) == 0.233
+assert near(h2((1 + math.cos(math.pi / 4)) / 2), 0.601, 3) and near(h2((1 + math.cos(math.pi / 8)) / 2), 0.233, 3)
 psi_big = branch_state(math.pi / 4, 12)
 I1 = entropy_of(psi_big, [0], 13) + entropy_of(psi_big, [1], 13) - entropy_of(psi_big, [0, 1], 13)
 assert abs(I1 - 0.601) < 0.01
 # 5
-assert round(lambda_th(5e-15, 300) * 1e17, 1) == 1.6
+assert near(lambda_th(5e-15, 300) * 1e17, 1.6, 1)
 ```
