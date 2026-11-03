@@ -1,0 +1,449 @@
+---
+title: "Стохастическая термодинамика"
+topic: stochastic-thermo
+order: 3
+description: "Передемпфированное уравнение Ланжевена и уравнение Фоккера–Планка, соотношение Эйнштейна (SymPy); работа и теплота вдоль отдельной траектории по Секимото и первое начало для траектории; частица в движущейся оптической ловушке: средняя работа и её флуктуации, доля траекторий с отрицательной работой; стохастическая энтропия; мастер-уравнение, детальный баланс и критерий Колмогорова; кольцо из трёх состояний — ток, сродство и производство энтропии по Шнакенбергу (SymPy и алгоритм Гиллеспи)"
+---
+
+Классическая термодинамика говорит о средних: работа, теплота и
+производство энтропии макроскопического тела не флуктуируют заметно.
+Но молекулярный мотор, коллоидная частица в оптической ловушке или
+фермент обмениваются с окружением энергиями порядка нескольких $kT$,
+и каждая их траектория своя. **Стохастическая термодинамика**
+(Секимото, 1998; Зайферт, 2005) определяет работу, теплоту и энтропию
+для отдельной траектории так, что средние воспроизводят обычную
+термодинамику, а флуктуации подчиняются точным соотношениям (тема
+«Флуктуационные теоремы»).
+
+Это аппарат для всего, что в пособии происходит на молекулярных
+масштабах: термодинамика саморепликации и приспособления, свободная
+энергия для протохимии, физические пределы вычислений и принцип
+Ландауэра (его эксперимент — частица в двухъямной ловушке; тема
+«Принцип Ландауэра»). Основы неравновесной термодинамики — в теме
+«Производство энтропии в открытых системах».
+
+## Уравнение Ланжевена
+
+Рассмотрим частицу в вязкой среде при температуре $T$ в потенциале
+$U(x, \lambda)$, где $\lambda(t)$ — внешний управляющий параметр
+(положение ловушки). Инерцией пренебрегаем: время релаксации
+скорости коллоида размером микрон $\sim m/\gamma \sim 10^{-7}$ с много
+меньше всех остальных.
+
+::: {#def-langevin}
+**Передемпфированное уравнение Ланжевена:**
+$$
+\gamma\dot x = -\partial_xU(x, \lambda) + \xi(t), \qquad
+\langle\xi(t)\xi(t')\rangle = 2\gamma kT\,\delta(t - t').
+$$
+Распределение $p(x, t)$ подчиняется **уравнению Фоккера–Планка**
+$$
+\partial_tp = -\partial_xj, \qquad
+j = -\frac1\gamma(\partial_xU)\,p - D\,\partial_xp, \qquad D = \frac{kT}{\gamma}.
+$$
+:::
+
+Интенсивность шума задана так, чтобы при неподвижном $\lambda$
+стационарным решением было больцмановское распределение
+$p_{\rm eq} \propto e^{-U/kT}$ с нулевым током — это условие и есть
+соотношение Эйнштейна $D = kT/\gamma$ [У]{.status}:
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+
+x, kT, gam, D = sp.symbols("x kT gamma D", positive=True)
+U = sp.Function("U")(x)
+p_eq = sp.exp(-U / kT)
+j = -U.diff(x) * p_eq / gam - D * p_eq.diff(x)
+print("ток в состоянии Больцмана: j =", sp.factor(sp.simplify(j)))
+print("j = 0 при D =", sp.solve(sp.simplify(j / p_eq), D))
+```
+
+## Работа и теплота вдоль траектории
+
+::: {#def-sekimoto}
+**Энергетика Секимото.** Для траектории $x(t)$ при протоколе
+$\lambda(t)$:
+$$
+\dd W = \frac{\partial U}{\partial\lambda}\dd\lambda, \qquad
+\dd Q = -\frac{\partial U}{\partial x}\circ\dd x, \qquad
+\Delta U = W - Q,
+$$
+где $W$ — работа внешнего агента над частицей, $Q$ — теплота,
+отданная в среду, $\circ$ — произведение в смысле Стратоновича
+(значение в середине шага). Первое начало выполняется для каждой
+траектории [У]{.status}.
+:::
+
+Работа меняется только при изменении параметра; теплота — работа
+сил среды (трения и шума) над частицей с обратным знаком.
+
+**Пример: частица, которую тянут оптической ловушкой.** Пусть
+$U = \frac\kappa2(x - vt)^2$, частица вначале в равновесии с
+неподвижной ловушкой. В движущейся системе $y = x - vt$:
+$\gamma\dot y = -\kappa y - \gamma v + \xi$, и частица отстаёт от центра
+ловушки в среднем на $\gamma v/\kappa$. Мощность $\dot W = \partial_\lambda U\,v =
+-\kappa yv$, откуда при $\tau_r = \gamma/\kappa$
+$$
+\langle W(t)\rangle = \gamma v^2\left[t - \tau_r\left(1 - e^{-t/\tau_r}\right)\right],
+$$
+что в стационарном режиме есть просто мощность силы стоксова трения
+$\gamma v^2$. Проверим формулу SymPy, а затем — моделированием
+20 000 траекторий методом Эйлера–Маруямы в единицах $kT = \kappa =
+\gamma = 1$ (длина $\sqrt{kT/\kappa}$, время $\tau_r$):
+
+```{python}
+t_s, tau_r, v_s, gam_s = sp.symbols("t tau_r v gamma", positive=True)
+mean_y = -gam_s * v_s / (gam_s / tau_r) * (1 - sp.exp(-t_s / tau_r))     # κ = γ/τ_r
+y_ode = sp.diff(mean_y, t_s) - (-(gam_s / tau_r) * mean_y - gam_s * v_s) / gam_s
+W_mean = sp.integrate(-(gam_s / tau_r) * mean_y * v_s, (t_s, 0, t_s))
+print("уравнение для ⟨y⟩:", sp.simplify(y_ode), ";  ⟨W⟩ =", sp.simplify(W_mean))
+
+def drag_trap(v=1.0, t_end=4.0, dt=1e-3, n_traj=20000, seed=1):
+    """Траектории частицы в ловушке, движущейся со скоростью v (kT = κ = γ = 1).
+    Возвращает времена, работу W(t), теплоту Q(t) и энергию U(t) для всех траекторий."""
+    rng = np.random.default_rng(seed)
+    n = round(t_end / dt)
+    x = rng.normal(0.0, 1.0, n_traj)                 # равновесие в неподвижной ловушке
+    W, Q = np.zeros(n_traj), np.zeros(n_traj)
+    out_W, out_Q, out_U = [W.copy()], [Q.copy()], [0.5 * x**2]
+    for i in range(n):
+        lam0, lam1 = v * i * dt, v * (i + 1) * dt
+        W += 0.5 * ((x - lam1)**2 - (x - lam0)**2)  # ∂U/∂λ dλ при неизменном x (точно)
+        x_new = x - (x - lam1) * dt + math.sqrt(2 * dt) * rng.normal(size=n_traj)
+        Q += -(0.5 * (x + x_new) - lam1) * (x_new - x)   # −∂ₓU∘dx, середина шага
+        x = x_new
+        if (i + 1) % 100 == 0:
+            out_W.append(W.copy()); out_Q.append(Q.copy()); out_U.append(0.5 * (x - lam1)**2)
+    times = np.arange(len(out_W)) * 100 * dt
+    return times, np.array(out_W), np.array(out_Q), np.array(out_U)
+
+times, W_tr, Q_tr, U_tr = drag_trap()
+W_theory = times - (1 - np.exp(-times))
+first_law = np.max(np.abs(U_tr[-1] - U_tr[0] - (W_tr[-1] - Q_tr[-1])))
+print(f"первое начало для каждой траектории: max|ΔU − (W − Q)| = {first_law:.1e}")
+for i in (5, 10, 20, 40):
+    W_i = W_tr[i]
+    print(f"t = {times[i]:.1f} τ_r: ⟨W⟩ = {W_i.mean():.3f} (теория {W_theory[i]:.3f}), "
+          f"Var W = {W_i.var():.3f}, 2⟨W⟩ = {2 * W_i.mean():.3f};  доля W < 0: {np.mean(W_i < 0):.3f}")
+```
+
+Первое начало для каждой траектории выполняется с точностью
+дискретизации. Средняя работа совпадает с теорией. Но работа
+флуктуирует, и на коротких временах заметная доля траекторий имеет
+$W < 0$: среда «подталкивает» частицу, и ловушка получает от неё
+энергию. Это не нарушение второго начала: оно утверждает
+$\langle W\rangle \ge \Delta F$ (здесь $\Delta F = 0$), а не $W \ge 0$
+для каждой реализации [У]{.status}. Именно такой опыт с латексной
+частицей в оптической ловушке описан у Вана и др. (2002).
+
+Дисперсия работы равна $2kT\langle W\rangle$ — это не совпадение:
+для гауссовой работы так требует равенство Яржинского
+$\langle e^{-W/kT}\rangle = e^{-\Delta F/kT}$ (тема «Флуктуационные
+теоремы»).
+
+```{python}
+#| label: fig-drag
+#| fig-cap: "Частица в движущейся ловушке (единицы kT = κ = γ = 1, 20 000 траекторий). Слева: средняя работа (точки) и теория γv²[t − τ_r(1 − e^{−t/τ_r})] (линия); полоса — ± одно стандартное отклонение работы по ансамблю. Справа: распределения работы при t = 0,5 τ_r и t = 2 τ_r с гауссианами (среднее ⟨W⟩, дисперсия 2kT⟨W⟩); область W < 0 закрашена."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+ax1.plot(times, W_tr.mean(axis=1), "o", ms=3, color="k")
+ax1.plot(times, W_theory, color="tab:red")
+ax1.fill_between(times, W_tr.mean(axis=1) - W_tr.std(axis=1), W_tr.mean(axis=1) + W_tr.std(axis=1),
+                 color="tab:blue", alpha=0.2)
+ax1.set(xlabel="t / τ_r", ylabel="W / kT")
+ax1.grid(alpha=0.2)
+grid = np.linspace(-3, 6, 300)
+for i, color in ((5, "tab:blue"), (20, "tab:orange")):
+    m = W_tr[i].mean()
+    ax2.hist(W_tr[i], bins=80, density=True, alpha=0.4, color=color, label=f"t = {times[i]:.1f} τ_r")
+    ax2.plot(grid, np.exp(-(grid - m)**2 / (4 * m)) / math.sqrt(4 * math.pi * m), color=color)
+ax2.axvspan(-3, 0, color="0.9", zorder=0)
+ax2.set(xlabel="W / kT", ylabel="плотность", xlim=(-3, 6))
+ax2.legend(fontsize=8)
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+**Масштабы.** Шарик радиусом 1 мкм в воде ($\gamma = 6\pi\eta a$) в
+ловушке жёсткостью $10^{-3}$ дин/см (1 пН/мкм) при 300 К:
+
+```{python}
+import astropy.constants as const
+eta_water, a_bead, kappa_trap, T_room = 0.0089, 1e-4, 1e-3, 300.0         # СГС: П, см, дин/см, К
+gamma_bead = 6 * math.pi * eta_water * a_bead
+kT_room = const.k_B.cgs.value * T_room
+print(f"γ = {gamma_bead:.2e} г/с;  τ_r = γ/κ = {gamma_bead / kappa_trap * 1e3:.0f} мс;  "
+      f"√(kT/κ) = {math.sqrt(kT_room / kappa_trap) * 1e7:.0f} нм;  "
+      f"скорость, при которой γv²τ_r = kT: {math.sqrt(kT_room / gamma_bead**2 * kappa_trap) * 1e4:.2f} мкм/с")
+```
+
+Ловушку достаточно двигать со скоростью несколько микрон в секунду, чтобы
+диссипация за время релаксации была порядка $kT$ и флуктуации работы
+сравнимы со средним. Для макроскопического тела относительные
+флуктуации $\sim N^{-1/2}$ и незаметны.
+
+## Стохастическая энтропия
+
+Зайферт (2005) определил энтропию системы вдоль траектории как
+$s(t) = -k\ln p(x(t), t)$, где $p$ — решение уравнения Фоккера–Планка
+для того же протокола. Её среднее — энтропия Гиббса. Полное
+производство энтропии на траектории
+$$
+\Delta s_{\rm tot} = \Delta s + \frac QT
+$$
+(изменение энтропии системы плюс среды). Его среднее неотрицательно
+и для Фоккера–Планка равно
+$$
+\frac{\dd\langle s_{\rm tot}\rangle}{\dd t} = \int\frac{\gamma\,j^2}{T\,p}\,\dd x \ge 0,
+$$
+а отдельные траектории могут иметь $\Delta s_{\rm tot} < 0$ [У]{.status}.
+В движущейся ловушке в стационарном режиме $p$ — гауссиан, сдвинутый
+на $\gamma v/\kappa$ и неизменный в сопутствующей системе, поэтому
+$\langle\Delta s\rangle = 0$ и средняя скорость производства энтропии
+$\gamma v^2/T$ — снова стоксова диссипация.
+
+## Мастер-уравнение и детальный баланс
+
+Многие молекулярные системы удобнее описывать дискретными
+состояниями (конформациями фермента, позициями мотора на филаменте) и
+скачками между ними.
+
+::: {#def-master}
+**Мастер-уравнение**: $\dot p_i = \sum_j(w_{ij}p_j - w_{ji}p_i)$, где
+$w_{ij}$ — темп перехода $j \to i$. **Детальный баланс** —
+равновесие, при котором каждый ток $J_{ij} = w_{ij}p_j - w_{ji}p_i$
+равен нулю. Он возможен тогда и только тогда, когда для каждого
+цикла произведение темпов в одну сторону равно произведению в
+другую (**критерий Колмогорова**). Мерой нарушения служит **сродство
+цикла** $\mathcal A = \ln\left(\prod w_+/\prod w_-\right)$ (в единицах
+$k$).
+:::
+
+В равновесной системе $w_{ij}/w_{ji} = e^{-(E_i - E_j)/kT}$, и
+произведение по циклу равно единице. Если же переход сопряжён с
+внешним источником свободной энергии (гидролиз АТФ, градиент
+концентраций, свет), $\mathcal A = \Delta\mu/kT \ne 0$, и в
+стационарном состоянии по циклу течёт ток. Стационарное
+производство энтропии (Шнакенберг, 1976)
+$$
+\sigma = \frac k2\sum_{i,j}J_{ij}\ln\frac{w_{ij}p_j}{w_{ji}p_i} \ge 0
+$$
+для одного цикла сводится к $\sigma = kJ\mathcal A$. Проверим это для
+кольца из трёх состояний с произвольными темпами:
+
+```{python}
+wp = sp.symbols("a1:4", positive=True)            # темпы 1→2, 2→3, 3→1
+wm = sp.symbols("b1:4", positive=True)            # темпы 2→1, 3→2, 1→3
+p1, p2, p3 = sp.symbols("p1:4", positive=True)
+P = [p1, p2, p3]
+flux = [wp[i] * P[i] - wm[i] * P[(i + 1) % 3] for i in range(3)]      # ток по ребру i → i+1
+eqs = [flux[(i - 1) % 3] - flux[i] for i in range(2)] + [p1 + p2 + p3 - 1]
+ss = sp.solve(eqs, P, dict=True)[0]
+J = sp.simplify(flux[0].subs(ss))
+print("ток по всем рёбрам одинаков:", all(sp.simplify(f.subs(ss) - J) == 0 for f in flux))
+J_num_expr, J_den_expr = sp.fraction(sp.factor(J))
+print("числитель J:", J_num_expr, ";  знаменатель положителен (сумма положительных слагаемых):",
+      all(t.is_positive for t in sp.Add.make_args(sp.expand(J_den_expr))))
+sigma_schnak = sum(flux[i] * sp.log(wp[i] * P[i] / (wm[i] * P[(i + 1) % 3])) for i in range(3)).subs(ss)
+A = sp.log(wp[0] * wp[1] * wp[2] / (wm[0] * wm[1] * wm[2]))
+num = {s: v for s, v in zip(wp + wm, (2.0, 0.7, 1.3, 0.4, 1.1, 0.2))}
+print(f"численно: σ (Шнакенберг) = {float(sigma_schnak.subs(num)):.6f}, J·A = {float((J * A).subs(num)):.6f}, "
+      f"J = {float(J.subs(num)):.4f}, A = {float(A.subs(num)):.4f}")
+```
+
+Ток пропорционален $\prod w_+ - \prod w_-$ и исчезает вместе со
+сродством [У]{.status}. Производство энтропии на траектории тоже
+определяется просто: каждый скачок $j \to i$ добавляет к энтропии среды
+$k\ln(w_{ij}/w_{ji})$. Проверим средний темп алгоритмом Гиллеспи
+(тема «Методы Монте-Карло и стохастическое моделирование») и посмотрим
+на флуктуации:
+
+```{python}
+rates_p = np.array([num[s] for s in wp])          # i → i+1
+rates_m = np.array([num[s] for s in wm])          # i+1 → i
+
+def ring_trajectory(t_end, rng, state=0):
+    """Траектория кольца; возвращает (энтропия среды в единицах k, число оборотов)."""
+    t, s_env, net = 0.0, 0.0, 0
+    while True:
+        fwd, bwd = rates_p[state], rates_m[(state - 1) % 3]
+        total = fwd + bwd
+        t += rng.exponential(1 / total)
+        if t > t_end:
+            return s_env, net / 3
+        if rng.random() < fwd / total:
+            s_env += math.log(fwd / rates_m[state]); state = (state + 1) % 3; net += 1
+        else:
+            s_env += math.log(bwd / rates_p[(state - 1) % 3]); state = (state - 1) % 3; net -= 1
+
+rng = np.random.default_rng(7)
+p_ss = np.array([float(ss[p].subs(num)) for p in P])
+J_num, A_num = float(J.subs(num)), float(A.subs(num))
+samples = {}
+for t_end in (1.0, 10.0, 100.0):
+    starts = rng.choice(3, size=4000, p=p_ss)
+    res = np.array([ring_trajectory(t_end, rng, s) for s in starts])
+    samples[t_end] = res[:, 0]
+    print(f"t = {t_end:5.0f}: ⟨Δs_env⟩/t = {res[:, 0].mean() / t_end:.4f} (J·A = {J_num * A_num:.4f}), "
+          f"⟨обороты⟩/t = {res[:, 1].mean() / t_end:.4f} (J = {J_num:.4f}), доля Δs_env < 0: {np.mean(res[:, 0] < 0):.3f}")
+```
+
+В стационарном состоянии $\langle\Delta s\rangle = 0$, и энтропия среды
+— это и есть полное производство энтропии. Её средний темп совпадает
+с $J\mathcal A$, а доля траекторий с отрицательным производством
+энтропии быстро убывает со временем [У]{.status}: второе начало
+становится «почти достоверным» законом только для больших систем или
+длинных интервалов.
+
+## Физика и статус
+
+- Уравнения Ланжевена и мастер-уравнения — модели с проверенными
+  предположениями: разделение времён между системой и средой,
+  равновесная среда при температуре $T$ [У]{.status}.
+- Определения работы, теплоты и энтропии на траектории и их свойства
+  (первое начало для траектории, $\langle\Delta s_{\rm tot}\rangle \ge 0$,
+  формула Шнакенберга) — теоремы в рамках этих моделей [У]{.status}.
+- Экспериментальные реализации — коллоиды в оптических ловушках
+  (Ван и др., 2002), стохастическая тепловая машина из одной частицы
+  (Бликле, Бехингер, 2012), проверка принципа Ландауэра (Беру и др.,
+  2012), молекулярные моторы и разворачивание РНК (тема
+  «Флуктуационные теоремы») [У]{.status}.
+- Применения к происхождению жизни и приспособлению (темы
+  «Термодинамика саморепликации» и «Диссипативная адаптация») —
+  использование строгого аппарата для гипотез [Г]{.status}.
+
+## Итоги
+
+- $\gamma\dot x = -\partial_xU + \xi$, $\langle\xi\xi\rangle = 2\gamma kT\delta$;
+  соотношение Эйнштейна $D = kT/\gamma$ — условие равновесия Больцмана.
+- По Секимото $\dd W = \partial_\lambda U\,\dd\lambda$,
+  $\dd Q = -\partial_xU\circ\dd x$, и $\Delta U = W - Q$ на каждой траектории.
+- В движущейся ловушке $\langle W\rangle = \gamma v^2[t - \tau_r(1 - e^{-t/\tau_r})]$,
+  ${\rm Var}\,W = 2kT\langle W\rangle$; траектории с $W < 0$ — обычны на
+  коротких временах.
+- Мастер-уравнение: детальный баланс $\iff$ критерий Колмогорова;
+  в стационарном цикле $\sigma = kJ\mathcal A \ge 0$.
+
+## Упражнения
+
+1. Покажите, что в движущейся ловушке в стационарном режиме
+   $\langle\dot Q\rangle = \gamma v^2$. Чему равна средняя теплота за
+   первое время релаксации $\tau_r$ (в единицах $kT$ при $\gamma v^2\tau_r = kT$)?
+2. Для гауссовой работы с ${\rm Var}\,W = 2kT\langle W\rangle$ найдите
+   вероятность $W < 0$ как функцию $\langle W\rangle/kT$. Сравните с
+   моделированием при $t = \tau_r$ и $t = 4\tau_r$.
+3. Оцените относительные флуктуации работы за 1 с для шарика 1 мкм,
+   который тянут со скоростью 1 мкм/с, и для тела из $10^{20}$
+   независимых таких шариков.
+4. Найдите стационарное распределение и ток кольца из трёх
+   состояний с одинаковыми темпами $w_+$ и $w_-$. При каком отношении
+   $w_+/w_-$ средняя скорость производства энтропии равна $k$ на
+   единицу времени, если $w_- = 1$?
+5. Молекулярный мотор кинезин делает шаг 8 нм, гидролизуя одну
+   молекулу АТФ ($\Delta\mu \approx 20\,kT$ в клетке). Против какой
+   максимальной силы он может тянуть груз? Сравните с измеренной
+   силой остановки 6–7 пН.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. В стационарном режиме $\langle\Delta U\rangle = 0$, поэтому
+   $\langle\dot Q\rangle = \langle\dot W\rangle = \gamma v^2$. За первое
+   $\tau_r$: $\langle W\rangle = \gamma v^2\tau_r e^{-1} = 0{,}37\,kT$, а
+   $\langle\Delta U\rangle = \frac\kappa2\langle y^2\rangle - \frac{kT}2 =
+   \frac\kappa2(\gamma v/\kappa)^2(1 - e^{-1})^2 = 0{,}20\,kT$, так что
+   $\langle Q\rangle = 0{,}17\,kT$.
+2. $P(W < 0) = \frac12{\rm erfc}\left(\sqrt{\langle W\rangle/(4kT)}\right)$:
+   при $t = \tau_r$ ($\langle W\rangle = 0{,}37\,kT$) — 0,334, при
+   $t = 4\tau_r$ ($\langle W\rangle = 3{,}02\,kT$) — 0,110; моделирование
+   даёт то же с точностью до статистической ошибки.
+3. $\langle W\rangle \approx \gamma v^2t$, $\delta W/\langle W\rangle =
+   \sqrt{2kT/\langle W\rangle}$ (при $t \gg \tau_r$): для одного шарика
+   $\langle W\rangle = 4{,}1\,kT$, флуктуации — 70 % среднего; для
+   $10^{20}$ шариков работа аддитивна, и относительные флуктуации в
+   $10^{10}$ раз меньше, $\approx 7\cdot10^{-11}$.
+4. $p_i = 1/3$, $J = (w_+ - w_-)/3$, $\mathcal A = 3\ln(w_+/w_-)$,
+   $\sigma = k(w_+ - w_-)\ln(w_+/w_-)$; $\sigma = k$ при
+   $w_+ = 2{,}24$.
+5. Второе начало: $F\cdot8~\text{нм} \le \Delta\mu$, $F_{\max} =
+   20\,kT/8~\text{нм} = 10{,}7$ пН при 310 К ($kT = 4{,}28$ пН·нм).
+   Измеренная сила остановки 6–7 пН — КПД кинезина около 60 %.
+:::
+
+## Литература
+
+- Sekimoto K. Langevin equation and thermodynamics. *Prog. Theor. Phys.
+  Suppl.* **130**, 17 (1998).
+- Seifert U. Entropy production along a stochastic trajectory and an
+  integral fluctuation theorem. *Phys. Rev. Lett.* **95**, 040602
+  (2005), arXiv:cond-mat/0503686.
+- Seifert U. Stochastic thermodynamics, fluctuation theorems and
+  molecular machines. *Rep. Prog. Phys.* **75**, 126001 (2012),
+  arXiv:1205.4176.
+- Schnakenberg J. Network theory of microscopic and macroscopic
+  behavior of master equation systems. *Rev. Mod. Phys.* **48**, 571
+  (1976).
+- Gillespie D. T. Exact stochastic simulation of coupled chemical
+  reactions. *J. Phys. Chem.* **81**, 2340 (1977).
+- Wang G. M., Sevick E. M., Mittag E., Searles D. J., Evans D. J.
+  Experimental demonstration of violations of the second law of
+  thermodynamics for small systems and short time scales. *Phys. Rev.
+  Lett.* **89**, 050601 (2002).
+- Blickle V., Bechinger C. Realization of a micrometre-sized
+  stochastic heat engine. *Nature Phys.* **8**, 143 (2012).
+- Bérut A., Arakelyan A., Petrosyan A., Ciliberto S., Dillenschneider R.,
+  Lutz E. Experimental verification of Landauer's principle linking
+  information and thermodynamics. *Nature* **483**, 187 (2012).
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+from scipy.special import erfc
+assert sp.simplify(j) == 0 or sp.simplify(j.subs(D, kT / gam)) == 0
+assert sp.solve(sp.simplify(j / p_eq), D) == [kT / gam]
+assert sp.simplify(y_ode) == 0
+assert sp.simplify(W_mean - gam_s * v_s**2 * (t_s - tau_r * (1 - sp.exp(-t_s / tau_r)))) == 0
+assert first_law < 1e-6
+for i in (5, 10, 20, 40):
+    err = W_tr[i].std() / math.sqrt(W_tr.shape[1])
+    assert abs(W_tr[i].mean() - W_theory[i]) < 4 * err + 0.01
+    assert abs(W_tr[i].var() / (2 * W_tr[i].mean()) - 1) < 0.08
+assert np.mean(W_tr[5] < 0) > 0.25
+assert round(gamma_bead / kappa_trap * 1e3) == 17 and round(math.sqrt(kT_room / kappa_trap) * 1e7) == 64
+assert abs(float(sigma_schnak.subs(num) - (J * A).subs(num))) < 1e-12
+assert sp.expand(J_num_expr - (wp[0] * wp[1] * wp[2] - wm[0] * wm[1] * wm[2])) == 0
+# σ = J·A символьно: подставим случайные положительные темпы ещё дважды
+for vals in ((0.3, 2.2, 1.7, 0.9, 0.5, 1.4), (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)):
+    sub = dict(zip(wp + wm, vals))
+    assert abs(float(sigma_schnak.subs(sub) - (J * A).subs(sub))) < 1e-12
+assert float(J.subs(num)) > 0 and float(A.subs(num)) > 0
+for t_end in (1.0, 10.0, 100.0):
+    assert abs(samples[t_end].mean() / t_end - J_num * A_num) < 0.1 * J_num * A_num + 4 * samples[t_end].std() / math.sqrt(4000) / t_end
+fr = [np.mean(samples[t] < 0) for t in (1.0, 10.0, 100.0)]
+assert fr[0] > fr[1] > fr[2]
+# 1
+assert round(math.exp(-1), 2) == 0.37 and round(0.5 * (1 - math.exp(-1))**2, 2) == 0.20 and round(math.exp(-1) - 0.5 * (1 - math.exp(-1))**2, 2) == 0.17
+i1 = 10                                   # t = τ_r
+assert abs((Q_tr[i1].mean()) - (math.exp(-1) - 0.5 * (1 - math.exp(-1))**2)) < 0.03
+# 2
+pneg = lambda w: 0.5 * erfc(math.sqrt(w / 4))
+w1, w4 = math.exp(-1), 4 - (1 - math.exp(-4))
+assert round(pneg(w1), 3) == 0.334 and round(w4, 2) == 3.02 and round(pneg(w4), 3) == 0.110
+assert abs(np.mean(W_tr[10] < 0) - pneg(w1)) < 0.015 and abs(np.mean(W_tr[40] < 0) - pneg(w4)) < 0.015
+# 3
+W3 = gamma_bead * (1e-4)**2 * 1.0 / kT_room
+assert round(W3, 1) == 4.1 and round(math.sqrt(2 / W3), 1) == 0.7
+# 4
+from scipy.optimize import brentq
+r4 = brentq(lambda r: (r - 1) * math.log(r) - 1, 1.01, 5)
+assert round(r4, 2) == 2.24
+# 5
+kT310_pNnm = const.k_B.cgs.value * 310 * 1e14                # 1 эрг = 10¹⁴ пН·нм
+assert round(kT310_pNnm, 2) == 4.28 and round(20 * kT310_pNnm / 8, 1) == 10.7
+assert 0.55 < 6.5 / (20 * kT310_pNnm / 8) < 0.65                     # КПД около 60 %
+assert 3 < math.sqrt(kT_room / gamma_bead**2 * kappa_trap) * 1e4 < 5   # «несколько микрон в секунду»
+```
