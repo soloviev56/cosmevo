@@ -67,7 +67,12 @@ def summary(events):
                 f"выход {u.get('output_tokens', 0)}; "
                 f"по прейскуранту ${result.get('total_cost_usd', 0):.2f}")
         if result.get("is_error"):
-            head += f"; ошибка: {result.get('subtype')}"
+            # subtype бывает «success» даже при сбое (например, при ошибке входа),
+            # поэтому показываем текст ошибки, а subtype — только если он информативен.
+            sub = result.get("subtype")
+            msg = " ".join(str(result.get("result") or "").split())[:200]
+            parts = [p for p in (sub if sub and sub != "success" else "", msg) if p]
+            head += f"; ошибка: {' — '.join(parts) or 'неизвестна'}"
     return f"{head}; {limits_line(limits)}"
 
 
