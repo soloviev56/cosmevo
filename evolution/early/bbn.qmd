@@ -177,14 +177,18 @@ fig.tight_layout()
 
 ```{python}
 def crossing(series, level):
-    """Первая температура, при которой series достигает level."""
+    """Температура и время, когда series впервые достигает level
+    (интерполяция по ln T и ln t между узлами сетки решения)."""
     k = np.argmax(series >= level)
-    return T_res[k], time_res[k]
+    f = (level - series[k - 1]) / (series[k] - series[k - 1])
+    lnT = math.log(T_res[k - 1]) + f * math.log(T_res[k] / T_res[k - 1])
+    lnt = math.log(time_res[k - 1]) + f * math.log(time_res[k] / time_res[k - 1])
+    return math.exp(lnT), math.exp(lnt)
 
 X_he4 = 4 * res["he4"]
 T_half, t_half = crossing(X_he4, final["Yp"] / 2)
 k_dmax = np.argmax(res["d"])
-print(f"половина ⁴He образовалась при T = {T_half * 1e3:.0f} кэВ, t = {t_half:.0f} с")
+print(f"половина ⁴He образовалась при T = {T_half * 1e3:.1f} кэВ, t = {t_half:.0f} с")
 print(f"максимум дейтерия: X_D = {2 * res['d'][k_dmax]:.2e} при T = {T_res[k_dmax] * 1e3:.0f} кэВ, "
       f"t = {time_res[k_dmax]:.0f} с")
 def neutrons_total(k):
@@ -194,8 +198,10 @@ def neutrons_total(k):
 
 k_onset = np.argmax(X_he4 >= 0.01 * final["Yp"])
 k_half = np.argmax(X_he4 >= 0.5 * final["Yp"])
-for k in (k_onset, k_half):
-    print(f"T = {T_res[k] * 1e3:.0f} кэВ, t = {time_res[k]:.0f} с: 2X_n(всего) = {2 * neutrons_total(k):.3f}")
+for k, frac in ((k_onset, 0.01), (k_half, 0.5)):
+    T_c, t_c = crossing(X_he4, frac * final["Yp"])
+    print(f"⁴He = {frac:.0%} конечного: T = {T_c * 1e3:.1f} кэВ, t = {t_c:.0f} с; "
+          f"2X_n(всего) = {2 * neutrons_total(k):.3f}")
 for T_check in (0.2, 0.1, 0.085, 0.075):
     k = np.argmin(abs(T_res - T_check))
     print(f"T = {T_res[k] * 1e3:.0f} кэВ: X_D(сеть)/X_D(Саха) = {2 * res['d'][k] / X_d_saha(k):.3f}")
@@ -388,8 +394,8 @@ $\sim1\sigma$ [У]{.status} (на 2025 г.). Обсуждавшееся в 2010-
    выход падает с ростом $\eta$; при больших $\eta$ он рождается как
    ⁷Be в ${}^4$He$({}^3$He$,\gamma)$, а ⁷Be разрушается медленнее
    (через $(n,p)$), и выход растёт с $\eta$.
-5. Когда ⁴He набрал 1 % конечного ($T = 80$ кэВ, $t = 197$ с),
-   $2X_n^{\rm tot} = 0{,}257$; на половине ($T = 72$ кэВ, $t = 247$ с) —
+5. Когда ⁴He набрал 1 % конечного ($T = 80$ кэВ, $t = 196$ с),
+   $2X_n^{\rm tot} = 0{,}257$; на половине ($T = 72{,}5$ кэВ, $t = 245$ с) —
    $0{,}245$; итог $Y_p = 0{,}2425$. Нейтроны распадаются и во время
    синтеза, поэтому оценка $2X_n$ точна лишь до процента. Задержка на
    30 с: $Y_p \to Y_pe^{-30/\tau_n} = 0{,}234$.
@@ -470,8 +476,9 @@ k_min = np.argmin(table["Li7/H"])
 assert near(table["Li7/H"][k_min] * 1e10, 1.1, 1) and 2.2e-10 < eta_grid[k_min] < 2.9e-10
 assert table["Li7/H"][k_min] < 1.6e-10
 # 5
-assert round(T_res[k_onset] * 1e3) == 80 and round(time_res[k_onset]) == 197
+T_on, t_on = crossing(X_he4, 0.01 * final["Yp"])
+assert near(T_on * 1e3, 80, 0) and near(t_on, 196, 0)
 assert near(2 * neutrons_total(k_onset), 0.257, 3) and near(2 * neutrons_total(k_half), 0.245, 3)
-assert round(T_half * 1e3) == 72 and round(t_half) == 247
+assert near(T_half * 1e3, 72.5, 1) and near(t_half, 245, 0)
 assert near(final["Yp"] * math.exp(-30 / TAU_N), 0.234, 3)
 ```
