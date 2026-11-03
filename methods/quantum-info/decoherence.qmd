@@ -1,0 +1,494 @@
+---
+title: "Декогеренция и открытые квантовые системы"
+topic: decoherence
+order: 4
+description: "Квантовые каналы и уравнение Линдблада (сохранение следа и эрмитовости — SymPy); релаксация и дефазировка кубита, T₁, T₂ и неравенство T₂ ≤ 2T₁; микроскопический вывод: модель столкновений и марковский предел γ = 2g²τ; отбор состояний-указателей и избыточная запись в окружение (взаимная информация фрагментов); время декогеренции по Калдейре–Леггетту и в режиме насыщения рассеянием; эксперименты и статус"
+---
+
+Почему мы не видим пылинку одновременно в двух местах, хотя уравнение
+Шрёдингера линейно и суперпозиции разрешает? Ответ, найденный в
+1970–1980-х годах (Цее, 1970; Зурек, 1981; Йоос, Цее, 1985),
+состоит в том, что макроскопическая система никогда не изолирована:
+каждое столкновение с молекулой воздуха или фотоном записывает в
+окружение информацию о её положении. Когерентность при этом не
+исчезает, а уходит в корреляции с окружением, недоступные
+наблюдателю системы. Матрица плотности системы (тема «Кубиты и
+матрица плотности») становится диагональной в выделенном базисе за
+время, которое для макрообъектов неизмеримо мало. Это **декогеренция**.
+
+Для пособия она важна трижды: она объясняет классичность
+макромира, из которого строится сложность; она задаёт масштаб
+времени, на котором живые системы могли бы использовать квантовые
+эффекты (темы «Квантовые эффекты в живых системах» и «Квантовый мозг?»);
+и она — главный враг квантовых вычислений (тема «Термодинамика
+квантовой коррекции ошибок»).
+
+## Открытые системы и уравнение Линдблада
+
+Система $S$ и окружение $E$ вместе эволюционируют унитарно. Если
+вначале они не коррелированы, $\rho_{SE}(0) = \rho_S(0)\otimes\rho_E$,
+то состояние системы
+$\rho_S(t) = {\rm Tr}_E[U\rho_S(0)\otimes\rho_EU^\dagger]$ линейно
+зависит от $\rho_S(0)$.
+
+::: {#def-channel}
+**Квантовый канал** — линейное, сохраняющее след и вполне
+положительное отображение $\rho \mapsto \mathcal E(\rho)$. Любой канал
+допускает **представление Крауса**
+$\mathcal E(\rho) = \sum_kK_k\rho K_k^\dagger$, $\sum_kK_k^\dagger K_k = 1$.
+:::
+
+Если окружение «забывает» о системе быстрее, чем меняется сама
+система (марковское приближение), эволюция задаётся полугруппой
+каналов $\mathcal E_t = e^{t\mathcal L}$. Её генератор описывает
+теорема Горини–Коссаковского–Сударшана–Линдблада (1976).
+
+::: {#def-lindblad}
+**Уравнение Линдблада (ГКСЛ):**
+$$
+\frac{\dd\rho}{\dd t} = -\frac{i}{\hbar}[H, \rho]
++ \sum_k\left(L_k\rho L_k^\dagger - \frac12\{L_k^\dagger L_k, \rho\}\right),
+$$
+где $H$ — эрмитов гамильтониан (с лэмбовскими сдвигами от окружения),
+$L_k$ — **операторы скачков** (произвольные, включая множители
+$\sqrt{\gamma_k}$ с размерностью темпа).
+:::
+
+Форма уравнения — единственная, при которой эволюция остаётся
+вполне положительной для любого начального состояния [У]{.status}.
+Проверим, что правая часть сохраняет след и эрмитовость:
+
+```{python}
+import itertools
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+import astropy.constants as const
+import astropy.units as u
+from scipy.integrate import solve_ivp
+from scipy.linalg import expm
+
+a, b = sp.symbols("a b", real=True)
+c = sp.symbols("c")
+rho = sp.Matrix([[a, c], [sp.conjugate(c), 1 - a]])
+L = sp.Matrix(2, 2, sp.symbols("l0:4"))
+H = sp.Matrix([[b, 0], [0, -b]])
+drho = -sp.I * (H * rho - rho * H) + L * rho * L.H - (L.H * L * rho + rho * L.H * L) / 2
+print("Tr(dρ/dt) =", sp.simplify(drho.trace()), ";  dρ/dt − (dρ/dt)† =", sp.simplify(drho - drho.H))
+```
+
+**Кубит.** Два основных процесса: **релаксация** $|1\rangle \to
+|0\rangle$ (оператор $L_1 = \sqrt{\gamma_1}\,\sigma_-$,
+$\sigma_- = |0\rangle\langle1|$) и **чистая дефазировка**
+($L_\varphi = \sqrt{\gamma_\varphi/2}\,\sigma_z$), при которой
+населённости не меняются, а фаза суперпозиции случайно блуждает.
+Решение уравнения Линдблада:
+$$
+\rho_{11}(t) = \rho_{11}(0)e^{-t/T_1}, \qquad
+|\rho_{01}(t)| = |\rho_{01}(0)|e^{-t/T_2}, \qquad
+\frac1{T_1} = \gamma_1, \quad \frac1{T_2} = \frac{\gamma_1}2 + \gamma_\varphi.
+$$
+Поскольку $\gamma_\varphi \ge 0$, всегда $T_2 \le 2T_1$
+[У]{.status}: это следствие полной положительности, и в экспериментах
+с кубитами оно выполняется. Проверим решение численно:
+
+```{python}
+sigma_z = np.diag([1.0, -1.0]).astype(complex)
+sigma_minus = np.array([[0, 1], [0, 0]], dtype=complex)        # |0⟩⟨1|
+
+def lindblad_rhs(H, Ls):
+    """Правая часть уравнения Линдблада (ħ = 1) для solve_ivp."""
+    def rhs(t, y):
+        r = y.reshape(H.shape)
+        d = -1j * (H @ r - r @ H)
+        for L in Ls:
+            LdL = L.conj().T @ L
+            d += L @ r @ L.conj().T - 0.5 * (LdL @ r + r @ LdL)
+        return d.ravel()
+    return rhs
+
+g1, gphi = 1.0, 0.3
+rho0 = np.array([[0.3, 0.4], [0.4, 0.7]], dtype=complex)
+sol = solve_ivp(lindblad_rhs(np.zeros((2, 2)), [math.sqrt(g1) * sigma_minus, math.sqrt(gphi / 2) * sigma_z]),
+                [0, 5], rho0.ravel(), rtol=1e-10, atol=1e-12, dense_output=True)
+for t in (1.0, 3.0):
+    r = sol.sol(t).reshape(2, 2)
+    print(f"t = {t}: ρ₁₁ = {r[1, 1].real:.6f} (теория {0.7 * math.exp(-g1 * t):.6f}),  "
+          f"|ρ₀₁| = {abs(r[0, 1]):.6f} (теория {0.4 * math.exp(-(g1 / 2 + gphi) * t):.6f})")
+```
+
+## Откуда берётся марковская динамика: модель столкновений
+
+Уравнение Линдблада — результат приближений (слабая связь, короткая
+память окружения), и полезно увидеть, как оно возникает из
+унитарной динамики. Простейшая точно решаемая модель —
+**модель столкновений**: кубит $S$ последовательно и по одному
+разу взаимодействует с кубитами окружения $E_1, E_2, \dots$, каждый
+из которых приходит в состоянии $|0\rangle$ (как молекулы газа,
+пролетающие мимо). Взаимодействие длительностью $\tau$:
+$$
+U = \exp(-ig\tau\,\sigma_z^{(S)}\otimes\sigma_x^{(E)}).
+$$
+Оно поворачивает кубит окружения в разные стороны в зависимости от
+того, в каком состоянии $|0\rangle$ или $|1\rangle$ находится
+система: $|i\rangle|0\rangle \to |i\rangle|e_i\rangle$ с
+$\langle e_0|e_1\rangle = \cos2g\tau$. Значит, после $n$ столкновений
+$$
+\rho_{01}(n) = \rho_{01}(0)\cos^n(2g\tau)
+\approx \rho_{01}(0)\exp(-2g^2\tau^2n) = \rho_{01}(0)\,e^{-\gamma_\varphi t},
+\qquad \gamma_\varphi = 2g^2\tau,
+$$
+где $t = n\tau$. **Марковский предел** — $\tau \to 0$ при
+фиксированном $g^2\tau$: каждое столкновение слабое, но их много.
+Каждый кубит окружения после столкновения уходит и больше не
+возвращается — это и есть «короткая память». Проверим, моделируя
+унитарную эволюцию и частичный след:
+
+```{python}
+sigma_x = np.array([[0, 1], [1, 0]], dtype=complex)
+env0 = np.array([[1, 0], [0, 0]], dtype=complex)
+
+def collisions(g_tau, n, rho_S=None):
+    """|ρ₀₁| системы после каждого из n столкновений с новыми кубитами |0⟩."""
+    U = expm(-1j * g_tau * np.kron(sigma_z, sigma_x))
+    rho_S = 0.5 * np.ones((2, 2), dtype=complex) if rho_S is None else rho_S
+    out = []
+    for _ in range(n):
+        R = U @ np.kron(rho_S, env0) @ U.conj().T
+        rho_S = R.reshape(2, 2, 2, 2).trace(axis1=1, axis2=3)        # след по окружению
+        out.append(abs(rho_S[0, 1]))
+    return np.array(out), rho_S
+
+gamma_phi = 1.0                                       # фиксируем 2g²τ = 1, т. е. t в единицах 1/γ_φ
+for tau_c in (0.25, 0.1, 0.01):
+    g_tau = math.sqrt(gamma_phi * tau_c / 2)
+    n = round(1.0 / tau_c)                            # до t = 1/γ_φ
+    coh, rho_S = collisions(g_tau, n)
+    print(f"τ = {tau_c:5}: gτ = {g_tau:.3f}, n = {n:3d}:  2|ρ₀₁| = {2 * coh[-1]:.4f}, "
+          f"cosⁿ(2gτ) = {math.cos(2 * g_tau)**n:.4f};  e⁻¹ = {math.exp(-1):.4f};  ρ₀₀ = {rho_S[0, 0].real:.3f}")
+```
+
+Точный ответ $\cos^n(2g\tau)$ стремится к экспоненте Линдблада при
+уменьшении $\tau$, населённости не меняются: взаимодействие
+коммутирует с $\sigma_z$ системы. При конечном $\tau$ отличие от
+экспоненты — «немарковость» конечного времени столкновения.
+
+## Какой базис выбирает окружение
+
+Декогеренция всегда идёт в определённом базисе. В модели
+столкновений сохраняются состояния $|0\rangle$ и $|1\rangle$ —
+собственные состояния оператора системы $\sigma_z$, входящего во
+взаимодействие; их суперпозиции разрушаются. Такие устойчивые
+состояния Зурек назвал **состояниями-указателями**, а их отбор —
+**эйнселекцией** [У]{.status}. Для макрообъекта взаимодействие с
+окружением зависит от координаты (рассеяние света и молекул), поэтому
+состояния-указатели локализованы в пространстве — и мы видим
+предметы в определённых местах.
+
+Окружение не просто разрушает когерентность, но и **запоминает**
+состояние-указатель, причём многократно: каждый кубит окружения
+хранит копию записи. Пусть $S$ в состоянии $(|0\rangle + |1\rangle)/\sqrt2$
+провзаимодействовал с $N = 12$ кубитами окружения, каждый из которых
+повернулся на угол $\pm\theta$ (т. е. $2g\tau = \theta$). Найдём
+взаимную информацию $I(S:F) = S(\rho_S) + S(\rho_F) - S(\rho_{SF})$
+между системой и фрагментом $F$ из $k$ кубитов:
+
+```{python}
+def entropy_bits(r):
+    w = np.linalg.eigvalsh(r)
+    w = w[w > 1e-13]
+    return float(-np.sum(w * np.log2(w)))
+
+def reduced(psi, keep, n):
+    """Матрица плотности подсистемы keep (номера кубитов) чистого состояния n кубитов."""
+    others = [i for i in range(n) if i not in keep]
+    p = np.transpose(psi.reshape([2] * n), keep + others).reshape(2**len(keep), -1)
+    return p @ p.conj().T
+
+def entropy_of(psi, keep, n):
+    """S(ρ_keep) чистого состояния: у подсистемы и дополнения энтропии равны —
+    считаем по меньшей из них."""
+    others = [i for i in range(n) if i not in keep]
+    return entropy_bits(reduced(psi, keep if len(keep) <= len(others) else others, n))
+
+def branch_state(theta, N):
+    """(|0⟩|e₀⟩^N + |1⟩|e₁⟩^N)/√2 после N столкновений с углом поворота θ."""
+    e = {s: np.array([math.cos(theta / 2), s * 1j * math.sin(theta / 2)]) for s in (-1, 1)}
+    branches = []
+    for bit, s in ((0, -1), (1, 1)):
+        v = np.eye(2)[bit]
+        for _ in range(N):
+            v = np.kron(v, e[s])
+        branches.append(v)
+    return (branches[0] + branches[1]) / math.sqrt(2)
+
+def mutual_info_curve(theta, N=12):
+    psi = branch_state(theta, N)
+    S_S = entropy_of(psi, [0], N + 1)
+    curve = [0.0]
+    for k in range(1, N + 1):
+        F = list(range(1, k + 1))                       # все кубиты окружения равноправны
+        curve.append(S_S + entropy_of(psi, F, N + 1) - entropy_of(psi, [0] + F, N + 1))
+    return np.array(curve), S_S
+
+N_env = 12
+curves = {}
+for theta in (math.pi / 2, math.pi / 4, math.pi / 8):
+    curves[theta], S_S = mutual_info_curve(theta, N_env)
+    print(f"θ = π/{round(math.pi / theta)}: S(ρ_S) = {S_S:.4f} бит; I(S:F), k = 1, 2, 3, 6, 11, 12: "
+          + ", ".join(f"{curves[theta][k]:.3f}" for k in (1, 2, 3, 6, 11, 12))
+          + f";  |⟨e₀|e₁⟩|^N = {abs(math.cos(theta))**N_env:.1e}")
+```
+
+```{python}
+#| label: fig-darwinism
+#| fig-cap: "Взаимная информация между кубитом S и фрагментом окружения из k кубитов (всего N = 12) после записи с углом поворота θ. При полной записи (θ = π/2) любой один кубит окружения уже несёт весь бит о состоянии-указателе — плато I = S(ρ_S) = 1 бит; при частичной (θ = π/4) кривая выходит на пологий участок около 1 бита при k ≈ 3–8 (I(k) + I(N − k) = 2S(ρ_S) — кривая симметрична). Подъём до 2 бит при k = N — квантовые корреляции, доступные только при перехвате всего окружения. При θ = π/8 записи слабы, S ещё не полностью декогерирован, плато нет."
+fig, ax = plt.subplots(figsize=(6.5, 3.8))
+k_axis = np.arange(N_env + 1)
+for theta, style in zip(curves, ("-o", "-s", "-^")):
+    ax.plot(k_axis, curves[theta], style, ms=4, label=f"θ = π/{round(math.pi / theta)}")
+ax.axhline(1, color="0.5", lw=0.8, ls="--")
+ax.set(xlabel="размер фрагмента k", ylabel="I(S:F), бит", ylim=(0, 2.1))
+ax.legend(fontsize=8)
+ax.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Плато означает, что сведения о состоянии-указателе избыточно
+размножены: много независимых наблюдателей, каждый из которых
+перехватил свой маленький фрагмент окружения (свой кусочек света,
+рассеянного предметом), узнают одно и то же. Зурек называет это
+**квантовым дарвинизмом** и видит в нём объяснение объективности
+классического мира. Вычисление выше — строгое следствие квантовой
+механики [У]{.status}; что именно оно объясняет в проблеме
+измерения — предмет дискуссии о её интерпретации [Г]{.status}.
+Декогеренция объясняет, почему интерференция между «ветвями»
+ненаблюдаема, но сама по себе не выбирает одну из них [У]{.status}.
+
+## Время декогеренции
+
+Для частицы массы $m$ в тепловом окружении с температурой $T$ и
+временем релаксации импульса $\tau_R = 1/\gamma$ уравнение
+Калдейры–Леггетта (1983) в пределе высоких температур содержит член
+$-D(x - x')^2\rho(x, x')/\hbar^2$ с $D = 2m\gamma kT$. Суперпозиция
+двух положений на расстоянии $\Delta x$ теряет когерентность с темпом
+$$
+\frac1{\tau_D} = \gamma\left(\frac{\Delta x}{\lambda_{\rm th}}\right)^2,
+\qquad \lambda_{\rm th} = \frac{\hbar}{\sqrt{2mkT}}
+$$
+(Зурек, 1991). Отношение $\tau_D/\tau_R = (\lambda_{\rm th}/\Delta x)^2$
+не зависит от силы связи:
+
+```{python}
+hbar, k_B = const.hbar.si.value, const.k_B.si.value
+
+def lambda_th(m_kg, T):
+    return hbar / math.sqrt(2 * m_kg * k_B * T)
+
+cases = [("электрон, 300 К, Δx = 1 нм", const.m_e.si.value, 300, 1e-9),
+         ("молекула C₆₀, 900 К, Δx = 100 нм", 720 * const.u.si.value, 900, 1e-7),
+         ("пылинка 1 мкм (5·10⁻¹⁵ кг), 300 К, Δx = 1 мкм", 5e-15, 300, 1e-6),
+         ("тело 1 г, 300 К, Δx = 1 см", 1e-3, 300, 1e-2)]
+ratios = {}
+for name, m_, T_, dx in cases:
+    lam = lambda_th(m_, T_)
+    ratios[name] = (lam / dx)**2
+    print(f"{name}: λ_th = {lam:.1e} м, τ_D/τ_R = {ratios[name]:.1e}")
+```
+
+Для тела массой 1 г отношение $\sim10^{-41}$: даже если трение
+затормозит его лишь за возраст Вселенной ($\tau_R \sim 4\cdot10^{17}$ с),
+суперпозиция на сантиметр распадётся за $\sim10^{-23}$ с. Для
+электрона на нанометре отношение порядка единицы — он остаётся
+квантовым. Формула
+Калдейры–Леггетта применима при $\Delta x$ меньше длины волны
+частиц окружения; при больших $\Delta x$ каждое рассеяние полностью
+различает положения, и темп **насыщается** на полной частоте
+столкновений $\Gamma = n\sigma v$:
+
+```{python}
+def collision_rate(radius, n, v):
+    """Частота столкновений шара радиуса radius (м) с газом концентрации n (м⁻³)."""
+    return n * math.pi * radius**2 * v
+
+v_air = math.sqrt(8 * k_B * 300 / (math.pi * 29 * const.u.si.value))
+n_air = (101325 * u.Pa / (const.k_B * 300 * u.K)).si.value
+n_uhv = (1e-10 * 133.322 * u.Pa / (const.k_B * 300 * u.K)).si.value     # 10⁻¹⁰ торр
+for label, n_ in (("воздух, 1 атм", n_air), ("сверхвысокий вакуум, 10⁻¹⁰ торр", n_uhv)):
+    G_ = collision_rate(1e-6, n_, v_air)
+    print(f"пылинка 1 мкм, {label}: Γ = {G_:.1e} с⁻¹, τ_D = {1 / G_:.1e} с")
+```
+
+В воздухе пылинка декогерирует за $\sim3\cdot10^{-17}$ с, и даже в
+сверхвысоком вакууме — за доли миллисекунды; к этому добавляется
+рассеяние и излучение теплового света. Поэтому интерференция больших
+молекул (C₆₀ и тяжелее; Арндт и др., 1999) требует глубокого вакуума,
+а при нагреве молекул до нескольких тысяч кельвинов видимость полос падает из-за
+собственного теплового излучения — декогеренция, измеренная
+контролируемо (Хакермюллер и др., 2004) [У]{.status}.
+
+## Физика и статус
+
+- Уравнение Линдблада, модели декогеренции и отбор
+  состояний-указателей — следствия квантовой механики открытых
+  систем [У]{.status}; постепенная декогеренция наблюдалась
+  непосредственно (полость с ридберговскими атомами, Брюн и др., 1996;
+  интерферометрия молекул) [У]{.status}.
+- Времена когерентности инженерных кубитов — от микросекунд до
+  секунд и дольше в зависимости от платформы; ими ограничены квантовые
+  вычисления (тема «Термодинамика квантовой коррекции ошибок»).
+- Для мозга оценки Тегмарка (2000) дают времена декогеренции
+  $10^{-13}$–$10^{-20}$ с против $10^{-3}$–$10^{-1}$ с нейронной
+  динамики [У]{.status} как оценка; следствия для теорий «квантового
+  мозга» обсуждаются в теме «Квантовый мозг?» [Г]{.status}.
+- Решает ли декогеренция проблему измерения — вопрос интерпретации
+  [Г]{.status}: она объясняет отсутствие интерференции и выбор базиса,
+  но не единственность исхода.
+
+## Итоги
+
+- Открытая система описывается квантовым каналом; в марковском
+  пределе — уравнением Линдблада, единственной формой, сохраняющей
+  полную положительность.
+- Кубит: $1/T_2 = \gamma_1/2 + \gamma_\varphi$, отсюда $T_2 \le 2T_1$.
+- Модель столкновений: точное $\cos^n(2g\tau)$ переходит в
+  $e^{-\gamma_\varphi t}$ с $\gamma_\varphi = 2g^2\tau$ при $\tau \to 0$.
+- Окружение отбирает состояния-указатели и записывает их избыточно:
+  плато взаимной информации.
+- $\tau_D/\tau_R = (\lambda_{\rm th}/\Delta x)^2$ — $10^{-41}$ для
+  грамма на сантиметр; при больших $\Delta x$ темп насыщается на
+  частоте столкновений.
+
+## Упражнения
+
+1. Найдите собственные значения $\rho(t)$ кубита при чистой
+   дефазировке ($\gamma_1 = 0$) из состояния $|+\rangle$ и энтропию
+   фон Неймана при $t = 1/\gamma_\varphi$. Сколько информации ушло
+   в окружение?
+2. Канал амплитудного затухания за время $t$ задаётся операторами
+   Крауса $K_0 = {\rm diag}(1, \sqrt{1-p})$, $K_1 = \sqrt p\,\sigma_-$.
+   Найдите $p(t)$, сравнив с решением уравнения Линдблада, и проверьте
+   $\sum K_k^\dagger K_k = 1$.
+3. В модели столкновений при $g\tau = 0{,}3$ сколько столкновений
+   нужно, чтобы $|\rho_{01}|$ упало в $e$ раз? Сколько дал бы
+   марковский предел?
+4. Чему равна взаимная информация $I(S:E_1)$ с одним кубитом
+   окружения после всех $N$ столкновений как функция $\theta$ при
+   $N \to \infty$? Найдите её при $\theta = \pi/4$ и $\pi/8$.
+5. Какой длины должна быть суперпозиция пылинки ($5\cdot10^{-15}$ кг,
+   300 К), чтобы формула Калдейры–Леггетта давала $\tau_D = \tau_R$?
+   Что это значит физически?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $\rho_{01} = \frac12e^{-\gamma_\varphi t}$, собственные значения
+   $\frac12(1 \pm e^{-\gamma_\varphi t})$; при $t = 1/\gamma_\varphi$ —
+   0,684 и 0,316, $S = 0{,}900$ бит. Если система и окружение вместе
+   в чистом состоянии, $S(\rho_E) = S(\rho_S)$ и взаимная информация
+   $I(S:E) = 2S(\rho_S) = 1{,}80$ бит.
+2. $\rho_{11}(t) = (1-p)\rho_{11}(0)$, поэтому $p = 1 - e^{-\gamma_1t}$;
+   $K_0^\dagger K_0 + K_1^\dagger K_1 = {\rm diag}(1, 1 - p) +
+   {\rm diag}(0, p) = 1$.
+3. $\cos^n(0{,}6) = e^{-1}$: $n = -1/\ln\cos0{,}6 = 5{,}2$, т. е. 6
+   столкновений (после пяти когерентность ещё больше $e^{-1}$);
+   марковское приближение $n = 1/(2g^2\tau^2) = 5{,}6$.
+4. При $N \to \infty$ система полностью декогерирована, $S(\rho_S) = 1$;
+   $\rho_{SE_1} = \frac12\sum_i|i\rangle\langle i|\otimes|e_i\rangle\langle e_i|$,
+   и $I = S(\rho_{E_1}) = h\!\left(\frac{1 + \cos\theta}2\right)$, где
+   $h$ — двоичная энтропия Шеннона. При $\theta = \pi/4$: 0,601 бит,
+   при $\pi/8$: 0,233 бит.
+5. $\Delta x = \lambda_{\rm th} = 1{,}6\cdot10^{-17}$ м — в сто раз
+   меньше размера протона; суперпозиции пылинки на любом заметном расстоянии
+   декогерируют много быстрее, чем релаксирует её импульс.
+:::
+
+## Литература
+
+- Zeh H. D. On the interpretation of measurement in quantum theory.
+  *Found. Phys.* **1**, 69 (1970).
+- Zurek W. H. Pointer basis of quantum apparatus: into what mixture
+  does the wave packet collapse? *Phys. Rev. D* **24**, 1516 (1981).
+- Joos E., Zeh H. D. The emergence of classical properties through
+  interaction with the environment. *Z. Phys. B* **59**, 223 (1985).
+- Gorini V., Kossakowski A., Sudarshan E. C. G. Completely positive
+  dynamical semigroups of N-level systems. *J. Math. Phys.* **17**, 821
+  (1976).
+- Lindblad G. On the generators of quantum dynamical semigroups.
+  *Commun. Math. Phys.* **48**, 119 (1976).
+- Caldeira A. O., Leggett A. J. Path integral approach to quantum
+  Brownian motion. *Physica A* **121**, 587 (1983).
+- Zurek W. H. Decoherence and the transition from quantum to classical.
+  *Physics Today* **44**(10), 36 (1991).
+- Brune M. et al. Observing the progressive decoherence of the “meter”
+  in a quantum measurement. *Phys. Rev. Lett.* **77**, 4887 (1996).
+- Arndt M. et al. Wave–particle duality of C₆₀ molecules. *Nature*
+  **401**, 680 (1999).
+- Tegmark M. Importance of quantum decoherence in brain processes.
+  *Phys. Rev. E* **61**, 4194 (2000), arXiv:quant-ph/9907009.
+- Hackermüller L. et al. Decoherence of matter waves by thermal
+  emission of radiation. *Nature* **427**, 711 (2004).
+- Zurek W. H. Quantum Darwinism. *Nature Phys.* **5**, 181 (2009),
+  arXiv:0903.5082.
+- Breuer H.-P., Petruccione F. *The Theory of Open Quantum Systems.* —
+  Oxford: Oxford University Press, 2002.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert sp.simplify(drho.trace()) == 0 and sp.simplify(drho - drho.H) == sp.zeros(2, 2)
+for t in (1.0, 3.0):
+    r = sol.sol(t).reshape(2, 2)
+    assert abs(r[1, 1].real - 0.7 * math.exp(-g1 * t)) < 1e-8
+    assert abs(abs(r[0, 1]) - 0.4 * math.exp(-(g1 / 2 + gphi) * t)) < 1e-8
+errs = []
+for tau_c in (0.25, 0.1, 0.01):
+    g_tau = math.sqrt(tau_c / 2)
+    coh, rho_S = collisions(g_tau, round(1 / tau_c))
+    assert abs(2 * coh[-1] - math.cos(2 * g_tau)**round(1 / tau_c)) < 1e-10
+    assert abs(rho_S[0, 0].real - 0.5) < 1e-12
+    errs.append(abs(2 * coh[-1] - math.exp(-1)))
+assert errs[0] > errs[1] > errs[2] and errs[2] < 2e-3
+c2 = curves[math.pi / 2]
+assert abs(c2[1] - 1) < 1e-9 and abs(c2[11] - 1) < 1e-9 and abs(c2[12] - 2) < 1e-9
+c4 = curves[math.pi / 4]
+assert 0.55 < c4[1] < 0.65 and abs(c4[6] - 1) < 0.01 and abs(c4[12] - 2) < 1e-3
+c8 = curves[math.pi / 8]
+assert c8[6] < 0.95 and abs(c8[12] - 2 * mutual_info_curve(math.pi / 8)[1]) < 1e-6
+assert round(math.log10(ratios["тело 1 г, 300 К, Δx = 1 см"])) == -41
+tau_universe = 4e17
+assert round(math.log10(tau_universe * ratios["тело 1 г, 300 К, Δx = 1 см"])) == -23
+assert 0.3 < ratios["электрон, 300 К, Δx = 1 нм"] < 3
+G_air, G_uhv = collision_rate(1e-6, n_air, v_air), collision_rate(1e-6, n_uhv, v_air)
+assert round(1 / G_air * 1e17) == 3
+assert 1e-4 < 1 / G_uhv < 1e-3                                              # «доли миллисекунды»
+# 1
+lam1 = 0.5 * (1 + math.exp(-1)), 0.5 * (1 - math.exp(-1))
+S1 = -sum(p * math.log2(p) for p in lam1)
+assert round(lam1[0], 3) == 0.684 and round(S1, 3) == 0.900 and round(2 * S1, 2) == 1.80
+r_deph = solve_ivp(lindblad_rhs(np.zeros((2, 2)), [math.sqrt(0.5) * sigma_z]), [0, 1],
+                   (0.5 * np.ones((2, 2), complex)).ravel(), rtol=1e-10, atol=1e-12).y[:, -1].reshape(2, 2)
+assert abs(entropy_bits(r_deph) - S1) < 1e-6
+# 2
+p_ = 1 - math.exp(-g1 * 1.0)
+K0, K1 = np.diag([1, math.sqrt(1 - p_)]), math.sqrt(p_) * sigma_minus
+assert np.allclose(K0.conj().T @ K0 + K1.conj().T @ K1, np.eye(2))
+r_k = K0 @ rho0 @ K0.conj().T + K1 @ rho0 @ K1.conj().T
+r_l = solve_ivp(lindblad_rhs(np.zeros((2, 2)), [sigma_minus]), [0, 1], rho0.ravel(), rtol=1e-10, atol=1e-12).y[:, -1].reshape(2, 2)
+assert np.allclose(r_k, r_l, atol=1e-7)
+# 3
+n3 = -1 / math.log(math.cos(0.6))
+assert round(n3, 1) == 5.2 and round(1 / (2 * 0.3**2), 1) == 5.6
+coh3, _ = collisions(0.3, 6)
+assert coh3[4] > 0.5 * math.exp(-1) > coh3[5]
+# 4
+h2 = lambda q: -q * math.log2(q) - (1 - q) * math.log2(1 - q)
+assert round(h2((1 + math.cos(math.pi / 4)) / 2), 3) == 0.601 and round(h2((1 + math.cos(math.pi / 8)) / 2), 3) == 0.233
+psi_big = branch_state(math.pi / 4, 12)
+I1 = entropy_of(psi_big, [0], 13) + entropy_of(psi_big, [1], 13) - entropy_of(psi_big, [0, 1], 13)
+assert abs(I1 - 0.601) < 0.01
+# 5
+assert round(lambda_th(5e-15, 300) * 1e17, 1) == 1.6
+```
