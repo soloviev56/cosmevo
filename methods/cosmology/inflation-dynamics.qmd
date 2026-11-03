@@ -1,0 +1,464 @@
+---
+title: "Динамика скалярного поля во Вселенной"
+topic: inflation-dynamics
+order: 7
+description: "Тензор энергии-импульса и уравнение Клейна–Гордона однородного скалярного поля в метрике ФЛРУ (выведены SymPy); условие ускорения и параметры медленного скатывания ε и η; аттрактор медленного скатывания на фазовой плоскости; число e-фолдов; численные решения для m²φ² и потенциала Старобинского и точность приближения; осцилляции поля после конца ускорения и ⟨w⟩ = (n−2)/(n+2)"
+---
+
+Однородное скалярное поле — простейшая форма материи, которая может
+иметь отрицательное давление $p \approx -\rho$ и, значит, вызывать
+ускоренное расширение. На этом основана инфляционная гипотеза (тема
+«Инфляция — проблемы и предсказания») и большинство моделей
+меняющейся тёмной энергии (тема «Меняется ли тёмная энергия?»).
+Сама динамика поля в метрике ФЛРУ — не гипотеза, а следствие ОТО и
+теории поля [У]{.status}; гипотезой является существование поля
+с нужным потенциалом [Г]{.status}. Единственное известное
+фундаментальное скалярное поле — хиггсовское [У]{.status}.
+
+В этой статье мы выводим уравнения, находим условия ускорения и
+приближение медленного скатывания и проверяем его точность численными
+решениями для двух потенциалов. Квантовые флуктуации поля и
+предсказания для спектра возмущений — тема «Квантовые флуктуации на
+инфляционной стадии».
+
+## Поле в метрике ФЛРУ
+
+Действие поля в сигнатуре $(+,-,-,-)$:
+$$
+S = \int\dd^4x\sqrt{-g}\left[\frac12g^{\mu\nu}\partial_\mu\phi\,\partial_\nu\phi - V(\phi)\right],
+\qquad
+T_{\mu\nu} = \partial_\mu\phi\,\partial_\nu\phi - g_{\mu\nu}\left[\frac12(\partial\phi)^2 - V\right].
+$$
+Вычислим $T^\mu{}_\nu$ и уравнение поля $\Box\phi + V'(\phi) = 0$ для
+однородного поля $\phi(t)$ в плоской метрике ФЛРУ (функция
+`frw_metric` из `cosmevo.gr`):
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import quad, solve_ivp
+from scipy.optimize import brentq
+
+from cosmevo.gr import frw_metric
+
+g, x, a = frw_metric(kappa=0)
+t = x[0]
+phi = sp.Function("phi")(t)
+V = sp.Function("V")
+ginv = g.inv()
+dphi = [sp.diff(phi, xi) for xi in x]
+kin = sum(ginv[m, n] * dphi[m] * dphi[n] for m in range(4) for n in range(4)) / 2
+T_low = sp.Matrix(4, 4, lambda m, n: dphi[m] * dphi[n] - g[m, n] * (kin - V(phi)))
+T_mixed = sp.simplify(ginv * T_low)                            # T^μ_ν
+print("ρ = T^t_t =", T_mixed[0, 0], ";  p = −T^r_r =", sp.simplify(-T_mixed[1, 1]))
+
+sqrtg = sp.sqrt(-g.det())
+box = sum(sp.diff(sqrtg * ginv[m, n] * dphi[n], x[m]) for m in range(4) for n in range(4)) / sqrtg
+kg = sp.simplify(box + sp.Derivative(V(phi), phi))
+print("□φ + V' =", kg)
+```
+
+::: {#def-scalar-flrw}
+**Однородное скалярное поле в ФЛРУ** ($\Mpr = (8\pi G)^{-1/2}$,
+$\hbar = c = 1$):
+$$
+\rho = \frac{\dot\phi^2}{2} + V, \quad p = \frac{\dot\phi^2}{2} - V,
+\qquad
+\ddot\phi + 3H\dot\phi + V'(\phi) = 0,
+\qquad
+H^2 = \frac{\rho}{3\Mpr^2}.
+$$
+Член $3H\dot\phi$ — **хаббловское трение**.
+:::
+
+Из этих уравнений следует $\dot H = -\dot\phi^2/(2\Mpr^2)$: $H$ всегда
+убывает, а скорость убывания задаёт кинетическая энергия.
+Ускорение $\ddot a > 0$ равносильно $\rho + 3p < 0$, т. е.
+$\dot\phi^2 < V$, или
+$$
+\varepsilon_H \equiv -\frac{\dot H}{H^2} = \frac{\dot\phi^2}{2\Mpr^2H^2} < 1,
+\qquad \frac{\ddot a}{a} = H^2(1 - \varepsilon_H).
+$$
+
+```{python}
+M, Hs = sp.symbols("M_Pr H", positive=True)
+ph, dph = sp.symbols("phi phidot", real=True)
+Vf = sp.Function("V")
+H_of = sp.sqrt((dph**2 / 2 + Vf(ph)) / (3 * M**2))
+ddph = -3 * H_of * dph - sp.diff(Vf(ph), ph)                     # уравнение Клейна–Гордона
+dH = sp.diff(H_of, ph) * dph + sp.diff(H_of, dph) * ddph        # dH/dt вдоль решения
+print("Ḣ + φ̇²/(2M²) =", sp.simplify(dH + dph**2 / (2 * M**2)))
+w = (dph**2 / 2 - Vf(ph)) / (dph**2 / 2 + Vf(ph))
+eps_H = dph**2 / (2 * M**2 * H_of**2)
+print("ε_H − (3/2)(1 + w) =", sp.simplify(eps_H - sp.Rational(3, 2) * (1 + w)))
+```
+
+## Медленное скатывание
+
+Если потенциал достаточно пологий, трение делает движение поля
+медленным, и в уравнениях можно отбросить $\ddot\phi$ и $\dot\phi^2$:
+$$
+3H\dot\phi \approx -V', \qquad H^2 \approx \frac{V}{3\Mpr^2}.
+$$
+
+::: {#def-slow-roll}
+**Параметры медленного скатывания** потенциала:
+$$
+\varepsilon_V = \frac{\Mpr^2}{2}\left(\frac{V'}{V}\right)^2,
+\qquad
+\eta_V = \Mpr^2\frac{V''}{V}.
+$$
+Приближение самосогласованно при $\varepsilon_V \ll 1$, $|\eta_V| \ll 1$;
+в нём $\varepsilon_H \approx \varepsilon_V$, и ускорение
+заканчивается при $\varepsilon_V \approx 1$. **Число e-фолдов** от
+значения поля $\phi$ до конца ускорения:
+$$
+N(\phi) = \int_{t}^{t_{\rm end}}H\,\dd t \approx \frac{1}{\Mpr^2}\int_{\phi_{\rm end}}^{\phi}\frac{V}{V'}\,\dd\phi.
+$$
+:::
+
+Первое условие требует малого наклона, второе — чтобы наклон
+оставался малым достаточно долго (иначе $\ddot\phi$ перестаёт быть
+пренебрежимым). Проверим $\varepsilon_H \to \varepsilon_V$ и
+формулу для $N$:
+
+```{python}
+V_ = sp.Function("V")(ph)
+dph_sr = -sp.diff(V_, ph) / (3 * sp.sqrt(V_ / (3 * M**2)))          # 3Hφ̇ = −V′, H² = V/3M²
+eps_sr = sp.simplify((dph_sr**2 / (2 * M**2 * V_ / (3 * M**2))))
+eps_V = M**2 / 2 * (sp.diff(V_, ph) / V_)**2
+print("ε_H (медленное скатывание) − ε_V =", sp.simplify(eps_sr - eps_V))
+print("dN/dφ = H/φ̇ =", sp.simplify(sp.sqrt(V_ / (3 * M**2)) / dph_sr))
+```
+
+$\dd N/\dd\phi = -V/(\Mpr^2V')$ — поле скатывается к меньшим
+значениям, $N$ растёт при удалении от конца. Чтобы решить проблемы
+горизонта и плоскостности, нужно $N \approx 50$–$60$ e-фолдов
+(точное число зависит от масштаба инфляции и разогрева; тема
+«Инфляция — проблемы и предсказания») [Г]{.status}.
+
+**Квадратичный потенциал** $V = \frac12m^2\phi^2$: $\varepsilon_V =
+\eta_V = 2\Mpr^2/\phi^2$; ускорение кончается при $\phi_{\rm end} =
+\sqrt2\Mpr$, а $N(\phi) = (\phi^2 - \phi_{\rm end}^2)/(4\Mpr^2)$. Для
+60 e-фолдов поле должно начинать с $\phi \approx 15{,}6\,\Mpr$ —
+сверхпланковские значения поля (но не плотности энергии: $V \ll
+\Mpr^4$ при $m \ll \Mpr$).
+
+**Потенциал Старобинского** (эквивалентен теории $R + R^2/(6m^2)$ в
+эйнштейновской системе отсчёта; Старобинский, 1980):
+$$
+V = \frac34m^2\Mpr^2\left(1 - e^{-\sqrt{2/3}\,\phi/\Mpr}\right)^2.
+$$
+При $\phi \gg \Mpr$ потенциал выходит на плато, и
+$N \approx \frac34e^{\sqrt{2/3}\,\phi/\Mpr}$ — для 60 e-фолдов
+хватает $\phi \approx 5{,}5\,\Mpr$.
+
+## Численное решение и аттрактор
+
+Решим точные уравнения в единицах $\Mpr = 1$, время — в $1/m$. Конец
+ускорения определим условием $\varepsilon_H = 1$.
+
+```{python}
+SQ = math.sqrt(2 / 3)
+MODELS = {
+    "m²φ²": (lambda f: 0.5 * f**2, lambda f: f),
+    "Старобинский": (lambda f: 0.75 * (1 - math.exp(-SQ * f))**2,
+                     lambda f: 1.5 * SQ * (1 - math.exp(-SQ * f)) * math.exp(-SQ * f)),
+}
+
+def hubble(f, df, V):
+    return math.sqrt((0.5 * df**2 + V(f)) / 3)
+
+def evolve(model, phi0, dphi0=None, t_max=3000.0, stop_at_end=True):
+    """Решение для (φ, φ̇, N); по умолчанию φ̇₀ — по медленному скатыванию."""
+    V, dV = MODELS[model]
+    if dphi0 is None:
+        dphi0 = -dV(phi0) / (3 * math.sqrt(V(phi0) / 3))
+    def rhs(t, y):
+        H = hubble(y[0], y[1], V)
+        return [y[1], -3 * H * y[1] - dV(y[0]), H]
+    def end(t, y):
+        return 0.5 * y[1]**2 / hubble(y[0], y[1], V)**2 - 1     # ε_H − 1
+    end.terminal, end.direction = stop_at_end, 1
+    return solve_ivp(rhs, [0, t_max], [phi0, dphi0, 0.0], rtol=1e-10, atol=1e-12,
+                     events=end, dense_output=True, max_step=0.5)
+
+def slow_roll_N(model, phi):
+    """N(φ) по медленному скатыванию; φ_end из ε_V = 1."""
+    V, dV = MODELS[model]
+    phi_end = brentq(lambda f: 0.5 * (dV(f) / V(f))**2 - 1, 0.1, 5)
+    return quad(lambda f: V(f) / dV(f), phi_end, phi)[0], phi_end
+
+phi60 = {m: brentq(lambda f: slow_roll_N(m, f)[0] - 60, 2, 30) for m in MODELS}
+for m in MODELS:
+    sol = evolve(m, phi60[m])
+    N_end, phi_end_num = sol.y_events[0][0][2], sol.y_events[0][0][0]
+    print(f"{m:13s}: φ₆₀ = {phi60[m]:.3f}; медленное скатывание: φ_end = {slow_roll_N(m, 1)[1]:.3f}, N = 60;  "
+          f"точно: φ_end = {phi_end_num:.3f}, N = {N_end:.2f}")
+```
+
+Приближение медленного скатывания недооценивает число e-фолдов на
+$\approx 1$–1,5: оно ошибается в самом конце, где $\varepsilon \sim 1$
+и истинный конец ускорения наступает при меньшем $\phi$. На фоне
+$N = 60$ это поправка менее 3 %.
+
+Важнее другое: медленное скатывание — **аттрактор**. Начнём с
+произвольной скорости поля:
+
+```{python}
+#| label: fig-attractor
+#| fig-cap: "Фазовые траектории однородного поля в потенциале m²φ²/2 (единицы M_Pr = 1, время в 1/m). Траектории с разными начальными скоростями (точки) за доли e-фолда сходятся к аттрактору медленного скатывания φ̇ ≈ −√(2/3) m M_Pr (штрихи) и дальше идут по нему; серая область — φ̇² > V, где расширение замедляется. Вблизи φ ~ 1 аттрактор кончается, и поле переходит к затухающим колебаниям около минимума."
+fig, ax = plt.subplots(figsize=(6.5, 4.2))
+f_grid = np.linspace(-3, 18, 400)
+bound = np.abs(f_grid) / math.sqrt(2)                       # φ̇² = V = φ²/2
+ax.fill_between(f_grid, -9, -bound, color="0.88", zorder=0)
+ax.fill_between(f_grid, bound, 9, color="0.88", zorder=0)
+ax.axhline(-math.sqrt(2 / 3), color="tab:red", ls="--", lw=1)
+for phi0, dphi0 in [(16, 8), (16, -8), (10, 6), (14, 0), (4, 8), (17, -3), (8, -8)]:
+    sol = evolve("m²φ²", phi0, dphi0, t_max=60, stop_at_end=False)
+    tt = np.linspace(0, sol.t[-1], 4000)
+    ax.plot(sol.sol(tt)[0], sol.sol(tt)[1], lw=1)
+    ax.plot(phi0, dphi0, "ko", ms=3)
+ax.set(xlabel="φ / M_Pr", ylabel="φ̇ / (m M_Pr)", xlim=(-3, 18), ylim=(-9, 9))
+ax.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+Почему аттрактор? Отклонение скорости $\delta\dot\phi$ от решения
+медленного скатывания затухает как $e^{-3Ht}$ — трение действует за
+время $\sim 1/(3H)$, т. е. за треть e-фолда. Поэтому предсказания
+медленного скатывания почти не зависят от начальной скорости поля
+[У]{.status} (но зависят от начального $\phi$, т. е. от того, было ли
+поле вообще на плато; это часть дискуссии о начальных условиях
+инфляции [Г]{.status}).
+
+```{python}
+N_of_start = lambda phi0, dphi0=None: evolve("m²φ²", phi0, dphi0).y_events[0][0][2]
+for dphi0 in (None, 0.0, -5.0, -20.0, 5.0, 20.0):
+    N_ = N_of_start(16.0, dphi0)
+    phi_eff = brentq(lambda f: N_of_start(f) - N_, 10, 20)      # тот же N со старта на аттракторе
+    label = "по медл. скатыванию" if dphi0 is None else f"{dphi0:+5.1f}"
+    print(f"φ₀ = 16, φ̇₀ = {label}: N = {N_:.2f};  эквивалентный старт на аттракторе φ = {phi_eff:.2f}")
+```
+
+Начальная скорость лишь сдвигает эффективную точку старта на
+$\Delta\phi \lesssim \Mpr$. Даже при $\dot\phi_0 = -20$ (кинетическая
+энергия 200 больше потенциальной 128) поле тормозится трением, пройдя
+лишние $\approx 0{,}8\,\Mpr$: в фазе доминирования кинетической
+энергии ($w = 1$) $\dot\phi^2/2$ убывает как $a^{-6}$, и поле проходит
+$\sqrt6\,\Mpr$ за e-фолд, но такая фаза длится доли e-фолда. Потеря
+— 6,3 e-фолда из 64,6 — заметна только потому, что в $m^2\phi^2$ при $\phi = 16$
+на единицу $\phi$ приходится 8 e-фолдов. При положительной скорости
+поле сначала забирается вверх по потенциалу.
+
+
+## После ускорения: колебания поля
+
+Когда $\varepsilon_H$ достигает 1, поле скатывается в минимум и
+начинает колебаться с частотой $\sim m \gg H$. Усреднённое по периоду
+уравнение состояния для $V \propto \phi^n$ следует из вириальной
+теоремы: $\langle\dot\phi^2\rangle = n\langle V\rangle$, откуда
+$$
+\langle w\rangle = \frac{n - 2}{n + 2}.
+$$
+Для $m^2\phi^2$ колеблющееся поле ведёт себя как нерелятивистское
+вещество ($\langle w\rangle = 0$, $\rho \propto a^{-3}$) — это
+однородный конденсат частиц с массой $m$; для $\lambda\phi^4$ — как
+излучение. Распад этих колебаний в частицы Стандартной модели —
+тема «Разогрев после инфляции».
+
+```{python}
+def averaged_w(n, t_max=2000.0):
+    """⟨w⟩ поля в V = |φ|ⁿ/n после ускорения: среднее по целому числу полупериодов
+    и показатель из наклона ρ(a): d ln ρ / d N = −3(1 + w)."""
+    V = lambda f: abs(f)**n / n
+    dV = lambda f: math.copysign(abs(f)**(n - 1), f)
+    MODELS[f"φ^{n}"] = (V, dV)
+    sol = evolve(f"φ^{n}", 3.0 * n, stop_at_end=False, t_max=t_max)
+    tt = np.linspace(0.3 * t_max, t_max, 200000)
+    f, df, N = sol.sol(tt)
+    turns = np.where(np.diff(np.sign(df)) != 0)[0]          # точки поворота φ̇ = 0
+    sl = slice(turns[0], turns[-1] if len(turns) % 2 else turns[-2])
+    Vf = np.abs(f)**n / n
+    rho = 0.5 * df**2 + Vf
+    w_mean = np.mean(((0.5 * df**2 - Vf) / rho)[sl])
+    w_slope = -np.polyfit(N[sl], np.log(rho[sl]), 1)[0] / 3 - 1
+    return w_mean, w_slope
+
+for n in (2, 4, 6):
+    w_mean, w_slope = averaged_w(n)
+    print(f"n = {n}: ⟨w⟩ по времени = {w_mean:+.4f}, по наклону ρ(a) = {w_slope:+.3f}, "
+          f"(n−2)/(n+2) = {(n - 2) / (n + 2):+.3f}")
+```
+
+```{python}
+#| label: fig-end
+#| fig-cap: "Слева: параметр ε_H в последние e-фолды для двух потенциалов (N_end − N — число e-фолдов до конца ускорения) и приближение медленного скатывания ε_V (штрихи). У потенциала Старобинского на плато ε за 60 e-фолдов до конца примерно в 45 раз меньше. Справа: после конца ускорения в m²φ² поле колеблется, мгновенное w пробегает от −1 до +1 (серая линия), а плотность энергии убывает как a⁻³ (жирная линия, ρa³ выходит на константу)."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+for (m, color) in (("m²φ²", "tab:blue"), ("Старобинский", "tab:orange")):
+    Vm, dVm = MODELS[m]
+    sol = evolve(m, phi60[m])
+    N_end = sol.y_events[0][0][2]
+    tt = np.linspace(0, sol.t_events[0][0], 3000)
+    f, df, N = sol.sol(tt)
+    epsH = [0.5 * d**2 / hubble(v, d, Vm)**2 for v, d in zip(f, df)]
+    epsV = [0.5 * (dVm(v) / Vm(v))**2 for v in f]
+    ax1.semilogy(N_end - N, epsH, color=color, label=m)
+    ax1.semilogy(N_end - N, epsV, "--", color=color, lw=0.8)
+ax1.set(xlabel="$N_{\\rm end} - N$", ylabel="ε", xlim=(65, 0), ylim=(1e-5, 2))
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.2, which="both")
+V2 = MODELS["m²φ²"][0]
+sol = evolve("m²φ²", phi60["m²φ²"], stop_at_end=False, t_max=200)
+N_end = evolve("m²φ²", phi60["m²φ²"]).y_events[0][0][2]
+tt = np.linspace(0, 200, 20000)
+f, df, N = sol.sol(tt)
+rho = 0.5 * df**2 + 0.5 * f**2
+mask = N > N_end - 1
+ax2.plot(N[mask] - N_end, (0.5 * df**2 - 0.5 * f**2)[mask] / rho[mask], color="0.6", lw=0.6, label="w")
+ax2r = ax2.twinx()
+ax2r.semilogy(N[mask] - N_end, (rho * np.exp(3 * (N - N_end)))[mask] / rho[N >= N_end][0], "k", lw=1.8)
+ax2r.set_ylabel("$ρa^3$ (норм.)")
+ax2.set(xlabel="$N - N_{\\rm end}$", ylabel="w")
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+## Физика и статус
+
+- Уравнения однородного поля и условие ускорения $\varepsilon_H < 1$ —
+  строгие следствия ОТО и теории поля [У]{.status}.
+- Аттрактор медленного скатывания и формулы для $N$ — проверенные
+  математические свойства этих уравнений [У]{.status}; приближение
+  ошибается в основном в последний e-фолд.
+- Было ли в ранней Вселенной поле, медленно скатывавшееся
+  50–60 e-фолдов, — гипотеза инфляции [Г]{.status}; её главные
+  предсказания (почти плоский спектр с $n_s < 1$, адиабатические
+  гауссовы возмущения) согласуются с данными, а квадратичный
+  потенциал исключён по отношению тензор/скаляр (на 2025 г.); плато
+  вроде модели Старобинского — в согласии [Г]{.status}. Подробности —
+  в темах «Инфляция — проблемы и предсказания» и «Квантовые
+  флуктуации на инфляционной стадии».
+- Тот же формализм с очень пологим потенциалом и $V^{1/4} \sim
+  10^{-3}$ эВ описывает «квинтэссенцию» — альтернативу
+  космологической постоянной [Г]{.status} (тема «Меняется ли тёмная
+  энергия?»).
+
+## Итоги
+
+- $\rho = \dot\phi^2/2 + V$, $p = \dot\phi^2/2 - V$,
+  $\ddot\phi + 3H\dot\phi + V' = 0$, $\dot H = -\dot\phi^2/(2\Mpr^2)$.
+- Ускорение $\iff \varepsilon_H = -\dot H/H^2 < 1 \iff \dot\phi^2 < V$.
+- Медленное скатывание: $\varepsilon_V, |\eta_V| \ll 1$;
+  $N \approx \Mpr^{-2}\int V/V'\,\dd\phi$; это аттрактор, начальная
+  скорость теряется за доли e-фолда.
+- $m^2\phi^2$: 60 e-фолдов от $\phi \approx 15{,}6\,\Mpr$;
+  Старобинский: от $\phi \approx 5{,}5\,\Mpr$; точный счёт даёт на
+  1–1,5 e-фолда больше.
+- После ускорения поле колеблется, $\langle w\rangle = (n-2)/(n+2)$.
+
+## Упражнения
+
+1. Найдите $\phi_{\rm end}$ и $\phi$ за 60 e-фолдов до конца для
+   $V = \lambda\phi^4/4$ в приближении медленного скатывания.
+2. Выведите $\ddot\phi$ на аттракторе для $m^2\phi^2$ и покажите, что
+   $|\ddot\phi/(3H\dot\phi)| \approx \varepsilon_V/3$. Чему это равно за
+   60 e-фолдов до конца?
+3. Для потенциала Старобинского найдите $\varepsilon_V$ и $\eta_V$ при
+   $N = 60$. Какой из параметров больше и во сколько раз?
+4. Докажите $\langle w\rangle = (n-2)/(n+2)$ из уравнения поля,
+   пренебрегая трением на периоде колебаний.
+5. В фазе доминирования кинетической энергии ($\dot\phi^2 \gg V$)
+   найдите $a(t)$, $\phi(N)$ и покажите, что $\Delta\phi =
+   \sqrt6\,\Mpr$ на e-фолд.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $\varepsilon_V = 8\Mpr^2/\phi^2 = 1 \Rightarrow \phi_{\rm end} =
+   2\sqrt2\,\Mpr = 2{,}83\,\Mpr$; $N = (\phi^2 - \phi_{\rm end}^2)/(8\Mpr^2)$,
+   $\phi_{60} = \sqrt{488}\,\Mpr = 22{,}1\,\Mpr$.
+2. На аттракторе в главном порядке $\dot\phi = -V'/(3H) =
+   -\sqrt{2/3}\,m\Mpr$ не зависит от $\phi$, т. е. $\ddot\phi = 0$.
+   В общем случае, дифференцируя $\dot\phi = -V'/(3H)$,
+   $\ddot\phi/(3H\dot\phi) = (\varepsilon_V - \eta_V)/3$, а для
+   $m^2\phi^2$ $\eta_V = \varepsilon_V$ — первый порядок исчезает.
+   Численно на траектории, стартовавшей с $\phi = 18$, при
+   $\phi = \phi_{60}$: $\ddot\phi/(3H\dot\phi) = -7\cdot10^{-6}$, около
+   $-\varepsilon_V^2/9$ ($\varepsilon_V = 8\cdot10^{-3}$) — эффект
+   второго порядка.
+3. $\phi_{60} = 5{,}45\,\Mpr$: $\varepsilon_V = 1{,}9\cdot10^{-4}$,
+   $\eta_V = -1{,}6\cdot10^{-2}$; $|\eta_V|$ больше в 84 раза (на плато
+   $\varepsilon_V \approx 3/(4N^2)$, $\eta_V \approx -1/N$).
+4. Умножим уравнение на $\phi$ и усредним: $\langle\phi\ddot\phi\rangle =
+   -\langle\dot\phi^2\rangle$ (интегрирование по частям за период),
+   $\langle\phi V'\rangle = n\langle V\rangle$ — значит
+   $\langle\dot\phi^2\rangle = n\langle V\rangle$ и
+   $\langle w\rangle = (n/2 - 1)/(n/2 + 1)$.
+5. $\rho \propto a^{-6}$, $a \propto t^{1/3}$; $H^2 = \dot\phi^2/(6\Mpr^2)$,
+   т. е. $\dd\phi/\dd N = \dot\phi/H = \pm\sqrt6\,\Mpr$.
+:::
+
+## Литература
+
+- Starobinsky A. A. A new type of isotropic cosmological models
+  without singularity. *Phys. Lett. B* **91**, 99 (1980).
+- Guth A. H. Inflationary universe: a possible solution to the horizon
+  and flatness problems. *Phys. Rev. D* **23**, 347 (1981).
+- Linde A. D. Chaotic inflation. *Phys. Lett. B* **129**, 177 (1983).
+- Liddle A. R., Parsons P., Barrow J. D. Formalizing the slow-roll
+  approximation in inflation. *Phys. Rev. D* **50**, 7222 (1994),
+  arXiv:astro-ph/9408015.
+- Turner M. S. Coherent scalar-field oscillations in an expanding
+  universe. *Phys. Rev. D* **28**, 1243 (1983).
+- Planck Collaboration. Planck 2018 results. X. Constraints on
+  inflation. *Astron. Astrophys.* **641**, A10 (2020),
+  arXiv:1807.06211.
+- Горбунов Д. С., Рубаков В. А. *Введение в теорию ранней Вселенной.
+  Космологические возмущения. Инфляционная теория.* — М.: КРАСАНД, 2010.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+assert T_mixed[0, 0] == sp.Derivative(phi, t)**2 / 2 + V(phi) or sp.simplify(T_mixed[0, 0] - (sp.diff(phi, t)**2 / 2 + V(phi))) == 0
+assert sp.simplify(-T_mixed[1, 1] - (sp.diff(phi, t)**2 / 2 - V(phi))) == 0
+assert sp.simplify(kg - (sp.diff(phi, t, 2) + 3 * sp.diff(a, t) / a * sp.diff(phi, t) + sp.Derivative(V(phi), phi))) == 0
+assert sp.simplify(dH + dph**2 / (2 * M**2)) == 0
+assert sp.simplify(eps_sr - eps_V) == 0
+assert round(phi60["m²φ²"], 1) == 15.6 and round(phi60["Старобинский"], 1) == 5.5
+N_exact = {m: evolve(m, phi60[m]).y_events[0][0][2] for m in ("m²φ²", "Старобинский")}
+assert all(1.0 < N_exact[m] - 60 < 1.6 for m in N_exact)
+assert all(0.015 < (N_exact[m] - 60) / 60 < 0.03 for m in N_exact)
+N0, N20 = N_of_start(16.0), N_of_start(16.0, -20.0)
+assert round(N0 - N20, 1) == 6.3 and round(N0, 1) == 64.6
+phi_eff20 = brentq(lambda f: N_of_start(f) - N20, 10, 20)
+assert round(16 - phi_eff20, 1) == 0.8
+for n in (2, 4, 6):
+    w_mean, w_slope = averaged_w(n)
+    assert abs(w_mean - (n - 2) / (n + 2)) < 0.002 and abs(w_slope - (n - 2) / (n + 2)) < 0.02
+# 1
+assert round(math.sqrt(8), 2) == 2.83 and round(math.sqrt(488), 1) == 22.1
+# 2
+V2_, dV2_ = MODELS["m²φ²"]
+sol = evolve("m²φ²", 18.0)
+t60 = brentq(lambda t: sol.sol(t)[0] - phi60["m²φ²"], 0, sol.t_events[0][0])
+f0, df0, _ = sol.sol(t60)
+H0_ = hubble(f0, df0, V2_)
+ratio2 = (-3 * H0_ * df0 - dV2_(f0)) / (3 * H0_ * df0)
+eps60 = 2 / f0**2
+assert round(ratio2 * 1e6) == -7 and round(eps60, 3) == 0.008 and abs(ratio2 / eps60**2 + 1 / 9) < 0.01
+# 3
+Vs, dVs = MODELS["Старобинский"]
+f60 = phi60["Старобинский"]
+d2Vs = lambda f: 0.75 * 2 * SQ**2 * math.exp(-SQ * f) * (2 * math.exp(-SQ * f) - 1)
+eV3, etaV3 = 0.5 * (dVs(f60) / Vs(f60))**2, d2Vs(f60) / Vs(f60)
+assert round(2 / phi60['m²φ²']**2 / eV3) == 45
+assert round(eV3, 5) == 0.00019 and round(etaV3, 3) == -0.016 and round(abs(etaV3) / eV3) == 84
+# 5
+sol5 = evolve("m²φ²", 16.0, 2000.0, t_max=0.01, stop_at_end=False)
+f5, df5, N5 = sol5.sol(np.linspace(0, 0.001, 3))
+assert abs(abs((f5[1] - f5[0]) / (N5[1] - N5[0])) - math.sqrt(6)) < 0.01
+```
