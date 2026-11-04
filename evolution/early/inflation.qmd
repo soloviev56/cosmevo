@@ -1,0 +1,428 @@
+---
+title: "Инфляция — проблемы и предсказания"
+topic: inflation
+order: 2
+description: "Проблема горизонта (число причинно не связанных областей на поверхности последнего рассеяния) и проблема плоскостности (|Ω − 1| в ранней Вселенной) по Planck18; уменьшающийся хаббловский радиус как решение и нужное число e-фолдов в зависимости от температуры разогрева; предсказания медленного скатывания n_s и r для степенных потенциалов и модели Старобинского (SymPy) против данных Planck, ACT и BICEP/Keck на 2025 г.; масштаб энергии инфляции и граница Лайта; что подтвердилось, что не проверено, альтернативы и критика"
+---
+
+Модель горячего Большого взрыва (тема «Свидетельства горячего
+Большого взрыва») описывает Вселенную от первых секунд, но молча
+принимает начальные условия, которые выглядят крайне специальными:
+однородность в областях, никогда не бывших в причинном контакте,
+пространственную плоскостность с точностью до десятков порядков и
+спектр малых возмущений почти одинаковой амплитуды на всех масштабах.
+**Инфляционная гипотеза** (Старобинский, 1980; Гут, 1981; Линде, 1982;
+Албрехт, Стейнхардт, 1982) объясняет их стадией ускоренного
+расширения до горячей эпохи и предсказывает свойства первичных
+возмущений [Г]{.status}. Динамика скалярного поля, на которой она
+основана, разобрана в теме «Динамика скалярного поля во Вселенной»;
+здесь — зачем инфляция нужна, что она предсказала и что из этого
+подтвердилось.
+
+Единицы натуральные, $\Mpr = (8\pi G)^{-1/2} = 2{,}435\cdot10^{18}$ ГэВ.
+
+## Проблема горизонта
+
+Сопутствующий горизонт частиц к моменту $t$ —
+$\eta(t) = \int_0^t\dd t'/a$ (тема «Расстояния и горизонты»). Две точки
+поверхности последнего рассеяния могли обменяться сигналом до
+рекомбинации, только если они отстоят меньше чем на $\eta_{\rm rec}$.
+С Земли этот отрезок виден под углом $\theta_H \approx \eta_{\rm rec}/(\eta_0 - \eta_{\rm rec})$.
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from astropy.cosmology import Planck18
+from scipy.integrate import quad
+from scipy.optimize import brentq
+
+z_rec = 1089.8                                           # Planck 2018, z_*
+chi_rec = Planck18.comoving_distance(z_rec).to(u.Mpc).value
+hubble_Mpc = (const.c / Planck18.H0).to(u.Mpc).value       # c/H₀
+# горизонт частиц к рекомбинации: ∫ dz/E(z) от z_rec до ∞ (по ln(1+z), astropy учитывает излучение и нейтрино)
+eta_rec = hubble_Mpc * quad(lambda x: math.exp(x) / Planck18.efunc(math.expm1(x)), math.log1p(z_rec), 40)[0]
+theta_H = eta_rec / chi_rec
+n_patches = 4 * math.pi / (math.pi * (theta_H / 2)**2)  # круги диаметром θ_H на сфере
+print(f"горизонт к рекомбинации η_rec = {eta_rec:.0f} Мпк, расстояние до поверхности рассеяния {chi_rec:.0f} Мпк")
+print(f"угол θ_H = {math.degrees(theta_H):.2f}°;  число причинно не связанных областей ~ {n_patches:.0e}")
+```
+
+Причинно связанные области видны под углом около $1{,}2^\circ$, и на небе
+их десятки тысяч. Однако температура реликтового излучения во всех
+направлениях одинакова с точностью $10^{-5}$ [У]{.status}. В модели
+горячего Большого взрыва это совпадение надо постулировать.
+
+## Проблема плоскостности
+
+Доля кривизны $\Omega_\kappa(a) = -\kappa/(aH)^2$ растёт со временем,
+пока $aH$ убывает, т. е. во всю эпоху замедленного расширения. По
+данным Planck и BAO $\Omega_\kappa = 0{,}0007 \pm 0{,}0019$ сегодня
+[У]{.status} (Planck 2018). Перенесём ограничение $|\Omega_\kappa| < 0{,}002$
+назад, в эпоху излучения, с учётом изменения числа степеней свободы
+($a \propto g_s^{-1/3}T^{-1}$, $H = (\pi^2g_*/90)^{1/2}T^2/\Mpr$):
+
+```{python}
+M_PR = 2.435e18                                          # ГэВ
+T0_GeV = (const.k_B * Planck18.Tcmb0).to(u.GeV).value
+H0_GeV = (Planck18.H0 * const.hbar).to(u.GeV).value
+G_S0 = 3.91                                               # g_s сегодня: фотоны + нейтрино
+
+def aH_radiation(T, g):
+    """a·H в эпоху излучения (ГэВ), a = 1 сегодня; g — g_* = g_s при температуре T (ГэВ)."""
+    a = (G_S0 / g)**(1 / 3) * T0_GeV / T
+    H = math.sqrt(math.pi**2 * g / 90) * T**2 / M_PR
+    return a * H
+
+Ok_limit = 0.002
+flat = {}
+for T, g, label in ((1e-3, 10.75, "нуклеосинтез, 1 МэВ"), (100.0, 106.75, "электрослабый масштаб, 100 ГэВ"),
+                    (1e16, 106.75, "10¹⁶ ГэВ")):
+    flat[T] = Ok_limit * (H0_GeV / aH_radiation(T, g))**2
+    print(f"{label}: |Ω − 1| < {flat[T]:.0e}")
+```
+
+Чтобы Вселенная была почти плоской сегодня, при температуре $10^{16}$
+ГэВ кривизна должна была быть подавлена до $\sim10^{-57}$ — снова тонкая
+настройка начальных условий [У]{.status} (как констатация того, что
+требует модель горячего Большого взрыва).
+
+## Решение: уменьшающийся хаббловский радиус
+
+Обе проблемы — следствия того, что сопутствующий хаббловский радиус
+$(aH)^{-1}$ в горячей Вселенной только растёт. Если до горячей эпохи
+была стадия, когда $(aH)^{-1}$ убывал, то
+$$
+\frac{\dd}{\dd t}\frac1{aH} < 0 \iff \ddot a > 0 ,
+$$
+и область, которая сегодня видна как вся наблюдаемая Вселенная, когда-то
+находилась внутри одного хаббловского радиуса и успела прийти в
+причинный контакт, а $|\Omega_\kappa| \propto (aH)^{-2}$ экспоненциально
+уменьшилась. Ускоренное расширение обеспечивает скалярное поле в режиме
+медленного скатывания (тема «Динамика скалярного поля во Вселенной»).
+
+::: {#def-efolds-needed}
+**Минимальное число e-фолдов** — условие, что нынешний хаббловский
+масштаб был внутри хаббловского радиуса в начале инфляции:
+$$
+N_{\min} = \ln\frac{a_{\rm end}H_{\rm end}}{a_0H_0} \quad(H \approx {\rm const}\ \text{во время инфляции}).
+$$
+:::
+
+При мгновенном разогреве до температуры $T_{\rm reh}$ величина
+$a_{\rm end}H_{\rm end}$ равна $aH$ эпохи излучения при $T_{\rm reh}$:
+
+```{python}
+def n_min(T_reh, g=106.75):
+    return math.log(aH_radiation(T_reh, g) / H0_GeV)
+
+n_table = {T: n_min(T, 106.75 if T > 200 else 10.75 if T < 0.1 else 86.25) for T in (1e15, 1e9, 1e3, 1e-2)}
+for T, N in n_table.items():
+    print(f"T_reh = {T:.0e} ГэВ: N_min = {N:.1f}")
+```
+
+При мгновенном разогреве нужно около 60 e-фолдов, если разогрев
+шёл до $10^{15}$ ГэВ, 46 — при $10^9$ ГэВ и около 20 — при 10 МэВ (ниже
+нельзя: нарушится нуклеосинтез). Число зависит от температуры
+логарифмически, поэтому «60 e-фолдов» — хорошая оценка для
+инфляции на масштабе великого объединения. Число e-фолдов, за которое масштабы реликтового
+излучения ушли за хаббловский радиус до конца инфляции, — $N_* \approx 50$–60
+в зависимости от истории разогрева (Лиддл, Лич, 2003) [Г]{.status}
+(как и сама инфляция). Именно в этом окне надо вычислять предсказания.
+
+## Предсказания для первичных возмущений
+
+Квантовые флуктуации инфлатона и метрики, вытянутые за хаббловский
+радиус, становятся классическими возмущениями кривизны (Муханов,
+Чибисов, 1981; тема «Квантовые флуктуации на инфляционной стадии»).
+В приближении медленного скатывания с параметрами
+$\epsilon = \frac{\Mpr^2}2(V'/V)^2$, $\eta = \Mpr^2V''/V$ на масштабе,
+пересёкшем хаббловский радиус за $N_*$ e-фолдов до конца:
+$$
+A_s = \frac{V}{24\pi^2\Mpr^4\epsilon}, \qquad
+n_s - 1 = 2\eta - 6\epsilon, \qquad
+r = 16\epsilon ,
+$$
+где $A_s$ — амплитуда спектра кривизны, $n_s$ — спектральный индекс,
+$r$ — отношение тензорного (гравитационно-волнового) спектра к
+скалярному. Вывод этих формул — в указанной теме; здесь используем их.
+
+Для степенного потенциала $V \propto \phi^p$ и для модели
+Старобинского $V = V_0(1 - e^{-\sqrt{2/3}\,\phi/\Mpr})^2$ найдём
+$\phi_*$ по условию $N_* = \int_{\phi_{\rm end}}^{\phi_*}\frac{V}{\Mpr^2V'}\dd\phi$ с
+$\epsilon(\phi_{\rm end}) = 1$:
+
+```{python}
+phi = sp.symbols("phi", positive=True)                   # в единицах M_Pr
+p_s = sp.symbols("p", positive=True)
+V_pow = phi**p_s
+eps_pow = sp.simplify(sp.diff(V_pow, phi)**2 / V_pow**2 / 2)
+eta_pow = sp.simplify(sp.diff(V_pow, phi, 2) / V_pow)
+Ns = sp.Symbol("N", positive=True)
+N_pow = sp.integrate(V_pow / sp.diff(V_pow, phi), (phi, sp.sqrt(2) * p_s / 2, phi))   # ε = 1 при φ = p/√2
+phi_N = sp.solve(sp.Eq(N_pow, Ns), phi)[0]
+ns_pow = sp.simplify((1 + 2 * eta_pow - 6 * eps_pow).subs(phi, phi_N))
+r_pow = sp.simplify((16 * eps_pow).subs(phi, phi_N))
+print("V ∝ φ^p:  n_s =", ns_pow, ";  r =", r_pow)
+print("   при N ≫ p:  n_s ≈ 1 − (p+2)/(2N), r ≈ 4p/N:",
+      sp.simplify(sp.limit((1 - ns_pow) * Ns, Ns, sp.oo)), sp.simplify(sp.limit(r_pow * Ns, Ns, sp.oo)))
+
+V_star = (1 - sp.exp(-sp.sqrt(sp.Rational(2, 3)) * phi))**2
+eps_star = sp.simplify(sp.diff(V_star, phi)**2 / V_star**2 / 2)
+eta_star = sp.simplify(sp.diff(V_star, phi, 2) / V_star)
+eps_f = sp.lambdify(phi, eps_star)
+eta_f = sp.lambdify(phi, eta_star)
+dN_f = sp.lambdify(phi, sp.simplify(V_star / sp.diff(V_star, phi)))
+phi_end_star = brentq(lambda x: eps_f(x) - 1, 0.1, 5)
+
+def starobinsky(N):
+    phi_s = brentq(lambda x: quad(dN_f, phi_end_star, x)[0] - N, phi_end_star, 20)
+    e, h = eps_f(phi_s), eta_f(phi_s)
+    return 1 + 2 * h - 6 * e, 16 * e, phi_s, e
+
+pred = {}
+for N in (50, 60):
+    for p in (sp.Rational(2, 3), 1, 2, 4):
+        pred[(f"φ^{p}", N)] = (float(ns_pow.subs({p_s: p, Ns: N})), float(r_pow.subs({p_s: p, Ns: N})))
+    ns_S, r_S, phi_S, _ = starobinsky(N)
+    pred[("Старобинский", N)] = (ns_S, r_S)
+    print(f"N = {N}: " + ";  ".join(f"{k[0]}: n_s = {v[0]:.4f}, r = {v[1]:.4f}" for k, v in pred.items() if k[1] == N))
+print(f"Старобинский: n_s ≈ 1 − 2/N = {1 - 2 / 60:.4f}, r ≈ 12/N² = {12 / 60**2:.4f} при N = 60")
+```
+
+**Данные** (на 2025 г.):
+
+- Planck 2018: $n_s = 0{,}9649 \pm 0{,}0042$, $\ln(10^{10}A_s) = 3{,}044 \pm 0{,}014$
+  [У]{.status};
+- Planck + ACT DR6 + DESI (P-ACT-LB, Луис и др., 2025):
+  $n_s = 0{,}9743 \pm 0{,}0034$ — сдвиг вверх примерно на $2\sigma$ от
+  значения Planck, во многом из-за добавления BAO [У]{.status} (как
+  измерение; устойчивость сдвига обсуждается);
+- BICEP/Keck 2018 + Planck: $r_{0{,}05} < 0{,}036$ (95 %) [У]{.status}.
+
+```{python}
+#| label: fig-ns-r
+#| fig-cap: "Предсказания медленного скатывания на плоскости (n_s, r) при N_* = 50 (кружки) и 60 (звёзды) e-фолдов: степенные потенциалы φ^p и модель Старобинского. Серые полосы — n_s ± 2σ по Planck 2018 (светлая) и по Planck + ACT DR6 + DESI (тёмная); пунктир — верхний предел r < 0,036 (BICEP/Keck 2018, 95 %). Полосы — одномерные интервалы, а не совместные контуры n_s–r из оригинальных работ."
+fig, ax = plt.subplots(figsize=(6.4, 4.2))
+ax.axvspan(0.9649 - 2 * 0.0042, 0.9649 + 2 * 0.0042, color="0.88", zorder=0, label="Planck 2018 (±2σ)")
+ax.axvspan(0.9743 - 2 * 0.0034, 0.9743 + 2 * 0.0034, color="0.7", alpha=0.6, zorder=0, label="P-ACT-LB (±2σ)")
+ax.axhline(0.036, ls="--", color="k", lw=1)
+colors = {"φ^2/3": "tab:purple", "φ^1": "tab:green", "φ^2": "tab:blue", "φ^4": "tab:orange", "Старобинский": "tab:red"}
+for name, color in colors.items():
+    pts = [pred[(name, N)] for N in (50, 60)]
+    ax.plot([q[0] for q in pts], [q[1] for q in pts], "-", color=color, lw=1)
+    ax.plot(*pts[0], "o", color=color, label=name)
+    ax.plot(*pts[1], "*", color=color, ms=10)
+ax.set(xlabel="n_s", ylabel="r", yscale="log", xlim=(0.94, 0.99), ylim=(1e-3, 0.5))
+ax.legend(fontsize=7, loc="lower right")
+ax.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+Все показанные степенные потенциалы — от $\phi^{2/3}$ до $\phi^4$ — при
+$N_* = 50$–60 дают $r > 0{,}036$ и исключены [У]{.status} (как вывод из
+данных при стандартных предположениях о разогреве).
+Модель Старобинского и родственные «аттракторные» модели предсказывают
+малое $r \sim 10^{-3}$ и хорошо согласовывались с Planck; сдвиг $n_s$ в
+данных ACT DR6 + DESI создал для них напряжённость около $2\sigma$
+[Г]{.status} (по состоянию на 2025 г.; зависит от истории разогрева,
+сдвигающей $N_*$).
+
+**Масштаб энергии.** Нормировка $A_s$ задаёт высоту потенциала:
+$V_*^{1/4} = (3\pi^2A_sr/2)^{1/4}\Mpr$ и $H_* = \pi\Mpr(A_sr/2)^{1/2}$:
+
+```{python}
+A_s = math.exp(3.044) * 1e-10
+V14 = lambda r: (1.5 * math.pi**2 * A_s * r)**0.25 * M_PR
+H_inf = lambda r: math.pi * M_PR * math.sqrt(A_s * r / 2)
+for r in (0.036, 0.0035, 1e-4):
+    print(f"r = {r}: V^(1/4) = {V14(r):.1e} ГэВ, H = {H_inf(r):.1e} ГэВ")
+ns_S55, r_S55, phi_S55, eps_S55 = starobinsky(55)
+V0_S = 24 * math.pi**2 * A_s * eps_S55 / (1 - math.exp(-math.sqrt(2 / 3) * phi_S55))**2   # в единицах M_Pr⁴
+print(f"Старобинский при N = 55: φ_* = {phi_S55:.2f} M_Pr, V₀^(1/4) = {V0_S**0.25 * M_PR:.1e} ГэВ, "
+      f"масса скалярона M = √(4V₀/3)/M_Pr = {math.sqrt(4 * V0_S / 3) * M_PR:.1e} ГэВ")
+# граница Лайта: dφ/dN = √(2ε) = √(r/8) (в M_Pr)
+lyth = {r: math.sqrt(r / 8) * 5 for r in (0.036, 0.01)}
+print("граница Лайта за ~5 e-фолдов наблюдаемых масштабов: "
+      + ", ".join(f"r = {r}: Δφ ≳ {d:.2f} M_Pr" for r, d in lyth.items()))
+```
+
+Если первичные гравитационные волны будут найдены с $r \sim 10^{-2}$,
+это будет означать энергию $\sim10^{16}$ ГэВ — масштаб великого
+объединения, на 12 порядков выше энергий ускорителей — и смещение
+инфлатона порядка планковской массы (граница Лайта). Поэтому поиск
+$B$-мод поляризации реликтового излучения — главный тест [Г]{.status}:
+обнаружение тензорного спектра с $n_t \approx -r/8$ было бы сильнейшим
+аргументом в пользу инфляции; ненаблюдение при $r < 10^{-3}$ не
+опровергнет её (модели с малым $r$ есть), но исключит большой класс
+моделей.
+
+## Что подтвердилось
+
+Инфляция сделала предсказания до того, как их проверили:
+
+- пространственная плоскостность $|\Omega_\kappa| \lesssim 10^{-3}$ [У]{.status};
+- почти масштабно-инвариантный спектр с небольшим «красным» наклоном
+  $n_s < 1$ — отличие от 1 надёжно установлено (более $8\sigma$ по
+  Planck 2018) [У]{.status};
+- адиабатические возмущения, коррелированные на масштабах больше
+  хаббловского радиуса в момент рекомбинации (характерная
+  антикорреляция TE при $\ell \sim 100$) [У]{.status};
+- гауссовость: $f_{\rm NL}^{\rm local} = -0{,}9 \pm 5{,}1$ (Planck 2018)
+  [У]{.status}.
+
+Эти факты установлены; то, что они вызваны именно инфляцией, — гипотеза
+[Г]{.status}, хотя и лучшая из имеющихся. Не наблюдались: первичные
+гравитационные волны, предсказываемая многими моделями малая
+негауссовость, прямые следы разогрева.
+
+## Критика и альтернативы
+
+- **Начальные условия и тонкая настройка.** Инфляция сама требует
+  достаточно однородной начальной области и плоского потенциала;
+  Иджас, Стейнхардт и Лёб (2013) утверждали, что данные Planck
+  предпочитают именно «неудобные» плато-потенциалы. Ответ Гута,
+  Кайзера и Номуры (2014): плато естественны и предсказывались
+  [Г]{.status} — спор не закончен.
+- **Вечная инфляция и проблема меры.** Во многих моделях квантовые
+  скачки поля поддерживают инфляцию вечно в части объёма, и
+  предсказания требуют меры на бесконечном множестве «карманных
+  вселенных» (тема «Мультивселенная и проблема меры») [С]{.status}.
+- **Альтернативы.** Сценарии с отскоком и медленным сжатием
+  (экпиротический, Хури и др., 2001), струнный газ и др. объясняют
+  часть тех же фактов [Г]{.status}. Различает их прежде всего тензорный
+  спектр: в экпиротических моделях $r$ пренебрежимо мал.
+
+## Итоги
+
+- Проблема горизонта: на поверхности последнего рассеяния $\sim4\cdot10^4$
+  причинно не связанных областей размером $\approx 1{,}2^\circ$.
+- Проблема плоскостности: $|\Omega - 1| \lesssim 10^{-57}$ при $10^{16}$ ГэВ.
+- Решение — стадия с убывающим $(aH)^{-1}$; нужно от $\approx 20$ до
+  $\approx 60$ e-фолдов в зависимости от температуры разогрева; масштабам реликта отвечает
+  $N_* \approx 50$–60.
+- $n_s - 1 = 2\eta - 6\epsilon$, $r = 16\epsilon$; $\phi^p$:
+  $n_s \approx 1 - (p+2)/2N$, $r \approx 4p/N$; Старобинский:
+  $n_s \approx 1 - 2/N$, $r \approx 12/N^2$.
+- На 2025 г.: $n_s = 0{,}965$–0,974 (в зависимости от набора данных),
+  $r < 0{,}036$; степенные потенциалы $\phi^p$ с $p \ge 2/3$ исключены.
+
+## Упражнения
+
+1. Найдите сопутствующий хаббловский радиус при рекомбинации
+   $(a_{\rm rec}H_{\rm rec})^{-1}$ и угол, под которым он виден сегодня.
+   Сравните с $\theta_H$ из текста.
+2. Найдите $|\Omega - 1|$ при температуре 1 ГэВ ($g_* = g_s = 61{,}75$), если
+   сегодня $|\Omega_\kappa| = 0{,}002$.
+3. Во сколько раз уменьшился сопутствующий хаббловский радиус за
+   60 e-фолдов при почти постоянном $H$? Каков был физический размер
+   области, ставшей нашей наблюдаемой Вселенной, в начале инфляции с
+   $H = 10^{13}$ ГэВ и $N_{\min} = 62$, если в конце она была равна
+   хаббловскому радиусу $\times e^{N}$?
+4. Для $V = \frac12m^2\phi^2$ найдите $\phi_*$, $n_s$, $r$ при $N = 55$ и
+   массу инфлатона $m$ по $A_s$.
+5. По границе Лайта найдите, при каком $r$ изменение поля за 5 e-фолдов
+   превышает $\Mpr$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $(a_{\rm rec}H_{\rm rec})^{-1} = 210$ Мпк (сопутствующий), угол $0{,}87^\circ$
+   — того же порядка, что $\theta_H = 1{,}2^\circ$: горизонт частиц больше
+   хаббловского радиуса в 1,34 раза (в чистой эпохе вещества было бы 2,
+   излучения — 1).
+2. $|\Omega - 1| = |\Omega_\kappa|(a_0H_0/aH)^2 \approx 4\cdot10^{-25}$
+   ($\propto T^{-2}$ при постоянном $g_*$).
+3. В $e^{60} = 1{,}1\cdot10^{26}$ раз. В начале инфляции наша наблюдаемая
+   Вселенная была внутри хаббловского радиуса $1/H = 2\cdot10^{-27}$ см.
+4. $\phi_*^2 = 4N + 2$ (в $\Mpr^2$): $\phi_* = 14{,}9\,\Mpr$, $n_s = 0{,}9640$,
+   $r = 0{,}144$ (исключено); $m = 6{,}4\cdot10^{-6}\,\Mpr = 1{,}5\cdot10^{13}$ ГэВ.
+5. $\Delta\phi = 5\sqrt{r/8} > 1$ при $r > 0{,}32$; при нынешнем пределе
+   $r < 0{,}036$ за 5 e-фолдов поле сдвигается меньше чем на $0{,}34\,\Mpr$,
+   но за все 50–60 e-фолдов в моделях с большим $r$ — на несколько $\Mpr$.
+:::
+
+## Литература
+
+- Starobinsky A. A. A new type of isotropic cosmological models
+  without singularity. *Phys. Lett. B* **91**, 99 (1980).
+- Guth A. H. Inflationary universe: a possible solution to the horizon
+  and flatness problems. *Phys. Rev. D* **23**, 347 (1981).
+- Муханов В. Ф., Чибисов Г. В. Квантовые флуктуации и
+  «несингулярная» Вселенная. *Письма в ЖЭТФ* **33**, 549 (1981).
+- Linde A. D. A new inflationary universe scenario: a possible
+  solution of the horizon, flatness, homogeneity, isotropy and
+  primordial monopole problems. *Phys. Lett. B* **108**, 389 (1982).
+- Albrecht A., Steinhardt P. J. Cosmology for grand unified theories
+  with radiatively induced symmetry breaking. *Phys. Rev. Lett.*
+  **48**, 1220 (1982).
+- Khoury J., Ovrut B. A., Steinhardt P. J., Turok N. Ekpyrotic
+  universe: colliding branes and the origin of the hot big bang.
+  *Phys. Rev. D* **64**, 123522 (2001), arXiv:hep-th/0103239.
+- Liddle A. R., Leach S. M. How long before the end of inflation were
+  observable perturbations produced? *Phys. Rev. D* **68**, 103503
+  (2003), arXiv:astro-ph/0305263.
+- Ijjas A., Steinhardt P. J., Loeb A. Inflationary paradigm in trouble
+  after Planck2013. *Phys. Lett. B* **723**, 261 (2013), arXiv:1304.2785.
+- Guth A. H., Kaiser D. I., Nomura Y. Inflationary paradigm after
+  Planck 2013. *Phys. Lett. B* **733**, 112 (2014), arXiv:1312.7619.
+- Planck Collaboration. Planck 2018 results. VI. Cosmological
+  parameters. *Astron. Astrophys.* **641**, A6 (2020), arXiv:1807.06209.
+- Planck Collaboration. Planck 2018 results. IX. Constraints on
+  primordial non-Gaussianity. *Astron. Astrophys.* **641**, A9 (2020),
+  arXiv:1905.05697.
+- Planck Collaboration. Planck 2018 results. X. Constraints on
+  inflation. *Astron. Astrophys.* **641**, A10 (2020), arXiv:1807.06211.
+- BICEP/Keck Collaboration (Ade P. A. R. et al.). Improved constraints
+  on primordial gravitational waves using Planck, WMAP, and BICEP/Keck
+  observations through the 2018 observing season. *Phys. Rev. Lett.*
+  **127**, 151301 (2021), arXiv:2110.00483.
+- Louis T. et al. (ACT Collaboration). The Atacama Cosmology Telescope:
+  DR6 power spectra, likelihoods and ΛCDM parameters (2025),
+  arXiv:2503.14452.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert near(math.degrees(theta_H), 1.2, 1)
+assert 1e4 < n_patches < 1e5 and near(n_patches / 1e4, 4, 0)
+assert 1e-58 < flat[1e16] < 1e-56                         # «∼10⁻⁵⁷»
+assert 59 <= n_table[1e15] <= 61 and near(n_table[1e9], 46, 0) and 19 <= n_table[1e-2] <= 21
+assert sp.simplify(sp.limit((1 - ns_pow) * Ns, Ns, sp.oo) - (p_s + 2) / 2) == 0
+assert sp.simplify(sp.limit(r_pow * Ns, Ns, sp.oo) - 4 * p_s) == 0
+assert all(pred[(f"φ^{p}", N)][1] > 0.036 for p in (sp.Rational(2, 3), 1, 2, 4) for N in (50, 60)) and pred[("φ^4", 60)][1] > 0.036 and pred[("φ^2", 50)][1] > 0.036
+assert 1e-3 < pred[("Старобинский", 60)][1] < 1e-2 and 1e-3 < pred[("Старобинский", 50)][1] < 1e-2
+assert abs(pred[("Старобинский", 60)][0] - (1 - 2 / 60)) < 0.002
+assert near(V14(0.036) / 1e16, 1.4, 1) or 1e16 < V14(0.01) < 2e16      # «∼10¹⁶ ГэВ при r ∼ 10⁻²»
+assert 0.5e16 < V14(0.01) < 2e16
+assert near(lyth[0.036], 0.34, 2)
+# 1
+z_ = z_rec
+aH_rec = Planck18.H(z_).to(u.km / u.s / u.Mpc).value / (1 + z_) / const.c.to(u.km / u.s).value   # 1/Мпк
+R_H = 1 / aH_rec
+assert near(R_H, 210, 0) and near(math.degrees(R_H / chi_rec), 0.87, 2) and near(eta_rec / R_H, 1.34, 2)
+# 2
+assert near(Ok_limit * (H0_GeV / aH_radiation(1.0, 61.75))**2 / 1e-25, 4, 0)
+# 3
+assert near(math.exp(60) / 1e26, 1.1, 1)
+H_cm = (const.hbar * const.c / (1e13 * u.GeV)).to(u.cm).value
+assert near(H_cm / 1e-27, 2, 0)
+# 4
+N4 = 55
+phi4 = math.sqrt(4 * N4 + 2)
+assert near(phi4, 14.9, 1)
+assert near(float(ns_pow.subs({p_s: 2, Ns: N4})), 0.9640, 4) and near(float(r_pow.subs({p_s: 2, Ns: N4})), 0.144, 3)
+eps4 = 2 / phi4**2
+m4 = math.sqrt(24 * math.pi**2 * A_s * eps4 / (phi4**2 / 2))
+assert near(m4 / 1e-6, 6.4, 1) and near(m4 * M_PR / 1e13, 1.5, 1)
+# 5
+assert near(8 / 25, 0.32, 2)
+```
