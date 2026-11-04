@@ -1,0 +1,613 @@
+---
+title: "Флуктуационные теоремы"
+topic: fluctuation-theorems
+order: 4
+description: "Теорема Крукса для марковской цепи с внешним протоколом и её вывод из детального баланса; равенство Яржинского и второе начало как следствие неравенства Йенсена; оценка вероятности «нарушений»; точная проверка перебором всех траекторий решёточной модели; диссипация как относительная энтропия прямого и обратного процессов (Каваи–Паррондо–Ван ден Брук); мгновенное и конечное изменение жёсткости оптической ловушки — аналитика SymPy и моделирование; плохая сходимость экспоненциального среднего; эксперименты с разворачиванием РНК"
+---
+
+Второе начало для малой системы — не закон, а утверждение о средних:
+в теме «Стохастическая термодинамика» мы видели траектории частицы в
+ловушке, на которых работа отрицательна, а энтропия среды убывает.
+**Флуктуационные теоремы** говорят, насколько такие траектории редки.
+Это точные равенства, верные при сколь угодно сильном отклонении от
+равновесия: они связывают распределение работы (или производства
+энтропии) в процессе с распределением в обращённом во времени
+процессе. Из них второе начало получается как неравенство для
+средних, а равновесная свободная энергия — как экспоненциальное
+среднее неравновесной работы.
+
+Основные результаты: теорема Эванса–Коэна–Морисса (1993) и
+Галлавотти–Коэна (1995) для стационарных состояний, равенство
+Яржинского (1997) и теорема Крукса (1999). Для пособия они важны
+дважды: как строгий ответ на вопрос «почему энтропия растёт», если
+микродинамика обратима (тема «Стрела времени и начальная энтропия»),
+и как аппарат для термодинамики самовоспроизводящихся молекул (тема
+«Термодинамика саморепликации»).
+
+## Постановка
+
+Система с энергией $E(x, \lambda)$ находится в контакте с термостатом
+при температуре $T$; $\beta = 1/kT$. Внешний агент меняет параметр
+$\lambda$ по заданному **протоколу** $\lambda_0 \to \lambda_1 \to \dots
+\to \lambda_K$. Удобно мыслить дискретно: на каждом шаге сначала
+агент мгновенно сдвигает $\lambda_{k-1} \to \lambda_k$ при неизменном
+состоянии (это работа), затем система делает скачок $x_{k-1} \to x_k$
+с вероятностью $T_{\lambda_k}(x_{k-1} \to x_k)$ при неизменном
+$\lambda$ (это теплообмен со средой). Уравнение Ланжевена получается в
+пределе малых шагов.
+
+::: {#def-protocol}
+**Работа и теплота на траектории** $x_0 \to x_1 \to \dots \to x_K$:
+$$
+W = \sum_{k=1}^K\left[E(x_{k-1}, \lambda_k) - E(x_{k-1}, \lambda_{k-1})\right], \qquad
+Q = -\sum_{k=1}^K\left[E(x_k, \lambda_k) - E(x_{k-1}, \lambda_k)\right],
+$$
+так что $\Delta E = W - Q$ ($Q$ — теплота, отданная в среду, как у
+Секимото). Динамика при фиксированном $\lambda$ удовлетворяет
+**детальному балансу**
+$$
+\frac{T_\lambda(x \to y)}{T_\lambda(y \to x)} = e^{-\beta[E(y, \lambda) - E(x, \lambda)]}.
+$$
+**Прямой процесс** начинается из равновесия при $\lambda_0$,
+**обратный** — из равновесия при $\lambda_K$ и проходит протокол в
+обратном порядке. Свободная энергия $F(\lambda) = -kT\ln Z(\lambda)$,
+$\Delta F = F(\lambda_K) - F(\lambda_0)$.
+:::
+
+Детальный баланс — единственное, что нужно от динамики; в частности,
+она может быть сколь угодно далека от равновесия *по отношению к
+протоколу*: $\lambda$ можно менять как угодно быстро.
+
+## Теорема Крукса
+
+Вероятность траектории в прямом процессе
+$$
+\mathcal P_F[x] = p_{\rm eq}(x_0; \lambda_0)\prod_{k=1}^KT_{\lambda_k}(x_{k-1} \to x_k),
+$$
+а обращённой траектории $\tilde x = (x_K, \dots, x_0)$ в обратном
+процессе
+$$
+\mathcal P_R[\tilde x] = p_{\rm eq}(x_K; \lambda_K)\prod_{k=1}^KT_{\lambda_k}(x_k \to x_{k-1}).
+$$
+В отношении произведение отношений темпов по детальному балансу даёт
+$e^{\beta Q}$, а отношение начальных распределений —
+$e^{\beta(\Delta E - \Delta F)}$:
+
+::: {#thm-crooks}
+**Теорема Крукса** (1999):
+$$
+\frac{\mathcal P_F[x]}{\mathcal P_R[\tilde x]} = e^{\beta(W[x] - \Delta F)}, \qquad
+\frac{P_F(W)}{P_R(-W)} = e^{\beta(W - \Delta F)} .
+$$
+Второе равенство — для распределений работы — следует из первого,
+потому что работа обращённой траектории в обратном процессе равна
+$-W[x]$.
+:::
+
+Отсюда сразу:
+
+::: {#thm-jarzynski}
+**Равенство Яржинского** (1997):
+$\langle e^{-\beta W}\rangle_F = e^{-\beta\Delta F}$.
+По неравенству Йенсена $e^{-\beta\langle W\rangle} \le \langle e^{-\beta W}\rangle$,
+поэтому $\langle W\rangle \ge \Delta F$ — второе начало для процесса
+между равновесными состояниями.
+:::
+
+Проверим всё точно — перебором всех траекторий. Частица на решётке из
+пяти узлов $x = 0, \dots, 4$ в гармонической ловушке
+$E = \frac12(x - \lambda)^2$ (в единицах $kT$); центр ловушки за шесть
+шагов переезжает из $\lambda = 0$ в $\lambda = 3$; динамика —
+алгоритм Метрополиса с предложением соседнего узла (он удовлетворяет
+детальному балансу).
+
+```{python}
+import itertools
+import math
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+
+N_SITES, K_STEPS = 5, 6
+sites = np.arange(N_SITES)
+lams = np.linspace(0.0, 3.0, K_STEPS + 1)
+
+def energy(x, lam):
+    return 0.5 * (x - lam)**2
+
+def free_energy(lam):
+    return -math.log(np.exp(-energy(sites, lam)).sum())
+
+def metropolis(lam):
+    """Матрица переходов T[y, x] = T(x → y): предложение соседа с вероятностью 1/2."""
+    T = np.zeros((N_SITES, N_SITES))
+    for x in sites:
+        for y in (x - 1, x + 1):
+            if 0 <= y < N_SITES:
+                T[y, x] = 0.5 * min(1.0, math.exp(energy(x, lam) - energy(y, lam)))
+        T[x, x] = 1.0 - T[:, x].sum()
+    return T
+
+def p_eq(lam):
+    w = np.exp(-energy(sites, lam))
+    return w / w.sum()
+
+T_k = [None] + [metropolis(l) for l in lams[1:]]
+db_err = max(abs(T[y, x] * math.exp(-energy(x, l)) - T[x, y] * math.exp(-energy(y, l)))
+             for T, l in zip(T_k[1:], lams[1:]) for x in sites for y in sites)
+
+def path_weights(path):
+    """Вероятности траектории в прямом процессе и обращённой — в обратном; работа."""
+    pF = p_eq(lams[0])[path[0]]
+    pR = p_eq(lams[-1])[path[-1]]
+    W = 0.0
+    for k in range(1, K_STEPS + 1):
+        pF *= T_k[k][path[k], path[k - 1]]
+        pR *= T_k[k][path[k - 1], path[k]]
+        W += energy(path[k - 1], lams[k]) - energy(path[k - 1], lams[k - 1])
+    return pF, pR, W
+
+dF = free_energy(lams[-1]) - free_energy(lams[0])
+paths = [p for p in itertools.product(sites, repeat=K_STEPS + 1)
+         if all(abs(p[k] - p[k - 1]) <= 1 for k in range(1, K_STEPS + 1))]
+records = [path_weights(p) for p in paths]
+recs = [(pF, pR, W) for pF, pR, W in records if pF > 0]
+crooks_path_err = max(abs(math.log(pF / pR) - (W - dF)) for pF, pR, W in recs)
+sum_F = sum(r[0] for r in records)
+jarz = sum(pF * math.exp(-W) for pF, _, W in recs)
+mean_W = sum(pF * W for pF, _, W in recs)
+kl_paths = sum(pF * math.log(pF / pR) for pF, pR, _ in recs)
+print(f"траекторий с ненулевой вероятностью: {len(recs)};  ΣP_F = {sum_F:.12f};  "
+      f"детальный баланс: {db_err:.1e}")
+print(f"ΔF = {dF:.4f} kT;  ⟨W⟩ = {mean_W:.4f} kT;  ⟨W⟩ − ΔF = {mean_W - dF:.4f} kT")
+print(f"Крукс по траекториям: max|ln(P_F/P_R) − β(W − ΔF)| = {crooks_path_err:.1e}")
+print(f"Яржинский: ⟨e^(−βW)⟩ = {jarz:.12f},  e^(−βΔF) = {math.exp(-dF):.12f}")
+print(f"D(P_F‖P_R) по траекториям = {kl_paths:.6f}  (сравните с β(⟨W⟩ − ΔF))")
+```
+
+Перебор подтверждает отношение вероятностей для каждой траектории с
+машинной точностью; равенство Яржинского выполняется, хотя средняя
+работа заметно больше $\Delta F$. Последняя строка — ещё одно точное
+следствие: средняя диссипированная работа равна относительной
+энтропии (расхождению Кульбака–Лейблера) прямого и обращённого
+процессов (Каваи, Паррондо, Ван ден Брук, 2007):
+$$
+\langle W\rangle - \Delta F = kT\,D\left(\mathcal P_F[x]\,\big\|\,\mathcal P_R[\tilde x]\right) \ge 0 .
+$$
+Диссипация — это мера того, насколько легко по траектории отличить
+«кино» от «кино, пущенного назад» [У]{.status}. Это и есть
+статистический смысл стрелы времени для процессов, начатых из
+равновесия.
+
+Распределения работы прямого и обратного процессов:
+
+```{python}
+def work_distribution(direction):
+    """Точное распределение работы: суммирование по траекториям."""
+    dist = defaultdict(float)
+    for pF, pR, W in records:
+        if direction == "F" and pF > 0:
+            dist[round(W, 9)] += pF
+        if direction == "R" and pR > 0:
+            dist[round(-W, 9)] += pR      # работа обращённой траектории в обратном процессе
+    return dist
+
+PW_F, PW_R = work_distribution("F"), work_distribution("R")
+common = sorted(w for w in PW_F if round(-w, 9) in PW_R)
+crooks_W_err = max(abs(math.log(PW_F[w] / PW_R[round(-w, 9)]) - (w - dF)) for w in common)
+mean_WR = sum(p * w for w, p in PW_R.items())
+p_viol = sum(p for w, p in PW_F.items() if w < dF)
+print(f"значений работы: прямой процесс {len(PW_F)}, обратный {len(PW_R)}; "
+      f"max|ln(P_F(W)/P_R(−W)) − β(W − ΔF)| = {crooks_W_err:.1e}")
+print(f"⟨W_F⟩ = {mean_W:.3f} ≥ ΔF = {dF:.3f} ≥ −⟨W_R⟩ = {-mean_WR:.3f};  P_F(W < ΔF) = {p_viol:.3f}")
+```
+
+Доля траекторий, на которых работа меньше $\Delta F$, заметна: малая
+система «нарушает» второе начало часто. Но не сильно. Из равенства
+Яржинского
+$$
+P(W < \Delta F - \zeta) \le \int P(W)\,e^{\beta(\Delta F - \zeta - W)}\dd W = e^{-\beta\zeta},
+$$
+то есть вероятность «выиграть» у второго начала больше $\zeta$
+экспоненциально мала в $\zeta/kT$ [У]{.status}. Для макроскопического
+тела характерная флуктуация работы $\sim kT\sqrt N$, а средняя
+диссипация $\sim NkT$, и нарушения практически невозможны.
+
+```{python}
+#| label: fig-crooks-lattice
+#| fig-cap: "Решёточная модель (5 узлов, 6 шагов протокола), точный перебор траекторий. Слева: распределения работы в прямом процессе P_F(W) и обращённой работы в обратном P_R(−W) (работа принимает дискретные значения с шагом 0,5 kT); пунктир — ΔF, вероятности с W < ΔF — «нарушения» второго начала. Справа: ln[P_F(W)/P_R(−W)] против W — прямая β(W − ΔF) с единичным наклоном."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.6))
+wF = np.array(sorted(PW_F)); wR = np.array(sorted(PW_R))
+ax1.vlines(wF - 0.03, 0, [PW_F[w] for w in wF], color="tab:blue", lw=3, label="P_F(W)")
+ax1.vlines(wR + 0.03, 0, [PW_R[w] for w in wR], color="tab:orange", lw=3, label="P_R(−W)")
+ax1.axvline(dF, ls="--", color="k", lw=1)
+ax1.set(xlabel="W / kT", ylabel="вероятность")
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.2)
+wc = np.array(common)
+ax2.plot(wc, [math.log(PW_F[w] / PW_R[round(-w, 9)]) for w in wc], "o", color="k", ms=4)
+ax2.plot(wc, wc - dF, color="tab:red", lw=1)
+ax2.set(xlabel="W / kT", ylabel="ln[P_F(W) / P_R(−W)]")
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+## Частица в ловушке с меняющейся жёсткостью
+
+Теперь непрерывная система: передемпфированная частица в ловушке
+$U = \frac12\kappa(t)x^2$. Свободная энергия
+$F = -kT\ln\sqrt{2\pi kT/\kappa}$, так что при изменении жёсткости
+$\kappa_0 \to \kappa_1$
+$$
+\Delta F = \frac{kT}2\ln\frac{\kappa_1}{\kappa_0}.
+$$
+
+**Мгновенное изменение.** Если жёсткость меняется скачком, частица не
+успевает сдвинуться, и $W = \frac12(\kappa_1 - \kappa_0)x^2$, где $x$ —
+из равновесия при $\kappa_0$. Всё считается точно:
+
+```{python}
+xq, k0, k1, b = sp.symbols("x kappa_0 kappa_1 beta", positive=True)
+rho0 = sp.sqrt(b * k0 / (2 * sp.pi)) * sp.exp(-b * k0 * xq**2 / 2)
+Wq = (k1 - k0) * xq**2 / 2
+jarz_quench = sp.simplify(sp.integrate(rho0 * sp.exp(-b * Wq), (xq, -sp.oo, sp.oo), conds="none"))
+mean_quench = sp.simplify(sp.integrate(rho0 * Wq, (xq, -sp.oo, sp.oo)))
+print("⟨e^(−βW)⟩ =", jarz_quench, ";  e^(−βΔF) =", sp.sqrt(k0 / k1), ";  ⟨W⟩ =", mean_quench)
+ratio = 4
+print(f"κ₁/κ₀ = {ratio}: ΔF = {0.5 * math.log(ratio):.3f} kT, ⟨W⟩ = {(ratio - 1) / 2:.3f} kT")
+```
+
+Равенство Яржинского выполняется при любом $\kappa_1/\kappa_0$, а средняя
+работа $\frac{kT}2(\kappa_1/\kappa_0 - 1)$ всегда не меньше
+$\frac{kT}2\ln(\kappa_1/\kappa_0)$ — это неравенство $u - 1 \ge \ln u$.
+
+**Конечная скорость.** Пусть жёсткость растёт линейно от $\kappa_0 = 1$
+до $\kappa_1 = 4$ за время $\tau$ (единицы $kT = \gamma = \kappa_0 = 1$,
+время релаксации $\gamma/\kappa_0$). Среднюю работу можно найти без
+моделирования: $\dd\langle W\rangle = \frac12\dot\kappa\langle x^2\rangle\dd t$, а
+дисперсия подчиняется $\frac{\dd}{\dd t}\langle x^2\rangle = -2\kappa\langle x^2\rangle + 2$.
+Моделирование: на каждом шаге $\dd t$ — сначала сдвиг жёсткости
+(работа), затем точный пропагатор Орнштейна–Уленбека при новой
+жёсткости (он удовлетворяет детальному балансу).
+
+```{python}
+from scipy.integrate import solve_ivp
+
+def kappa_protocol(t, tau, reverse=False):
+    s = min(t / tau, 1.0)
+    return 4.0 - 3.0 * s if reverse else 1.0 + 3.0 * s
+
+def mean_work_ode(tau, reverse=False):
+    """⟨W⟩ из уравнения для ⟨x²⟩ (γ = kT = 1)."""
+    kdot = (-3.0 if reverse else 3.0) / tau
+    def rhs(t, y):
+        return [-2 * kappa_protocol(t, tau, reverse) * y[0] + 2, 0.5 * kdot * y[0]]
+    x2_0 = 1 / kappa_protocol(0.0, tau, reverse)
+    sol = solve_ivp(rhs, (0, tau), [x2_0, 0.0], rtol=1e-10, atol=1e-12)
+    return sol.y[1, -1]
+
+def simulate_work(tau, reverse=False, n_traj=200_000, dt=1e-2, seed=0):
+    """Работа на траекториях: сдвиг κ, затем точный шаг Орнштейна–Уленбека."""
+    rng = np.random.default_rng(seed)
+    n = max(200, round(tau / dt))
+    kap = kappa_protocol(0.0, tau, reverse)
+    x = rng.normal(0.0, 1 / math.sqrt(kap), n_traj)
+    W = np.zeros(n_traj)
+    for i in range(1, n + 1):
+        kap_new = kappa_protocol(i * tau / n, tau, reverse)
+        W += 0.5 * (kap_new - kap) * x**2
+        kap = kap_new
+        decay = math.exp(-kap * tau / n)
+        x = x * decay + math.sqrt((1 - decay**2) / kap) * rng.normal(size=n_traj)
+    return W
+
+dF_trap = 0.5 * math.log(4.0)
+runs = {}
+for tau in (0.1, 1.0, 10.0):
+    WF, WR = simulate_work(tau), simulate_work(tau, reverse=True, seed=1)
+    runs[tau] = (WF, WR)
+    jF = -math.log(np.mean(np.exp(-WF)))
+    jR = math.log(np.mean(np.exp(-WR)))
+    print(f"τ = {tau:4.1f}: ⟨W_F⟩ = {WF.mean():.3f} (ОДУ {mean_work_ode(tau):.3f}), "
+          f"−⟨W_R⟩ = {-WR.mean():.3f} (ОДУ {-mean_work_ode(tau, True):.3f});  "
+          f"ΔF по Яржинскому: {jF:.3f} (прямой), {jR:.3f} (обратный);  точно {dF_trap:.3f}")
+```
+
+Медленный протокол почти обратим: $\langle W_F\rangle$ и
+$-\langle W_R\rangle$ сходятся к $\Delta F$ сверху и снизу. Быстрый —
+сильно диссипативен, но экспоненциальное среднее всё равно даёт
+$\Delta F$ из обоих направлений. На этом основано измерение свободных
+энергий в неравновесных опытах.
+
+```{python}
+#| label: fig-crooks-trap
+#| fig-cap: "Ловушка, жёсткость которой растёт от 1 до 4 за время τ = 0,1 (заметно необратимо) и τ = 1 (единицы kT = γ = κ₀ = 1, 200 000 траекторий в каждом направлении). Работа при сжатии ловушки положительна. Распределения работы прямого процесса P_F(W) и обращённой работы обратного P_R(−W) пересекаются при W = ΔF = (kT/2) ln 4 ≈ 0,69 kT (пунктир), как требует теорема Крукса."
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), sharey=True)
+bins = np.linspace(0.0, 3.0, 61)
+
+def hist_weights(w):
+    """Веса для плотности, нормированной на все траектории (и вне окна гистограммы)."""
+    return np.full(len(w), 1 / (len(w) * (bins[1] - bins[0])))
+
+for ax, tau in zip(axes, (0.1, 1.0)):
+    WF, WR = runs[tau]
+    ax.hist(WF, bins=bins, weights=hist_weights(WF), alpha=0.5, color="tab:blue", label="P_F(W)")
+    ax.hist(-WR, bins=bins, weights=hist_weights(WR), alpha=0.5, color="tab:orange", label="P_R(−W)")
+    ax.axvline(dF_trap, ls="--", color="k", lw=1)
+    ax.set(xlabel="W / kT", title=f"τ = {tau}", yscale="log", ylim=(1e-3, 5))
+    ax.grid(alpha=0.2)
+axes[0].set_ylabel("плотность")
+axes[0].legend(fontsize=8)
+fig.tight_layout()
+```
+
+## Почему экспоненциальное среднее сходится плохо
+
+Равенство Яржинского точно, но оценка $\Delta F$ по $N$ траекториям
+$-kT\ln\left(N^{-1}\sum e^{-\beta W_i}\right)$ смещена вверх (по
+неравенству Йенсена для логарифма) и сходится медленно: среднее
+определяется редкими траекториями с $W < \Delta F$, которые в
+сильно необратимом процессе почти не встречаются. Для гауссова
+распределения работы с дисперсией $\sigma^2$ равенство Яржинского даёт
+$\Delta F = \langle W\rangle - \beta\sigma^2/2$, то есть
+$\sigma^2 = 2kT\,W_{\rm diss}$, где $W_{\rm diss} = \langle W\rangle - \Delta F$,
+и относительная дисперсия одного слагаемого $e^{-\beta W}$
+$$
+\frac{\langle e^{-2\beta W}\rangle}{\langle e^{-\beta W}\rangle^2} - 1 = e^{\beta^2\sigma^2} - 1 = e^{2\beta W_{\rm diss}} - 1 .
+$$
+Число траекторий, нужное для точности $\sim kT$, растёт как
+$e^{2\beta W_{\rm diss}}$ (для негауссовых распределений оценка
+другая — её разбирает Яржинский, 2006, — но рост тоже
+экспоненциальный) [У]{.status}. Проверим на мгновенном изменении
+жёсткости: при $\kappa_1/\kappa_0 = 4$ и 100.
+
+```{python}
+def jarzynski_estimates(ratio, n_samples, n_repeat=400, seed=3):
+    """Оценки ΔF по n_samples траекториям мгновенного сжатия ловушки, n_repeat повторов."""
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=(n_repeat, n_samples))          # κ₀ = 1
+    W = 0.5 * (ratio - 1) * x**2
+    return -np.log(np.mean(np.exp(-W), axis=1))
+
+def rel_var_quench(ratio):
+    """⟨e^(−2βW)⟩ / ⟨e^(−βW)⟩² − 1 для мгновенного сжатия (интегралы гауссовы)."""
+    return ratio / math.sqrt(2 * ratio - 1) - 1
+
+Ns = [10, 100, 1000, 10000]
+bias = {}
+for ratio in (4, 100):
+    exact = 0.5 * math.log(ratio)
+    est = [jarzynski_estimates(ratio, n) for n in Ns]
+    bias[ratio] = [e.mean() - exact for e in est]
+    print(f"κ₁/κ₀ = {ratio:3d}: ΔF = {exact:.3f}, W_diss = {(ratio - 1) / 2 - exact:.2f} kT, "
+          f"отн. дисперсия e^(−βW): {rel_var_quench(ratio):.2f};  смещение оценки при N = "
+          + ", ".join(f"{n}: {bb:+.3f}" for n, bb in zip(Ns, bias[ratio])))
+```
+
+Распределение работы при мгновенном сжатии не гауссово ($W \propto
+x^2$), и здесь сходимость лучше гауссовой оценки: относительная
+дисперсия при $\kappa_1/\kappa_0 = 100$ равна 6, а не $e^{94}$, —
+траектории с малой работой (частица возле центра ловушки) встречаются
+часто. Смещение быстро убывает с ростом $N$. В экспериментах применяют
+двусторонние оценки, использующие и прямой, и обратный процессы
+(метод Беннетта, пересечение распределений по Круксу) — они гораздо
+устойчивее.
+
+## Стационарные флуктуационные теоремы
+
+Если система находится в неравновесном стационарном состоянии
+(кольцо с ненулевым сродством из темы «Стохастическая термодинамика»,
+частица в движущейся ловушке), естественная величина — полное
+производство энтропии $\Delta s_{\rm tot}$ за время $t$. Для него
+выполняются:
+
+- **интегральная теорема** (Зайферт, 2005)
+  $\langle e^{-\Delta s_{\rm tot}/k}\rangle = 1$ — при любом начальном
+  распределении, если $\Delta s_{\rm tot}$ включает стохастическую
+  энтропию системы [У]{.status};
+- **детальная теорема** $P(\Delta s_{\rm tot})/P(-\Delta s_{\rm tot}) =
+  e^{\Delta s_{\rm tot}/k}$ — точно в стационарном состоянии
+  (Эванс, Сирлс, 1994; для динамических систем асимптотически при
+  $t \to \infty$ — Галлавотти, Коэн, 1995) [У]{.status}.
+
+Для частицы в ловушке, которую тянут с постоянной скоростью из
+равновесия, обратный процесс — то же движение в противоположную
+сторону, и по симметрии $P_R = P_F$; теорема Крукса превращается в
+$P(W)/P(-W) = e^{\beta W}$ — при любом $t$ (упражнение 5).
+
+## Эксперименты
+
+- **Разворачивание РНК.** Липхардт и др. (2002) растягивали
+  одиночную шпильку РНК оптическим пинцетом с разной скоростью и
+  восстановили по равенству Яржинского свободную энергию
+  разворачивания, известную из квазиравновесных опытов. Коллин и др.
+  (2005) проверили теорему Крукса на разворачивании и сворачивании
+  РНК и по пересечению распределений работы нашли свободные энергии
+  сворачивания по сильно необратимым опытам [У]{.status}.
+- **Коллоиды в оптических ловушках** — нарушения второго начала на
+  коротких временах (Ван и др., 2002), проверки детальной теоремы для
+  производства энтропии [У]{.status}.
+- В вычислительной химии неравновесные оценки свободной энергии по
+  Яржинскому и Круксу — стандартный инструмент наряду с
+  равновесными методами [У]{.status}.
+
+## Физика и статус
+
+- Теорема Крукса и равенство Яржинского — теоремы, верные при
+  предположениях: начальное равновесие (канонический ансамбль),
+  марковская динамика с детальным балансом (или гамильтонова
+  динамика системы с термостатом), заданный протокол [У]{.status}.
+  Их квантовые аналоги существуют, но «работа» там определяется
+  двумя проективными измерениями энергии (Таскер, Лутц, Ханги, 2007).
+- Флуктуационные теоремы не выводят второе начало из обратимой
+  механики «бесплатно»: асимметрия заложена в начальном условии —
+  равновесие в начале процесса, а не в конце. Это тот же вопрос о
+  начальной низкой энтропии, что и в космологии (тема «Стрела
+  времени и начальная энтропия») [У]{.status}.
+- Применения к происхождению жизни — ограничения на точность и
+  скорость саморепликации, оценки диссипации — используют эти точные
+  соотношения для гипотетических сценариев [Г]{.status}.
+
+## Итоги
+
+- Детальный баланс и равновесное начало $\Rightarrow$
+  $\mathcal P_F[x]/\mathcal P_R[\tilde x] = e^{\beta(W - \Delta F)}$
+  (Крукс); для распределений работы $P_F(W)/P_R(-W) = e^{\beta(W - \Delta F)}$.
+- $\langle e^{-\beta W}\rangle = e^{-\beta\Delta F}$ (Яржинский); отсюда
+  $\langle W\rangle \ge \Delta F$ и $P(W < \Delta F - \zeta) \le e^{-\beta\zeta}$.
+- $\langle W\rangle - \Delta F = kT\,D(\mathcal P_F\|\mathcal P_R)$ — диссипация
+  как различимость направления времени.
+- Распределения прямой и обращённой работы пересекаются при
+  $W = \Delta F$; экспоненциальное среднее сходится медленно,
+  $N \sim e^{2\beta W_{\rm diss}}$ для гауссовой работы.
+
+## Упражнения
+
+1. При мгновенном *ослаблении* ловушки $\kappa_1 \to \kappa_0$
+   ($\kappa_1/\kappa_0 = 4$) найдите $\langle W_R\rangle$ и проверьте
+   цепочку $\langle W_F\rangle \ge \Delta F \ge -\langle W_R\rangle$.
+2. Распределение работы при растяжении молекулы гауссово со средним
+   $50\,kT$ и стандартным отклонением $3\,kT$. Найдите $\Delta F$ по
+   равенству Яржинского и оцените, сколько траекторий нужно для
+   надёжной оценки. Как изменится ответ при отклонении $6\,kT$?
+3. Какова наибольшая возможная вероятность того, что в процессе с
+   $\Delta F = 0$ работа окажется меньше $-5\,kT$? Сравните с гауссовым
+   распределением с $\langle W\rangle = 2\,kT$ и $\sigma^2 = 2kT\langle W\rangle$.
+4. Покажите, что если прямое и обратное распределения работы
+   гауссовы с одинаковой дисперсией $\sigma^2$, то теорема Крукса
+   требует $\langle W_F\rangle + \langle W_R\rangle = \beta\sigma^2$ и
+   $\Delta F = (\langle W_F\rangle - \langle W_R\rangle)/2$.
+5. Для частицы в ловушке, которую тянут со скоростью $v$ из
+   равновесия, работа гауссова с ${\rm Var}\,W = 2kT\langle W\rangle$.
+   Проверьте, что $P(W)/P(-W) = e^{\beta W}$, и найдите, во сколько раз
+   работа $+1\,kT$ вероятнее работы $-1\,kT$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $W_R = \frac12(\kappa_0 - \kappa_1)x^2$ при $\langle x^2\rangle = kT/\kappa_1$:
+   $\langle W_R\rangle = -\frac{kT}2(1 - \kappa_0/\kappa_1) = -0{,}375\,kT$.
+   Цепочка: $1{,}5 \ge 0{,}693 \ge 0{,}375$ (в единицах $kT$).
+2. $\Delta F = \langle W\rangle - \beta\sigma^2/2 = 50 - 4{,}5 = 45{,}5\,kT$;
+   $W_{\rm diss} = 4{,}5\,kT$, относительная дисперсия слагаемого
+   $e^{9} - 1 \approx 8\cdot10^3$ — нужны тысячи траекторий. При
+   $\sigma = 6\,kT$: $W_{\rm diss} = 18\,kT$, $e^{36} \sim 4\cdot10^{15}$ —
+   оценка по Яржинскому практически невозможна.
+3. Не больше $e^{-5} = 6{,}7\cdot10^{-3}$. Для гауссова распределения
+   с $\langle W\rangle = 2$, $\sigma = 2$: $P(W < -5) =
+   \frac12{\rm erfc}(7/(2\sqrt2)) = 2{,}3\cdot10^{-4}$ — граница
+   выполняется с запасом.
+4. $\ln[P_F(W)/P_R(-W)]$ для двух гауссиан с равной дисперсией линеен
+   по $W$ с наклоном $(\langle W_F\rangle + \langle W_R\rangle)/\sigma^2$,
+   который должен равняться $\beta$; нулю логарифм равен в середине
+   между $\langle W_F\rangle$ и $-\langle W_R\rangle$, то есть при
+   $W = \Delta F = (\langle W_F\rangle - \langle W_R\rangle)/2$.
+5. $\ln[P(W)/P(-W)] = [(W + \mu)^2 - (W - \mu)^2]/(2\sigma^2) =
+   2\mu W/\sigma^2 = \beta W$ при $\sigma^2 = 2kT\mu$. Отношение
+   вероятностей $W = 1\,kT$ и $W = -1\,kT$ равно $e^2 = 7{,}4$ — при
+   любом $t$.
+:::
+
+## Литература
+
+- Evans D. J., Cohen E. G. D., Morriss G. P. Probability of second law
+  violations in shearing steady states. *Phys. Rev. Lett.* **71**, 2401
+  (1993).
+- Evans D. J., Searles D. J. Equilibrium microstates which generate
+  second law violating steady states. *Phys. Rev. E* **50**, 1645 (1994).
+- Gallavotti G., Cohen E. G. D. Dynamical ensembles in nonequilibrium
+  statistical mechanics. *Phys. Rev. Lett.* **74**, 2694 (1995),
+  arXiv:chao-dyn/9410007.
+- Jarzynski C. Nonequilibrium equality for free energy differences.
+  *Phys. Rev. Lett.* **78**, 2690 (1997), arXiv:cond-mat/9610209.
+- Crooks G. E. Entropy production fluctuation theorem and the
+  nonequilibrium work relation for free energy differences. *Phys.
+  Rev. E* **60**, 2721 (1999), arXiv:cond-mat/9901352.
+- Liphardt J., Dumont S., Smith S. B., Tinoco I., Bustamante C.
+  Equilibrium information from nonequilibrium measurements in an
+  experimental test of Jarzynski's equality. *Science* **296**, 1832
+  (2002).
+- Wang G. M., Sevick E. M., Mittag E., Searles D. J., Evans D. J.
+  Experimental demonstration of violations of the second law of
+  thermodynamics for small systems and short time scales. *Phys. Rev.
+  Lett.* **89**, 050601 (2002).
+- Collin D., Ritort F., Jarzynski C., Smith S. B., Tinoco I.,
+  Bustamante C. Verification of the Crooks fluctuation theorem and
+  recovery of RNA folding free energies. *Nature* **437**, 231 (2005).
+- Seifert U. Entropy production along a stochastic trajectory and an
+  integral fluctuation theorem. *Phys. Rev. Lett.* **95**, 040602
+  (2005), arXiv:cond-mat/0503686.
+- Jarzynski C. Rare events and the convergence of exponentially
+  averaged work values. *Phys. Rev. E* **73**, 046105 (2006),
+  arXiv:cond-mat/0603185.
+- Kawai R., Parrondo J. M. R., Van den Broeck C. Dissipation: the
+  phase-space perspective. *Phys. Rev. Lett.* **98**, 080602 (2007),
+  arXiv:cond-mat/0701397.
+- Talkner P., Lutz E., Hänggi P. Fluctuation theorems: work is not an
+  observable. *Phys. Rev. E* **75**, 050102 (2007),
+  arXiv:cond-mat/0703189.
+- Seifert U. Stochastic thermodynamics, fluctuation theorems and
+  molecular machines. *Rep. Prog. Phys.* **75**, 126001 (2012),
+  arXiv:1205.4176.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+from scipy.special import erfc
+assert db_err < 1e-15 and abs(sum_F - 1) < 1e-12
+assert crooks_path_err < 1e-10 and crooks_W_err < 1e-10
+assert abs(jarz - math.exp(-dF)) < 1e-12
+assert abs(kl_paths - (mean_W - dF)) < 1e-12
+assert mean_W - dF > 0.3                                  # «заметно больше ΔF»
+assert mean_W >= dF >= -mean_WR
+assert p_viol > 0.05                                      # «доля заметна»
+assert sp.simplify(jarz_quench - sp.sqrt(k0 / k1)) == 0
+assert sp.simplify(mean_quench - (k1 - k0) / (2 * b * k0)) == 0
+assert near(dF_trap, 0.69, 2)
+for tau, (WF, WR) in runs.items():
+    assert abs(WF.mean() - mean_work_ode(tau)) < 0.01
+    assert abs(WR.mean() - mean_work_ode(tau, True)) < 0.01
+    assert abs(-math.log(np.mean(np.exp(-WF))) - dF_trap) < 0.02
+    assert abs(math.log(np.mean(np.exp(-WR))) - dF_trap) < 0.02
+    assert WF.mean() > dF_trap > -WR.mean()
+assert mean_work_ode(10.0) - dF_trap < 0.1 and mean_work_ode(0.1) - dF_trap > 0.5   # медленно ≈ обратимо
+# Пересечение распределений при τ = 0,1 у ΔF: гистограммы в окне вокруг ΔF
+WF, WR = runs[0.1]
+hF, _ = np.histogram(WF, bins=bins, weights=hist_weights(WF))
+hR, _ = np.histogram(-WR, bins=bins, weights=hist_weights(WR))
+centers = 0.5 * (bins[1:] + bins[:-1])
+diff = np.log(hF[(hF > 0) & (hR > 0)] / hR[(hF > 0) & (hR > 0)])
+cc = centers[(hF > 0) & (hR > 0)]
+slope, icpt = np.polyfit(cc[(cc > 0) & (cc < 1.5)], diff[(cc > 0) & (cc < 1.5)], 1)
+assert abs(slope - 1) < 0.1 and abs(-icpt / slope - dF_trap) < 0.1
+# Сходимость
+assert near(rel_var_quench(100), 6, 0) and rel_var_quench(4) < 1
+assert all(bb > 0 for bb in bias[100][:3]) and bias[100][0] > bias[100][1] > bias[100][2] and abs(bias[100][-1]) < 0.01
+assert abs(bias[4][-1]) < 0.01
+assert math.exp(2 * ((100 - 1) / 2 - 0.5 * math.log(100))) > 1e40       # «e^94»
+assert near(2 * ((100 - 1) / 2 - 0.5 * math.log(100)), 94, 0)
+# 1
+assert near(-0.5 * (1 - 1 / 4), -0.375, 3) and near(0.5 * math.log(4), 0.693, 3)
+# 2
+assert near(50 - 9 / 2, 45.5, 1) and near(math.exp(9) - 1, 8e3, -3)
+assert near(36 / 2, 18, 0) and 3e15 < math.exp(36) < 5e15
+# 3
+assert near(math.exp(-5), 6.7e-3, 4) and near(0.5 * erfc(7 / (2 * math.sqrt(2))), 2.3e-4, 5)
+# 4
+Wv, mF, mR, s2, bb = sp.symbols("W m_F m_R sigma2 beta", real=True)
+lnratio = sp.expand(-(Wv - mF)**2 / (2 * s2) + (Wv + mR)**2 / (2 * s2))   # P_R(−W): гауссиана около −m_R
+assert sp.simplify(sp.diff(lnratio, Wv) - (mF + mR) / s2) == 0
+assert sp.simplify(sp.solve(lnratio, Wv)[0] - (mF - mR) / 2) == 0
+# 5
+mu = sp.symbols("mu", positive=True)
+lr5 = sp.simplify((-(Wv - mu)**2 + (-Wv - mu)**2) / (2 * 2 * mu))
+assert sp.simplify(lr5 + Wv) == 0 or sp.simplify(lr5 - Wv) == 0
+assert sp.simplify(((-(Wv - mu)**2) - (-(-Wv - mu)**2)) / (4 * mu) - Wv) == 0
+assert near(math.exp(2), 7.4, 1)
+```
