@@ -1,0 +1,700 @@
+---
+title: "Образование крупномасштабной структуры"
+topic: structure-formation
+order: 7
+description: "Сферический коллапс в модели Эйнштейна–де Ситтера (SymPy): остановка расширения, порог δ_c = 1,686, вириальный контраст 18π²; коллапс в ΛCDM численно и вириализация с Λ; радиус, скорость и вириальная температура гало; функция масс Пресса–Шехтера и формализм случайных блужданий (Монте-Карло), сравнение с Шетом–Торменом; характерная масса M_*(z) и иерархическая сборка; одномерная N-частичная модель — точность приближения Зельдовича и рост сгустков"
+---
+
+Линейная теория (тема «Линейная теория возмущений») описывает рост
+контраста плотности, пока $|\delta| \ll 1$. Сегодня нелинейны все
+масштабы меньше $\approx 6\,h^{-1}$ Мпк: галактики, группы и скопления —
+это гравитационно связанные **гало** тёмной материи с плотностью в
+сотни раз выше средней. Как из гауссова поля малых возмущений
+получаются связанные объекты, сколько их каждой массы и в каком
+порядке они возникают? Точного ответа нет — он дан численным
+моделированием, — но три простые модели объясняют почти всё:
+сферический коллапс, статистика пиков гауссова поля (Пресс и Шехтер)
+и иерархическое слияние.
+
+Для космической эволюции это ключевой шаг: гало — «сосуды», в
+которых газ охлаждается и образует звёзды (тема «Тёмные века, первые
+звёзды и реионизация»), а порядок их сборки — сначала малые, потом
+большие — определяет историю звездообразования и химического
+обогащения (тема «Химическая эволюция галактик»).
+
+## Сферический коллапс
+
+Пусть в однородной Вселенной Эйнштейна–де Ситтера ($\Omega_m = 1$)
+есть сферическая область с небольшим избытком плотности. По теореме
+Биркгофа оболочка радиуса $r$, содержащая массу $M$, движется как
+замкнутая фридмановская вселенная — независимо от того, что снаружи:
+$\ddot r = -GM/r^2$. Пока оболочки не пересекаются, решение
+параметрическое.
+
+::: {#def-spherical-collapse}
+**Сферический коллапс** оболочки с отрицательной энергией:
+$$
+r = A(1 - \cos\theta), \qquad t = B(\theta - \sin\theta), \qquad A^3 = GMB^2 .
+$$
+Расширение останавливается при $\theta = \pi$ (**остановка**,
+turnaround), в точной модели оболочка падает в центр при
+$\theta = 2\pi$ (**коллапс**). Реальное гало до точки не сжимается:
+пересечение оболочек и бурная релаксация приводят его к
+**вириальному равновесию** $2K + U = 0$.
+:::
+
+Отношение плотности внутри оболочки $\rho = 3M/4\pi r^3$ к фоновой
+$\bar\rho = 1/(6\pi Gt^2)$:
+$$
+1 + \delta = \frac{9(\theta - \sin\theta)^2}{2(1 - \cos\theta)^3}.
+$$
+Проверим решение, найдём линейный контраст $\delta_{\rm lin} \propto t^{2/3}$
+(малые $\theta$) и экстраполируем его на остановку и коллапс:
+
+```{python}
+import math
+
+import astropy.constants as const
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from astropy.cosmology import Planck18
+from scipy.integrate import solve_ivp
+from scipy.optimize import brentq
+from scipy.special import erfc
+
+from cosmevo import structure as st
+
+th, A, B, G, M = sp.symbols("theta A B G M", positive=True)
+r_par = A * (1 - sp.cos(th))
+t_par = B * (th - sp.sin(th))
+rddot = sp.diff(sp.diff(r_par, th) / sp.diff(t_par, th), th) / sp.diff(t_par, th)
+print("r̈ + GM/r² при A³ = GMB²:", sp.simplify((rddot + G * M / r_par**2).subs(G, A**3 / (M * B**2))))
+
+one_plus_delta = sp.Rational(9, 2) * (th - sp.sin(th))**2 / (1 - sp.cos(th))**3
+print("δ при малых θ:", sp.series(one_plus_delta - 1, th, 0, 5).removeO())
+# линейная теория: δ_lin = (3/20) θ² в главном порядке, а θ ≈ (6t/B)^{1/3}
+x_t = sp.symbols("x", positive=True)            # x = 6t/B
+print("θ(t) при малых t:", sp.series((6 * t_par / B), th, 0, 6).removeO(), "= x  ⇒  θ ≈ x^(1/3)")
+d_lin = lambda theta: sp.Rational(3, 20) * (6 * (theta - sp.sin(theta)))**sp.Rational(2, 3)
+d_ta, d_c = d_lin(sp.pi), d_lin(2 * sp.pi)
+print(f"остановка (θ = π): 1 + δ = {float(one_plus_delta.subs(th, sp.pi)):.3f} (= 9π²/16), "
+      f"δ_lin = {float(d_ta):.3f}")
+print(f"коллапс (θ = 2π): δ_lin = δ_c = {float(d_c):.4f};  вириальный контраст 18π² = {float(18 * sp.pi**2):.1f}")
+```
+
+Линейное разложение даёт $\delta = \frac3{20}\theta^2$, а
+$\theta \approx (6t/B)^{1/3}$, т. е. $\delta_{\rm lin} = \frac3{20}(6t/B)^{2/3}
+\propto t^{2/3} \propto a$, как и должно быть. Отсюда два числа,
+которыми пользуется вся теория:
+
+- в момент остановки нелинейный контраст $9\pi^2/16 - 1 = 4{,}55$, а
+  линейный — всего 1,06;
+- коллапс происходит, когда *линейно экстраполированный* контраст
+  достигает $\delta_c = \frac3{20}(12\pi)^{2/3} = 1{,}686$ [У]{.status}
+  (в рамках модели).
+
+**Вириализация.** Энергия оболочки при остановке целиком
+потенциальная, $E = U_{\rm ta}$. После релаксации $2K + U = 0$ и
+$E = U/2$, поэтому $U_{\rm vir} = 2U_{\rm ta}$ и $r_{\rm vir} = r_{\rm ta}/2$.
+Если считать, что вириализация завершается к моменту коллапса
+$t_c = 2t_{\rm ta}$, плотность гало относительно фона
+$$
+\Delta_{\rm vir} = \frac{9\pi^2}{16}\cdot 2^3\cdot\left(\frac{t_c}{t_{\rm ta}}\right)^2 = 18\pi^2 \approx 178 .
+$$
+Это приближение [У]{.status} — в смысле «так следует из модели»:
+реальные гало несферичны и вириализуются постепенно, но
+моделирование подтверждает, что граница вириализованной области
+близка к контрасту $\sim 200$ (отсюда распространённая масса
+$M_{200}$).
+
+### Коллапс в ΛCDM
+
+С космологической постоянной оболочка подчиняется
+$\ddot r = -GM/r^2 + \frac{\Lambda}3r$, параметрического решения нет.
+Удобно решать уравнение для нелинейного контраста $\delta$ сферической
+области (в переменной $\ln a$, штрих — $\dd/\dd\ln a$)
+$$
+\delta'' + \left(2 + \frac{\dd\ln H}{\dd\ln a}\right)\delta' - \frac43\frac{\delta'^2}{1 + \delta}
+= \frac32\Omega_m(a)\,\delta(1 + \delta),
+$$
+которое следует из уравнения для $r$ при $1 + \delta \propto (a/r)^3$
+(проверим SymPy). Подберём начальный контраст так, чтобы коллапс
+пришёлся на заданный момент, и экстраполируем начальный контраст
+линейным ростом:
+
+```{python}
+tt = sp.symbols("t")
+# проверка: подставим r = a (1 + δ)^{-1/3} (в единицах начального радиуса) в r̈ = −GM/r² + Λr/3
+a_t, d_t = sp.Function("a")(tt), sp.Function("delta")(tt)
+Gs, rho0, Lam = sp.symbols("G rho_0 Lambda", positive=True)
+r_t = a_t * (1 + d_t)**sp.Rational(-1, 3)
+M_shell = sp.Rational(4, 3) * sp.pi * rho0                   # масса внутри r: ρ̄ a³ (1 + δ) r³/a³ при ρ̄a³ = ρ₀
+shell_eq = sp.diff(r_t, tt, 2) + Gs * M_shell / r_t**2 - Lam * r_t / 3
+friedmann2 = -sp.Rational(4, 3) * sp.pi * Gs * rho0 / a_t**3 * a_t + Lam * a_t / 3   # ä из второго уравнения Фридмана
+H_t = sp.diff(a_t, tt) / a_t
+delta_eq = (sp.diff(d_t, tt, 2) + 2 * H_t * sp.diff(d_t, tt) - sp.Rational(4, 3) * sp.diff(d_t, tt)**2 / (1 + d_t)
+            - 4 * sp.pi * Gs * rho0 / a_t**3 * d_t * (1 + d_t))
+check = sp.simplify((shell_eq.subs(sp.Derivative(a_t, (tt, 2)), friedmann2)
+                     + a_t * (1 + d_t)**sp.Rational(-4, 3) / 3 * delta_eq.subs(sp.Derivative(a_t, (tt, 2)), friedmann2)))
+print("уравнение оболочки ⇔ уравнение для δ:", check)
+
+def make_cosmology(Om):
+    """Плоская модель вещества и Λ: d ln H/d ln a и Ω_m(a)."""
+    dlnH = lambda a: -1.5 * Om / a**3 / (Om / a**3 + 1 - Om)
+    Om_a = lambda a: Om / a**3 / (Om / a**3 + 1 - Om)
+    return dlnH, Om_a
+
+def collapse_scale_factor(delta_i, Om, a_i=1e-5):
+    """Масштабный фактор коллапса (δ → ∞) для начального контраста δ_i в растущей моде."""
+    dlnH, Om_a = make_cosmology(Om)
+    def rhs(lna, Y):                             # u = ln(1 + δ)
+        a = math.exp(lna)
+        u_, up = Y
+        return [up, up**2 / 3 - (2 + dlnH(a)) * up + 1.5 * Om_a(a) * math.expm1(u_)]
+    hit = lambda lna, Y: Y[0] - 25.0             # 1 + δ = e²⁵: коллапс
+    hit.terminal = True
+    sol = solve_ivp(rhs, [math.log(a_i), math.log(20.0)], [math.log1p(delta_i), delta_i / (1 + delta_i)],
+                    events=hit, rtol=1e-10, atol=1e-12, dense_output=True)
+    return (math.exp(sol.t_events[0][0]) if sol.t_events[0].size else 20.0), sol
+
+def linear_growth_ratio(Om, a1, a2):
+    """D(a2)/D(a1) для модели вещества и Λ (ОДУ из темы о линейной теории)."""
+    dlnH, Om_a = make_cosmology(Om)
+    rhs = lambda lna, Y: [Y[1], -(2 + dlnH(math.exp(lna))) * Y[1] + 1.5 * Om_a(math.exp(lna)) * Y[0]]
+    sol = solve_ivp(rhs, [math.log(a1), math.log(a2)], [1.0, 1.0], rtol=1e-11, atol=1e-14)
+    return sol.y[0, -1]
+
+def delta_c_numeric(Om, a_coll=1.0, a_i=1e-5):
+    di = brentq(lambda d: collapse_scale_factor(d, Om, a_i)[0] - a_coll, 1e-6, 1e-4, xtol=1e-16)
+    return di * linear_growth_ratio(Om, a_i, a_coll), di
+
+dc_eds, _ = delta_c_numeric(1.0)
+dc_lcdm, di_lcdm = delta_c_numeric(Planck18.Om0)
+print(f"δ_c численно: Эйнштейн–де Ситтер {dc_eds:.4f} (точно {float(d_c):.4f}); "
+      f"ΛCDM (Ω_m = {Planck18.Om0:.4f}, коллапс сегодня) {dc_lcdm:.4f}")
+```
+
+Порог $\delta_c$ почти не зависит от космологии: в ΛCDM он меньше
+на 0,6 %. Поэтому в функциях масс обычно берут 1,686 [У]{.status}.
+
+Вириальный контраст с Λ меняется сильнее. Потенциальная энергия
+однородного шара в поле $\Lambda$ равна $U_\Lambda = -\Lambda Mr^2/10$; для
+потенциала $\propto r^2$ теорема вириала даёт $2K = -U_G + 2U_\Lambda$, и
+сохранение энергии между остановкой и вириализацией приводит к
+кубическому уравнению для $y = r_{\rm vir}/r_{\rm ta}$ (Лахав и др.,
+1991):
+$$
+\frac1{2y} + \eta y^2 = 1 + \frac\eta2, \qquad \eta = \frac{2\rho_\Lambda}{\rho_{\rm ta}},
+$$
+где $\rho_{\rm ta}$ — плотность области при остановке. Найдём момент
+остановки из численного решения, затем $y$ и контраст гало,
+коллапсирующего сегодня, относительно средней плотности вещества:
+
+```{python}
+yv, eta_s = sp.symbols("y eta", positive=True)
+Gs2, Ms2, rt, Lam2 = sp.symbols("G M r_t Lambda", positive=True)
+U_G = lambda rr: -sp.Rational(3, 5) * Gs2 * Ms2**2 / rr
+U_L = lambda rr: -Lam2 * Ms2 * rr**2 / 10
+virial_energy = (sp.Rational(1, 2) * (-U_G(yv * rt) + 2 * U_L(yv * rt)) + U_G(yv * rt) + U_L(yv * rt)
+                 - U_G(rt) - U_L(rt))
+lahav = sp.simplify(virial_energy / (-U_G(rt))).subs(Lam2, 3 * eta_s * Gs2 * Ms2 / rt**3)
+print("уравнение для y:", sp.simplify(lahav), "= 0")
+
+def virial_overdensity(Om, a_coll=1.0):
+    """Контраст гало относительно средней плотности вещества в момент коллапса."""
+    _, di = delta_c_numeric(Om, a_coll)
+    _, sol = collapse_scale_factor(di, Om)
+    lna = np.linspace(math.log(1e-3), math.log(a_coll) - 1e-6, 20001)
+    u_ = sol.sol(lna)[0]
+    radius = np.exp(lna) * np.exp(-u_ / 3)              # r ∝ a (1 + δ)^{-1/3}
+    i = np.argmax(radius)
+    a_ta, one_plus_d_ta = math.exp(lna[i]), math.exp(u_[i])
+    rho_ta_over_rhoL = Om / a_ta**3 * one_plus_d_ta / (1 - Om)
+    eta = 2 / rho_ta_over_rhoL
+    y = brentq(lambda y: 1 / (2 * y) + eta * y**2 - 1 - eta / 2, 0.3, 0.5)
+    Delta_m = one_plus_d_ta * (a_coll / a_ta)**3 / y**3
+    return Delta_m, y, a_ta, one_plus_d_ta
+
+def bryan_norman(Om_z):
+    """Вириальный контраст относительно критической плотности (Брайан, Норман, 1998)."""
+    x = Om_z - 1
+    return 18 * math.pi**2 + 82 * x - 39 * x**2
+
+Dm_eds = virial_overdensity(0.999999)[0]
+Dm, y_vir, a_ta, opd_ta = virial_overdensity(Planck18.Om0)
+print(f"Эйнштейн–де Ситтер: Δ = {Dm_eds:.1f} (18π² = {18 * math.pi**2:.1f})")
+print(f"ΛCDM, коллапс сегодня: остановка при a = {a_ta:.3f} (1 + δ = {opd_ta:.2f}), r_vir/r_ta = {y_vir:.3f}; "
+      f"Δ_m = {Dm:.0f}, Δ_c = Ω_m Δ_m = {Planck18.Om0 * Dm:.0f} (формула Брайана–Нормана: {bryan_norman(Planck18.Om0):.0f})")
+```
+
+Гало, вириализующееся сегодня, в ΛCDM примерно в 330 раз плотнее
+среднего вещества, или в 100 раз плотнее критической плотности:
+Λ ослабляет притяжение, остановка наступает раньше, и гало
+получается рыхлее. Дальше мы используем аппроксимацию Брайана и
+Нормана для $\Delta_c(z)$ относительно критической плотности.
+
+## Масса, размер и температура гало
+
+Гало массы $M$, вириализованное при красном смещении $z$, имеет
+радиус $r_{\rm vir} = [3M/(4\pi\Delta_c\rho_c(z))]^{1/3}$, круговую
+скорость $V_c = (GM/r_{\rm vir})^{1/2}$ и **вириальную температуру**
+$$
+T_{\rm vir} = \frac{\mu m_pV_c^2}{2k},
+$$
+— температуру, до которой ударные волны нагревают падающий газ;
+$\mu = 0{,}59$ для ионизованного и $1{,}22$ для нейтрального
+первичного газа. Чем раньше образовалось гало, тем оно плотнее
+($\rho_c(z) \propto H^2(z)$) и горячее при той же массе:
+
+```{python}
+def halo_props(M_sun, z, mu=0.59):
+    """r_vir (кпк), V_c (км/с), T_vir (К) для гало массы M (M☉, без h) при z."""
+    Om_z = Planck18.Om(z)
+    rho_c = Planck18.critical_density(z).cgs.value
+    M_g = M_sun * const.M_sun.cgs.value
+    r = (3 * M_g / (4 * math.pi * bryan_norman(Om_z) * rho_c))**(1 / 3)
+    V = math.sqrt(const.G.cgs.value * M_g / r)
+    T = mu * const.m_p.cgs.value * V**2 / (2 * const.k_B.cgs.value)
+    return r / const.kpc.cgs.value, V / 1e5, T
+
+for M_, z_, label in ((1e15, 0, "скопление"), (1e12, 0, "гало Млечного Пути"), (1e8, 10, "гало с атомным охлаждением"),
+                      (1e6, 20, "мини-гало")):
+    mu_ = 0.59 if M_ >= 1e8 else 1.22
+    r_, V_, T_ = halo_props(M_, z_, mu_)
+    print(f"M = {M_:.0e} M☉, z = {z_:2d} ({label}): r_vir = {r_:7.1f} кпк, V_c = {V_:6.1f} км/с, T_vir = {T_:.1e} К (μ = {mu_})")
+M_atomic = {z_: brentq(lambda lgM: math.log10(halo_props(10**lgM, z_)[2]) - 4, 4, 12) for z_ in (6, 10, 20)}
+print("масса, при которой T_vir = 10⁴ К (μ = 0,59): "
+      + ", ".join(f"z = {z_}: {10**v:.1e} M☉" for z_, v in M_atomic.items()))
+```
+
+Порог $T_{\rm vir} \approx 10^4$ К важен: ниже него атомарный
+водород не излучает (возбуждение Lyα требует $\sim10$ эВ), и газ
+может остыть только через молекулярный водород. Поэтому первые
+звёзды рождаются в мини-гало $\sim10^5$–$10^6\,M_\odot$ с
+охлаждением на H₂, а первые галактики — в гало $\gtrsim 10^8\,M_\odot$
+(тема «Тёмные века, первые звёзды и реионизация»).
+
+## Функция масс Пресса–Шехтера
+
+Начальное поле $\delta$ — гауссово [У]{.status} (по реликтовому
+излучению, тема «Рекомбинация и реликтовое излучение»). Сгладим его
+сферическим окном, содержащим массу $M$; дисперсия сглаженного
+поля сегодня — $\sigma(M)$ (тема «Линейная теория возмущений»), в
+момент $z$ — $\sigma(M)D(z)$. Пресс и Шехтер (1974) предположили, что
+вещество, у которого сглаженный линейный контраст превышает
+$\delta_c$, уже находится в гало массы больше $M$:
+$$
+F(>M) = P(\delta_M > \delta_c) = \frac12\,{\rm erfc}\left(\frac{\nu}{\sqrt2}\right),
+\qquad \nu = \frac{\delta_c}{\sigma(M)D(z)} .
+$$
+При $M \to 0$ ($\sigma \to \infty$) это даёт лишь половину массы.
+Пресс и Шехтер домножили на 2, сославшись на аккрецию из
+недоплотных областей. Строгое объяснение дал **формализм
+случайных блужданий** (Бонд и др., 1991): если сглаживать фурье-окном
+с резким краем, то при уменьшении $M$ контраст $\delta_M$ в данной
+точке совершает броуновское блуждание по «времени» $S = \sigma^2(M)$.
+Точку надо отнести к гало массы $>M$, если её траектория *хоть раз*
+пересекла барьер $\delta_c$ при $S' < S$ — иначе вещество,
+принадлежащее большему гало, но с $\delta_M < \delta_c$ на масштабе $M$,
+теряется. По принципу отражения вероятность первого пересечения
+вдвое больше вероятности оказаться выше барьера:
+$F(>M) = {\rm erfc}(\nu/\sqrt2)$. Проверим моделированием:
+
+```{python}
+def first_crossing_fraction(S_grid, delta_c=st.DELTA_C, n_walks=20_000, n_steps=4000, seed=11):
+    """Доля броуновских траекторий δ(S), пересёкших δ_c при S' < S, и доля с δ(S) > δ_c."""
+    rng = np.random.default_rng(seed)
+    S_max = S_grid[-1]
+    dS = S_max / n_steps
+    walks = np.cumsum(rng.normal(0.0, math.sqrt(dS), size=(n_walks, n_steps)), axis=1)
+    crossed = np.maximum.accumulate(walks, axis=1) > delta_c
+    idx = np.clip(np.round(np.asarray(S_grid) / dS).astype(int) - 1, 0, n_steps - 1)
+    return crossed[:, idx].mean(axis=0), (walks[:, idx] > delta_c).mean(axis=0)
+
+S_test = np.array([0.5, 1.0, 2.0, 4.0, 8.0])
+frac_first, frac_above = first_crossing_fraction(S_test)
+for S_, f1, f2 in zip(S_test, frac_first, frac_above):
+    nu_ = st.DELTA_C / math.sqrt(S_)
+    print(f"S = σ² = {S_:3.1f}: пересекли барьер {f1:.3f} (erfc(ν/√2) = {erfc(nu_ / math.sqrt(2)):.3f}), "
+          f"выше барьера сейчас {f2:.3f} (½erfc = {0.5 * erfc(nu_ / math.sqrt(2)):.3f})")
+```
+
+Доля пересёкших немного меньше теоретической: дискретные шаги
+пропускают кратковременные выходы за барьер между узлами сетки.
+Дифференцируя $F(>M)$, получаем число гало в единице объёма
+$$
+\frac{\dd n}{\dd\ln M} = \frac{\bar\rho_m}{M}\,f(\nu)\left|\frac{\dd\ln\sigma}{\dd\ln M}\right|,
+\qquad f_{\rm PS}(\nu) = \sqrt{\frac2\pi}\,\nu\,e^{-\nu^2/2},
+$$
+где $f(\nu)$ — доля массы на единицу $\ln\nu$, $\int f\,\dd\ln\nu = 1$.
+Сравнение с моделированием показывает, что формула Пресса–Шехтера
+недооценивает число массивных гало и переоценивает число малых;
+лучше описывает данные функция Шета–Тормена (1999), обоснованная
+эллипсоидальным коллапсом,
+$f_{\rm ST} = A\sqrt{2a\nu^2/\pi}\,[1 + (a\nu^2)^{-p}]\,e^{-a\nu^2/2}$
+с $A = 0{,}3222$, $a = 0{,}707$, $p = 0{,}3$. Обе функции и
+линейный спектр BBKS реализованы в модуле `cosmevo.structure`
+(без барионных осцилляций; точность формы спектра $\sim10$–20 %,
+современные калибровки функции масс по моделированию — несколько
+процентов, Тинкер и др., 2008).
+
+```{python}
+M_grid = np.geomspace(1e5, 3e16, 300)                      # M☉/h
+z_list = (0, 2, 6, 10)
+
+def mass_function_dlog10(M, z, kind):
+    return st.mass_function(M, z, kind) * math.log(10)    # dn/d lg M, (h/Мпк)³
+
+def M_star(z):
+    """Масса, у которой σ(M, z) = δ_c (ν = 1)."""
+    return 10**brentq(lambda lg: st.sigma_M(10**lg, z) - st.DELTA_C, 0, 17)
+
+def n_above(M_min, z, kind):
+    lgM = np.linspace(math.log10(M_min), 17.5, 400)
+    return np.trapezoid(mass_function_dlog10(10**lgM, z, kind), lgM)
+
+for z_ in (0, 1, 2, 3, 4, 6):
+    print(f"z = {z_:2d}: D = {st.growth(1 / (1 + z_)):.3f}, M_* = {M_star(z_):.1e} M☉/h")
+nu_first = st.DELTA_C / st.sigma_M(1e6, 20)
+print(f"мини-гало 10⁶ M☉/h при z = 20: ν = {nu_first:.1f}")
+for z_ in (0, 1):
+    nps, nst = n_above(1e15, z_, "ps"), n_above(1e15, z_, "st")
+    print(f"гало с M > 10¹⁵ M☉/h при z = {z_}: Пресс–Шехтер {nps:.1e}, Шет–Тормен {nst:.1e} (h/Мпк)³ "
+          f"→ {nst * 1e9:.1f} в кубе (1 Гпк/h)³ по Шету–Тормену")
+```
+
+```{python}
+#| label: fig-hmf
+#| fig-cap: "Функция масс гало dn/d lg M для Planck18 (спектр BBKS, σ₈ = 0,8102, δ_c = 1,686) при z = 0, 2, 6 и 10: сплошные линии — Шет–Тормен, пунктир — Пресс–Шехтер. Экспоненциальный обрыв сдвигается к меньшим массам в прошлое: сначала образуются малые гало, потом большие. Справа: доля массы в гало массивнее M по Шету–Тормену."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+colors = ("k", "tab:blue", "tab:orange", "tab:red")
+for z_, c in zip(z_list, colors):
+    ax1.loglog(M_grid, mass_function_dlog10(M_grid, z_, "st"), color=c, label=f"z = {z_}")
+    ax1.loglog(M_grid, mass_function_dlog10(M_grid, z_, "ps"), "--", color=c, lw=0.9)
+    nu_grid = st.DELTA_C / st.sigma_M(M_grid, z_)
+    mass_frac = mass_function_dlog10(M_grid, z_, "st") * M_grid / st.RHO_M      # доля массы на единицу lg M
+    frac = np.array([np.trapezoid(mass_frac[i:], np.log10(M_grid[i:])) for i in range(0, 299, 5)])
+    ax2.semilogx(M_grid[0:299:5], frac, color=c)
+ax1.set(xlabel="M, M☉/h", ylabel="dn/d lg M, (h/Мпк)³", ylim=(1e-10, 1e4))
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.2)
+ax2.set(xlabel="M, M☉/h", ylabel="доля массы в гало > M", ylim=(0, 1))
+ax2.grid(alpha=0.2)
+fig.tight_layout()
+```
+
+## Иерархическая сборка
+
+Для холодной тёмной материи $\sigma(M)$ растёт при уменьшении $M$
+— медленно, но неограниченно (лишь логарифмически на малых
+масштабах, эффект Месароша). Поэтому масштаб, на котором $\sigma(M)D(z) \sim \delta_c$, растёт со временем:
+характерная масса $M_*(z)$ (где $\nu = 1$) сегодня $\approx 5\cdot10^{12}\,M_\odot/h$,
+при $z = 3$ — $\sim 4\cdot10^{8}\,M_\odot/h$, при $z = 6$ — $\sim 2\cdot10^{5}\,M_\odot/h$.
+Из-за логарифмически медленного роста $\sigma(M)$ на малых масштабах
+$M_*$ при больших $z$ падает очень быстро, и первые гало, способные
+образовать звёзды, — редкие пики: мини-гало $10^6\,M_\odot/h$ при
+$z = 20$ — это пик высотой $\nu \approx 3{,}3$.
+Малые гало образуются первыми и затем сливаются в большие — **иерархическая**
+(«снизу вверх») сборка [У]{.status}. Это свойство именно холодной
+тёмной материи: у горячей (лёгкие нейтрино) малые масштабы стёрты
+свободным разлётом, и первыми коллапсировали бы сверхскопления,
+которые затем дробятся (сценарий «блинов» Зельдовича) — он
+противоречит наблюдениям [У]{.status}. Обобщение формализма
+блужданий на два момента времени (Лейси, Коул, 1993) даёт
+вероятности слияний и «деревья» истории каждого гало.
+
+Скопления галактик — самые массивные вириализованные объекты, и они
+на экспоненциальном хвосте функции масс: их число очень
+чувствительно к $\sigma_8$ и $\Omega_m$. Подсчёты скоплений —
+независимый способ измерить эти параметры [У]{.status}.
+
+## Простая N-частичная модель
+
+Проверить всё это «вживую» можно моделированием, но трёхмерные
+расчёты требуют специальных кодов (самый известный пример —
+моделирование Millennium из $10^{10}$ частиц, Спрингел и др., 2005).
+Одномерная модель — система плоских слоёв — проста и содержит
+главное. Каждый слой с лагранжевой координатой $q$ имеет эйлерову
+сопутствующую координату $x$; сила, действующая на слой в
+одномерной гравитации, определяется только числом слоёв слева и
+справа. В модели Эйнштейна–де Ситтера, в переменной $s = \ln a$,
+$$
+x'' + \tfrac12 x' = \tfrac32\left[x - x_{\rm eq}(x)\right],
+$$
+где $x_{\rm eq}$ — положение, которое слой имел бы при однородном
+распределении, если сохранить его порядковый номер (единицы длины —
+размер ящика, периодические условия). Пока слои не пересеклись, номер
+не меняется, сила линейна по смещению, и **приближение Зельдовича**
+$x = q + D(a)\psi(q)$ с $D = a$ — точное решение [У]{.status}. После
+пересечения возникают многопотоковые области — одномерные «гало».
+
+```{python}
+N_SHEETS = 8192
+q_sheets = (np.arange(N_SHEETS) + 0.5) / N_SHEETS
+
+def sheet_force(x):
+    """(3/2)(x − x_eq) без множителя: смещение слоя относительно своего «равномерного» места."""
+    xm = np.mod(x, 1.0)
+    rank = np.empty(N_SHEETS)
+    rank[np.argsort(xm)] = np.arange(N_SHEETS)
+    g = xm - (rank + 0.5) / N_SHEETS
+    return g - g.mean()
+
+def evolve_sheets(psi, amplitude, a_start, a_out):
+    """Слои в модели Эйнштейна–де Ситтера; начальные условия — растущая мода Зельдовича."""
+    x0 = q_sheets + amplitude * a_start * psi
+    rhs = lambda s, Y: np.concatenate([Y[N_SHEETS:], -0.5 * Y[N_SHEETS:] + 1.5 * sheet_force(Y[:N_SHEETS])])
+    sol = solve_ivp(rhs, [math.log(a_start), math.log(max(a_out))], np.concatenate([x0, amplitude * a_start * psi]),
+                    t_eval=np.log(a_out), max_step=0.01, rtol=1e-7, atol=1e-10)
+    return sol.y[:N_SHEETS], sol.y[N_SHEETS:]
+
+# одна мода: ψ = −sin(2πq)/(2π), пересечение слоёв при A·a = 1
+psi1 = -np.sin(2 * np.pi * q_sheets) / (2 * np.pi)
+x_single, _ = evolve_sheets(psi1, 1.0, 0.01, [0.5, 0.9])
+for i, a_ in enumerate((0.5, 0.9)):
+    err = np.max(np.abs(x_single[:, i] - (q_sheets + a_ * psi1)))
+    print(f"одна мода, a = {a_}: max|x − x_Зельдович| = {err:.1e}")
+```
+
+Теперь случайное гауссово поле с белым шумом смещений,
+сглаженным степенью $k^{-1{,}25}$ (больше мощности на малых
+масштабах в единицах контраста), и группы, выделенные алгоритмом
+«друзей-друзей» (соседние слои ближе $0{,}2$ среднего расстояния,
+не меньше 20 слоёв в группе):
+
+```{python}
+def random_displacement(n_modes=256, slope=1.25, seed=5):
+    """ψ(q): сумма фурье-мод со случайными фазами, нормировка σ(dψ/dq) = 1."""
+    rng = np.random.default_rng(seed)
+    k = 2 * np.pi * np.arange(1, n_modes + 1)
+    amp, phase = rng.normal(size=n_modes) / k**slope, rng.uniform(0, 2 * np.pi, n_modes)
+    psi = (amp[:, None] * np.sin(k[:, None] * q_sheets + phase[:, None])).sum(axis=0)
+    dpsi = (amp[:, None] * k[:, None] * np.cos(k[:, None] * q_sheets + phase[:, None])).sum(axis=0)
+    return psi / dpsi.std()
+
+def fof_groups(x, link=0.2, n_min=20):
+    """Размеры групп «друзей-друзей» в одномерном периодическом ящике."""
+    xs = np.sort(np.mod(x, 1.0))
+    gaps = np.diff(np.concatenate([xs, [xs[0] + 1.0]]))
+    breaks = np.where(gaps >= link / N_SHEETS)[0]
+    sizes = np.diff(np.concatenate([breaks, [breaks[0] + N_SHEETS]]))
+    return sizes[sizes >= n_min]
+
+a_snap = [0.01, 0.03, 0.1, 0.3, 1.0]
+psi_r = random_displacement()
+x_r, v_r = evolve_sheets(psi_r, 50.0, 0.002, a_snap)       # линейная σ_δ = 50a: δ ~ 1 при a ≈ 0,02
+groups = {}
+for i, a_ in enumerate(a_snap):
+    g = fof_groups(x_r[:, i])
+    groups[a_] = g
+    print(f"a = {a_:4}: групп {len(g):3d}, доля слоёв в группах {g.sum() / N_SHEETS:.2f}, "
+          f"средняя масса (по массе) {np.sum(g**2) / g.sum():6.0f}, наибольшая {g.max():4d} слоёв")
+```
+
+```{python}
+#| label: fig-sheets
+#| fig-cap: "Одномерная модель из 8192 гравитирующих слоёв в модели Эйнштейна–де Ситтера; фазовая плоскость «сопутствующая координата x — скорость dx/d ln a» во всём ящике при a = 0,03, 0,1 и 1 (линейный контраст достигает единицы при a ≈ 0,02). Сначала вокруг малых пиков возникают маленькие многопотоковые «гало» (спирали в фазовой плоскости), потом они сливаются в большие; к a = 1 почти всё вещество собралось в одно большое «гало» — спираль в фазовой плоскости с остатками поглощённых сгустков."
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), sharey=False)
+for ax, a_ in zip(axes, (0.03, 0.1, 1.0)):
+    i = a_snap.index(a_)
+    xm = np.mod(x_r[:, i], 1.0)
+    ax.plot(xm, v_r[:, i], ".", ms=0.6, color="k", alpha=0.5)
+    ax.set(xlabel="x", title=f"a = {a_}", xlim=(0, 1))
+    ax.grid(alpha=0.2)
+axes[0].set_ylabel("dx / d ln a")
+fig.tight_layout()
+```
+
+Число групп сначала растёт (коллапсируют новые малые пики), потом
+падает (они сливаются), а характерная масса и доля вещества в
+группах растут [У]{.status} — качественно так же, как в трёхмерных
+расчётах. Количественно одномерная модель с трёхмерной не
+сравнима: в одномерии сила не убывает с расстоянием, и «гало» —
+это слои, а не сферы.
+
+## Наблюдательный статус
+
+- Сферический коллапс и формализм Пресса–Шехтера — модели; их
+  количественные предсказания подтверждены моделированием с точностью
+  десятков процентов (Пресс–Шехтер) и нескольких процентов (калибровки
+  вроде Тинкера и др.) [У]{.status}.
+- Иерархическая сборка холодной тёмной материи согласуется с
+  наблюдаемой крупномасштабной структурой — спектром мощности
+  галактик, подсчётами скоплений, слабым линзированием [У]{.status}.
+- На масштабах карликовых галактик есть давние расхождения
+  простейшей ΛCDM-картины с наблюдениями (центральные «каспы» против
+  «ядер», число спутников); основное объяснение — обратная связь
+  звёздообразования, влияющая на распределение тёмной материи
+  [Г]{.status}; альтернатива — свойства самой тёмной материи
+  (тема «Тёмная материя») [Г]{.status}.
+- JWST (по данным на 2025 г.) нашёл больше ярких галактик при
+  $z > 10$, чем предсказывало большинство моделей до запуска
+  [У]{.status}. Это вопрос физики звёздообразования в гало (эффективность,
+  вспышечность, начальная функция масс), а не, по нынешним оценкам,
+  противоречие функции масс ΛCDM: ранние заявления о «слишком
+  массивных» галактиках при $z \approx 7$–9 (Лаббе и др., 2023) после
+  уточнения масс в значительной мере сняты [Г]{.status}.
+
+## Итоги
+
+- Сферическая оболочка в Эйнштейне–де Ситтере: остановка при
+  $\delta_{\rm lin} = 1{,}06$ ($1 + \delta = 9\pi^2/16$), коллапс при
+  $\delta_{\rm lin} = \delta_c = 1{,}686$, вириальный контраст $18\pi^2 \approx 178$.
+- В ΛCDM $\delta_c$ меньше на 0,6 %, а вириальный контраст гало,
+  образующегося сегодня, около 330 относительно среднего вещества
+  (100 относительно критической плотности).
+- $T_{\rm vir} = \mu m_pV_c^2/2k$; порог атомного охлаждения $10^4$ К —
+  гало $\sim10^8\,M_\odot$ при $z \approx 10$.
+- Пресс–Шехтер: $\dd n/\dd\ln M = (\bar\rho/M)f(\nu)|\dd\ln\sigma/\dd\ln M|$, множитель 2
+  — из первого пересечения барьера случайным блужданием.
+- $M_*(z)$ растёт со временем: малые гало раньше, большие позже.
+
+## Упражнения
+
+1. Найдите отношение времени остановки ко времени коллапса и
+   радиус остановки в единицах начального радиуса оболочки с начальным
+   линейным контрастом $\delta_i$ (в эпоху вещества). Каков нелинейный
+   контраст в момент, когда линейный равен 1?
+2. Найдите вириальный радиус и вириальную температуру гало массы
+   $10^{12}\,M_\odot$ при $z = 0$ и $z = 3$.
+3. Покажите, что $\int_0^\infty f_{\rm PS}(\nu)\,\dd\ln\nu = 1$. Какая доля
+   массы сегодня находится в гало массивнее $10^{12}\,M_\odot/h$ по
+   Прессу–Шехтеру?
+4. Во сколько раз изменится число гало с $M > 10^{15}\,M_\odot/h$ сегодня,
+   если $\sigma_8$ увеличить на 5 %? Используйте Пресса–Шехтера.
+5. Одна мода смещения $\psi = -\frac{\epsilon}{k}\sin kq$ в приближении
+   Зельдовича: найдите плотность $1 + \delta(q, a)$ и момент первого
+   пересечения слоёв. Каков линейный контраст в этот момент?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $t_{\rm ta}/t_c = 1/2$. Линейный контраст при остановке 1,062, т. е.
+   $a_{\rm ta}/a_i = 1{,}062/\delta_i$; из $r = A(1 - \cos\theta)$ и
+   $1 + \delta = 9\pi^2/16$ при $\theta = \pi$: $r_{\rm ta} = r_i
+   (a_{\rm ta}/a_i)(16/9\pi^2)^{1/3} = \frac35\,r_i/\delta_i$ (точно: численные
+   множители сокращаются до $\frac3{20}\cdot64^{1/3}$). Линейному
+   $\delta_{\rm lin} = 1$ отвечает $\theta = 3{,}01$ (ещё до остановки),
+   нелинейный контраст $\delta = 3{,}7$.
+2. С $\Delta_c(z)$ Брайана–Нормана: $z = 0$ — $r_{\rm vir} = 264$ кпк,
+   $V_c = 128$ км/с, $T_{\rm vir} = 5{,}8\cdot10^5$ К (при $\mu = 0{,}59$);
+   $z = 3$ — $r_{\rm vir} = 81$ кпк, $T_{\rm vir} = 1{,}9\cdot10^6$ К: ранние
+   гало компактнее и горячее.
+3. Замена $u = \nu^2/2$ сводит интеграл к $\sqrt{2/\pi}\int_0^\infty
+   e^{-\nu^2/2}\dd\nu = 1$. Доля массы в гало $> 10^{12}\,M_\odot/h$:
+   ${\rm erfc}(\nu/\sqrt2)$ при $\sigma(10^{12}) = 2{,}19$, $\nu = 0{,}77$:
+   0,44.
+4. $\nu \propto 1/\sigma_8$; при $M > 10^{15}\,M_\odot/h$
+   ($\nu \approx 3{,}3$) число растёт примерно в 1,7 раза — отсюда
+   чувствительность подсчётов скоплений к $\sigma_8$.
+5. $x = q - (\epsilon a/k)\sin kq$, $1 + \delta = 1/|\partial x/\partial q| =
+   1/(1 - \epsilon a\cos kq)$; пересечение (каустика) при $\epsilon a = 1$
+   в точке $q = 0$, где линейный контраст $\delta_{\rm lin} = \epsilon a = 1$.
+:::
+
+## Литература
+
+- Zel'dovich Ya. B. Gravitational instability: an approximate theory
+  for large density perturbations. *Astron. Astrophys.* **5**, 84
+  (1970).
+- Gunn J. E., Gott J. R. On the infall of matter into clusters of
+  galaxies and some effects on their evolution. *Astrophys. J.*
+  **176**, 1 (1972).
+- Press W. H., Schechter P. Formation of galaxies and clusters of
+  galaxies by self-similar gravitational condensation. *Astrophys. J.*
+  **187**, 425 (1974).
+- White S. D. M., Rees M. J. Core condensation in heavy halos: a
+  two-stage theory for galaxy formation and clustering. *Mon. Not. R.
+  Astron. Soc.* **183**, 341 (1978).
+- Bond J. R., Cole S., Efstathiou G., Kaiser N. Excursion set mass
+  functions for hierarchical Gaussian fluctuations. *Astrophys. J.*
+  **379**, 440 (1991).
+- Lahav O., Lilje P. B., Primack J. R., Rees M. J. Dynamical effects
+  of the cosmological constant. *Mon. Not. R. Astron. Soc.* **251**,
+  128 (1991).
+- Lacey C., Cole S. Merger rates in hierarchical models of galaxy
+  formation. *Mon. Not. R. Astron. Soc.* **262**, 627 (1993).
+- Bryan G. L., Norman M. L. Statistical properties of X-ray clusters:
+  analytic and numerical comparisons. *Astrophys. J.* **495**, 80
+  (1998), arXiv:astro-ph/9710107.
+- Sheth R. K., Tormen G. Large-scale bias and the peak background
+  split. *Mon. Not. R. Astron. Soc.* **308**, 119 (1999),
+  arXiv:astro-ph/9901122.
+- Springel V. et al. Simulations of the formation, evolution and
+  clustering of galaxies and quasars. *Nature* **435**, 629 (2005),
+  arXiv:astro-ph/0504097.
+- Tinker J. et al. Toward a halo mass function for precision
+  cosmology: the limits of universality. *Astrophys. J.* **688**, 709
+  (2008), arXiv:0803.2706.
+- Labbé I. et al. A population of red candidate massive galaxies
+  ~600 Myr after the Big Bang. *Nature* **616**, 266 (2023),
+  arXiv:2207.12446.
+- Mo H., van den Bosch F., White S. *Galaxy Formation and Evolution.*
+  — Cambridge: Cambridge University Press, 2010.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert sp.simplify((rddot + G * M / r_par**2).subs(G, A**3 / (M * B**2))) == 0
+assert sp.simplify(sp.series(one_plus_delta - 1, th, 0, 3).removeO() - sp.Rational(3, 20) * th**2) == 0
+assert sp.simplify(sp.series(6 * t_par / B, th, 0, 4).removeO() - th**3) == 0
+assert sp.simplify(one_plus_delta.subs(th, sp.pi) - 9 * sp.pi**2 / 16) == 0
+assert near(float(9 * sp.pi**2 / 16 - 1), 4.55, 2) and near(float(d_ta), 1.06, 2) and near(float(d_ta), 1.062, 3)
+assert near(float(d_c), 1.686, 3) and near(float(18 * sp.pi**2), 178, 0)
+assert check == 0
+assert abs(dc_eds - float(d_c)) < 2e-4
+assert near((1 - dc_lcdm / dc_eds) * 100, 0.6, 1)
+assert sp.simplify(lahav - (1 / (2 * yv) + eta_s * yv**2 - 1 - eta_s / 2)) == 0 or \
+       sp.simplify(lahav + (1 / (2 * yv) + eta_s * yv**2 - 1 - eta_s / 2)) == 0
+assert abs(Dm_eds / (18 * math.pi**2) - 1) < 0.01
+assert 320 < Dm < 340 and near(Planck18.Om0 * Dm, 100, -1) and abs(Planck18.Om0 * Dm / bryan_norman(Planck18.Om0) - 1) < 0.03
+# гало
+r12, V12, T12 = halo_props(1e12, 0)
+assert near(T12 / 1e5, 5.8, 1) and near(r12, 264, 0) and near(V12, 128, 0)
+r12z3, _, T12z3 = halo_props(1e12, 3)
+assert near(r12z3, 81, 0) and near(T12z3 / 1e6, 1.9, 1)
+assert 0.5e8 < 10**M_atomic[10] < 2e8                      # «∼10⁸ M☉ при z ≈ 10»
+assert halo_props(1e6, 20, 1.22)[2] < 1e4                   # мини-гало холоднее порога атомного охлаждения
+# блуждания
+th_first = erfc(st.DELTA_C / np.sqrt(S_test) / math.sqrt(2))
+assert np.all(frac_first < th_first + 0.01) and np.all(frac_first > th_first - 0.04)
+assert np.all(np.abs(frac_above - th_first / 2) < 0.01)
+# M_*
+assert near(M_star(0) / 1e12, 5, 0) and near(M_star(3) / 1e8, 4, 0) and near(M_star(6) / 1e5, 2, 0)
+assert near(nu_first, 3.3, 1)
+# одна мода — точное решение Зельдовича до пересечения
+assert np.max(np.abs(x_single[:, 1] - (q_sheets + 0.9 * psi1))) < 1e-5
+# иерархия в одномерной модели
+ng = [len(groups[a_]) for a_ in a_snap]
+mw = [np.sum(groups[a_]**2) / groups[a_].sum() for a_ in a_snap]
+fr = [groups[a_].sum() / N_SHEETS for a_ in a_snap]
+assert max(ng) > ng[0] and ng[-1] < max(ng)                  # число групп растёт, потом падает
+assert mw[-1] > 5 * mw[0] and fr[-1] > fr[0]
+# упражнения
+# 1: δ_lin = 1 → θ; нелинейный δ
+th1 = brentq(lambda t_: float(d_lin(sp.Float(t_))) - 1, 1, 3.1)
+assert near(th1, 3.01, 2) and near(float(one_plus_delta.subs(th, th1)) - 1, 3.7, 1)
+assert sp.nsimplify(sp.simplify((16 / (9 * sp.pi**2))**sp.Rational(1, 3) * d_ta)) == sp.Rational(3, 5)
+# 3
+assert abs(float(sp.integrate(sp.sqrt(2 / sp.pi) * sp.exp(-sp.Symbol("v")**2 / 2), (sp.Symbol("v"), 0, sp.oo))) - 1) < 1e-12
+s12 = st.sigma_M(1e12)
+assert near(s12, 2.19, 2) and near(st.DELTA_C / s12, 0.77, 2) and near(erfc(st.DELTA_C / s12 / math.sqrt(2)), 0.44, 2)
+# 4
+nu15 = st.DELTA_C / st.sigma_M(1e15)
+assert near(nu15, 3.3, 1)
+lgM4 = np.linspace(15, 17.5, 300)
+def n_ps_scaled(scale):
+    M4 = 10**lgM4
+    s = st.sigma_M(M4) * scale
+    dl = np.gradient(np.log(s), np.log(M4))
+    nu = st.DELTA_C / s
+    return np.trapezoid(st.RHO_M / M4 * st.multiplicity(nu, "ps") * np.abs(dl) * math.log(10), lgM4)
+assert near(n_ps_scaled(1.05) / n_ps_scaled(1.0), 1.7, 1)
+assert abs(n_ps_scaled(1.0) / n_above(1e15, 0, "ps") - 1) < 0.02
+```
