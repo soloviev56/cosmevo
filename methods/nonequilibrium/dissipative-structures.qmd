@@ -1,0 +1,481 @@
+---
+title: "Неустойчивости и диссипативные структуры"
+topic: dissipative-structures
+order: 5
+description: "Линейный анализ устойчивости стационарного состояния; нормальные формы бифуркаций (седло-узел, вилка, Хопф) и закон амплитуды √μ; конвекция Рэлея–Бенара: уравнения Буссинеска, вывод Ra_c = 27π⁴/4 для свободных границ (SymPy) и Ra_c = 1708 для твёрдых (определитель 3×3), порог для слоя воды; модель Лоренца как усечение; брюсселятор: бифуркация Хопфа и предельный цикл, неустойчивость Тьюринга (вывод порога и волнового числа, SymPy) и двумерная полуспектральная симуляция структуры Тьюринга; почему структуры возникают только вдали от равновесия"
+---
+
+В равновесии и вблизи него однородное состояние устойчиво: малые
+возмущения затухают, а производство энтропии в стационарном состоянии
+минимально (теорема Пригожина, тема «Производство энтропии в открытых
+системах»). Но если систему, через которую идёт поток энергии или
+вещества, отвести от равновесия достаточно далеко, однородное
+состояние может потерять устойчивость, и возникает упорядоченный
+пространственный или временной режим: конвективные ячейки, химические
+часы, полосы и пятна концентраций. Пригожин назвал такие режимы
+**диссипативными структурами**: они существуют только пока через
+систему идёт поток и производится энтропия.
+
+Это центральный механизм возникновения порядка в неравновесной
+Вселенной — от конвекции в звёздах и атмосферах до химических
+колебаний и, возможно, предбиологической химии (темы «Диссипативные
+структуры в природе», «Автокаталитические множества»). Статья даёт
+аппарат: линейную устойчивость, бифуркации и три образцовые системы.
+Слово «самоорганизация» здесь — название класса явлений, а не
+утверждение, что система к чему-то «стремится».
+
+## Линейная устойчивость и бифуркации
+
+::: {#def-linear-stability}
+Пусть $\dot{\mathbf u} = \mathbf F(\mathbf u; \mu)$, где $\mu$ — управляющий
+параметр (градиент температуры, концентрация подпитки), и
+$\mathbf u_0(\mu)$ — стационарное решение. Линеаризация
+$\dot{\delta\mathbf u} = J\,\delta\mathbf u$, $J = \partial\mathbf F/\partial\mathbf u|_{\mathbf u_0}$.
+Состояние **линейно устойчиво**, если все собственные значения $J$
+имеют ${\rm Re}\,\lambda < 0$. **Бифуркация** — значение $\mu_c$, при
+котором ${\rm Re}\,\lambda$ одного из собственных значений проходит
+через ноль: действительное $\lambda$ — стационарная бифуркация,
+комплексная пара — бифуркация Хопфа (рождение колебаний).
+:::
+
+Вблизи порога динамика сводится к немногим медленным переменным —
+амплитудам неустойчивых мод, — и уравнения для них принимают
+универсальный вид **нормальных форм**:
+
+| Бифуркация | Нормальная форма | Что происходит при $\mu > 0$ |
+|---|---|---|
+| седло-узел | $\dot x = \mu - x^2$ | появляются два состояния, $x = \pm\sqrt\mu$ |
+| вилка (суперкритическая) | $\dot x = \mu x - x^3$ | $x = 0$ теряет устойчивость, рождаются $x = \pm\sqrt\mu$ |
+| Хопф (суперкритическая) | $\dot z = (\mu + i\omega)z - \lvert z\rvert^2z$ | предельный цикл радиуса $\sqrt\mu$ |
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import solve_ivp
+from scipy.optimize import brentq, minimize_scalar
+
+x, mu = sp.symbols("x mu", real=True)
+for name, F in (("седло-узел", mu - x**2), ("вилка", mu * x - x**3)):
+    fixed = sp.solve(F, x)
+    stab = {str(f): sp.simplify(sp.diff(F, x).subs(x, f)) for f in fixed}
+    print(f"{name}: неподвижные точки {fixed}; F'(x*) = {stab}")
+r, w = sp.symbols("r omega", positive=True)
+# Хопф в полярных координатах z = r e^{iθ}: ṙ = μr − r³, θ̇ = ω
+print("Хопф: ṙ = μr − r³, предельный цикл r =", sp.solve(mu * r - r**3, r))
+```
+
+Знак производной в неподвижной точке определяет устойчивость:
+у вилки при $\mu > 0$ состояние $x = 0$ неустойчиво ($F' = \mu$), а
+ветви $\pm\sqrt\mu$ устойчивы ($F' = -2\mu$). Выбор ветви — **нарушение
+симметрии**: уравнение симметрично относительно $x \to -x$, решение — нет;
+какая ветвь реализуется, решает случайное возмущение. Амплитуда
+нового состояния растёт как $\sqrt{\mu - \mu_c}$ [У]{.status} — это
+закон Ландау для фазовых переходов второго рода, и аналогия здесь
+точная на уровне уравнений для параметра порядка.
+
+## Конвекция Рэлея–Бенара
+
+Слой жидкости толщиной $d$ подогревают снизу; разность температур
+$\Delta T$. В приближении Буссинеска плотность меняется только в
+архимедовой силе, $\rho = \rho_0[1 - \alpha(T - T_0)]$. Пока $\Delta T$
+мала, тепло переносится теплопроводностью, жидкость покоится.
+Безразмерные уравнения для возмущений скорости $\mathbf v$ и
+температуры $\theta$ (единицы длины $d$, времени $d^2/\kappa$):
+$$
+\frac1{{\rm Pr}}\left(\partial_t\mathbf v + \mathbf v\cdot\nabla\mathbf v\right) = -\nabla p + {\rm Ra}\,\theta\,\hat{\mathbf z} + \nabla^2\mathbf v,
+\qquad
+\partial_t\theta + \mathbf v\cdot\nabla\theta = v_z + \nabla^2\theta,
+$$
+$\nabla\cdot\mathbf v = 0$, где **число Рэлея** ${\rm Ra} = g\alpha\Delta T d^3/(\nu\kappa)$ —
+отношение архимедовой силы к вязкой и теплопроводной диссипации, а
+число Прандтля ${\rm Pr} = \nu/\kappa$. Линеаризуя, исключая давление
+(двойной ротор) и подставляя $v_z = W(z)e^{ikx}$ на пороге
+($\partial_t = 0$, «принцип смены устойчивости»), получаем
+$$
+(D^2 - k^2)^3W = -{\rm Ra}\,k^2W, \qquad D = \dd/\dd z .
+$$
+**Свободные границы** ($W = D^2W = D^4W = 0$ при $z = 0, 1$; Рэлей,
+1916): $W = \sin\pi z$, откуда ${\rm Ra}(k) = (\pi^2 + k^2)^3/k^2$. **Твёрдые
+границы** ($W = DW = 0$, $(D^2 - k^2)^2W = 0$ — последнее из условия
+$\theta = 0$): решение — сумма $\cosh q_iz$ с $q_i^2 = k^2 + (-{\rm Ra} k^2)^{1/3}$
+(три кубических корня), и порог — корень определителя $3\times3$:
+
+```{python}
+k = sp.symbols("k", positive=True)
+Ra_free = (sp.pi**2 + k**2)**3 / k**2
+W = sp.sin(sp.pi * sp.Symbol("z"))
+z = sp.Symbol("z")
+print("свободные границы: (D²−k²)³W + Ra k² W = 0 при W = sin πz:",
+      sp.simplify((sp.diff(W, z, 6) - 3 * k**2 * sp.diff(W, z, 4) + 3 * k**4 * sp.diff(W, z, 2) - k**6 * W)
+                  + Ra_free * k**2 * W) == 0)
+k_free = sp.solve(sp.diff(Ra_free, k), k)[0]
+Ra_c_free = sp.simplify(Ra_free.subs(k, k_free))
+print(f"k_c = {k_free} = {float(k_free):.4f}, Ra_c = {Ra_c_free} = {float(Ra_c_free):.2f}")
+
+def rigid_determinant(Ra, kk):
+    """Определитель граничных условий при z = ±1/2 для чётной моды (твёрдые границы)."""
+    rows = []
+    for m in range(3):
+        c = (Ra * kk**2)**(1 / 3) * np.exp(1j * (math.pi + 2 * math.pi * m) / 3)   # корни из −Ra k²
+        q = np.sqrt(kk**2 + c)
+        rows.append([np.cosh(q / 2), q * np.sinh(q / 2), (q**2 - kk**2)**2 * np.cosh(q / 2)])
+    return np.linalg.det(np.array(rows).T)
+
+def Ra_rigid(kk):
+    """Наименьший корень определителя по Ra (определитель либо чисто действительный, либо мнимый)."""
+    grid = np.linspace(800, 6000, 521)
+    vals = np.array([rigid_determinant(R, kk) for R in grid])
+    part = np.real if np.abs(vals.real).max() > np.abs(vals.imag).max() else np.imag
+    s = part(vals)
+    i = np.flatnonzero(np.sign(s[:-1]) != np.sign(s[1:]))[0]
+    return brentq(lambda R: part(rigid_determinant(R, kk)), grid[i], grid[i + 1], xtol=1e-10)
+
+opt = minimize_scalar(Ra_rigid, bounds=(2.5, 3.8), method="bounded", options={"xatol": 1e-8})
+k_c_rigid, Ra_c_rigid = opt.x, opt.fun
+print(f"твёрдые границы: k_c = {k_c_rigid:.3f}, Ra_c = {Ra_c_rigid:.1f}; длина волны {2 * math.pi / k_c_rigid:.2f} d")
+```
+
+Порог ${\rm Ra}_c = 27\pi^4/4 = 657{,}5$ для свободных границ и ${\rm Ra}_c = 1708$ при
+$k_c = 3{,}12$ для твёрдых [У]{.status} (результат подтверждён
+экспериментом с точностью до процентов); ширина пары валов —
+$2\pi/k_c \approx 2d$. Какая разность температур нужна сантиметровому
+слою воды (свойства при 20 °C, округлённо)?
+
+```{python}
+g = 981.0                                                      # см/с²
+WATER = {"alpha": 2.07e-4, "nu": 1.00e-2, "kappa": 1.43e-3}    # 1/К, см²/с, см²/с
+def critical_dT(d_cm, Ra_c=Ra_c_rigid, fluid=WATER):
+    return Ra_c * fluid["nu"] * fluid["kappa"] / (g * fluid["alpha"] * d_cm**3)
+
+for d_cm in (0.1, 1.0, 10.0):
+    print(f"слой воды d = {d_cm:4.1f} см: ΔT_c = {critical_dT(d_cm):.2e} К")
+```
+
+Порог падает как $d^{-3}$: слой воды в метр неустойчив уже при
+разности в $10^{-7}$ К, поэтому в природе (атмосферы, мантия, звёзды)
+конвекция идёт при ${\rm Ra}$ на много порядков выше порога, в
+турбулентном режиме [У]{.status}. Исторически ячейки в опытах Бенара
+(1900) с тонким слоем под свободной поверхностью вызывались
+главным образом не архимедовой силой, а зависимостью поверхностного
+натяжения от температуры (эффект Марангони; Пирсон, 1958) [У]{.status}.
+
+**Модель Лоренца.** Оставив в разложении полей по модам Фурье одну
+моду скорости и две моды температуры, Лоренц (1963) получил систему
+$\dot X = \sigma(Y - X)$, $\dot Y = rX - Y - XZ$, $\dot Z = XY - bZ$, где
+$r = {\rm Ra}/{\rm Ra}_c$, $\sigma = {\rm Pr}$, $b = 8/3$ для свободных границ. Её
+бифуркации повторяют сценарий конвекции:
+
+```{python}
+X, Y, Z, sig, rr, b = sp.symbols("X Y Z sigma r b", positive=True)
+F_lor = sp.Matrix([sig * (Y - X), rr * X - Y - X * Z, X * Y - b * Z])
+J_lor = F_lor.jacobian([X, Y, Z])
+lam = sp.symbols("lambda")
+char0 = sp.factor(J_lor.subs({X: 0, Y: 0, Z: 0}).charpoly(lam).as_expr())
+print("в точке покоя: det(λ − J) =", char0, "⇒ λ = 0 при r = 1 (вилка: начало конвекции)")
+Xc = sp.sqrt(b * (rr - 1))
+Jc = J_lor.subs({X: Xc, Y: Xc, Z: rr - 1})
+p_char = sp.Poly(sp.expand(Jc.charpoly(lam).as_expr()), lam)
+a2, a1, a0 = p_char.all_coeffs()[1:]
+r_hopf = sp.solve(sp.Eq(a2 * a1, a0), rr)[0]                   # критерий Рауса–Гурвица: a₂a₁ = a₀ на границе
+print("Хопф (конвективные валы теряют устойчивость): r_H =", sp.simplify(r_hopf),
+      f"= {float(r_hopf.subs({sig: 10, b: sp.Rational(8, 3)})):.2f} при σ = 10, b = 8/3")
+```
+
+Покой теряет устойчивость при $r = 1$ (бифуркация «вилка»: валы
+вращаются по или против часовой стрелки), стационарная конвекция — при
+$r_H = \sigma(\sigma + b + 3)/(\sigma - b - 1) = 24{,}74$, за которой лежит
+знаменитый странный аттрактор. Сама модель Лоренца — грубое усечение
+и реальную конвекцию при больших $r$ не описывает [У]{.status}; её
+ценность — в демонстрации детерминированного хаоса.
+
+## Брюсселятор: химические часы и пятна Тьюринга
+
+Химическая модель Пригожина и Лефевра (1968): реакции
+$A \to X$, $B + X \to Y + D$, $2X + Y \to 3X$, $X \to E$ при постоянных
+концентрациях $A$ и $B$ (система открыта: их подпитывают, $D$ и $E$
+уводят). В безразмерных единицах
+$$
+\dot x = A - (B + 1)x + x^2y + D_x\nabla^2x, \qquad
+\dot y = Bx - x^2y + D_y\nabla^2y .
+$$
+Автокаталитический шаг $2X + Y \to 3X$ — нелинейность, без которой
+структур нет. Однородное стационарное состояние $(x_0, y_0) = (A, B/A)$.
+Для возмущения $\propto e^{\lambda t + i\mathbf k\cdot\mathbf r}$ матрица
+$J_k = J - k^2{\rm diag}(D_x, D_y)$.
+
+```{python}
+A, B, Dx, Dy, k2 = sp.symbols("A B D_x D_y k2", positive=True)
+xs, ys = sp.symbols("x y", positive=True)
+f_reac = A - (B + 1) * xs + xs**2 * ys
+g_reac = B * xs - xs**2 * ys
+J0 = sp.Matrix([f_reac, g_reac]).jacobian([xs, ys]).subs({xs: A, ys: B / A})
+print("J в точке (A, B/A):", J0.tolist())
+# Хопф без диффузии: tr J = 0 при det J > 0
+B_hopf = sp.solve(sp.Eq(J0.trace(), 0), B)[0]
+print("Хопф: B_H =", B_hopf, "; det J =", sp.simplify(J0.det()))
+# Тьюринг: det J_k < 0 при некотором k² (tr J_k < 0 автоматически при B < B_H)
+Jk = J0 - sp.diag(Dx * k2, Dy * k2)
+det_k = sp.expand(Jk.det())
+k2_min = sp.solve(sp.diff(det_k, k2), k2)[0]
+B_turing = sp.solve(sp.Eq(det_k.subs(k2, k2_min), 0), B)
+B_turing = max(B_turing, key=lambda s_: float(s_.subs({A: 4.5, Dx: 2, Dy: 16})))   # второй корень даёт k² < 0
+k2_c = sp.simplify(k2_min.subs(B, B_turing))
+print("Тьюринг: B_T =", sp.simplify(B_turing), "; k_c² =", k2_c)
+print("совпадает с (1 + A√(D_x/D_y))² и A/√(D_x D_y):",
+      sp.simplify(B_turing - (1 + A * sp.sqrt(Dx / Dy))**2) == 0, sp.simplify(k2_c - A / sp.sqrt(Dx * Dy)) == 0)
+```
+
+Без диффузии однородное состояние теряет устойчивость при
+$B_H = 1 + A^2$: рождается предельный цикл — **химические часы**,
+концентрации колеблются с периодом, заданным кинетикой, а не
+начальными условиями. Проверим закон амплитуды $\sqrt{B - B_H}$:
+
+```{python}
+A_val = 1.0
+def brusselator(t, u, Bv):
+    xx, yy = u
+    return [A_val - (Bv + 1) * xx + xx**2 * yy, Bv * xx - xx**2 * yy]
+
+def cycle_amplitude(Bv):
+    sol = solve_ivp(brusselator, (0, 6000), [A_val + 0.05, Bv / A_val], args=(Bv,), rtol=1e-9, atol=1e-11,
+                    dense_output=True)                       # у порога переход к циклу медленный, ∝ 1/(B − B_H)
+    tt = np.linspace(5500, 6000, 20000)
+    xx = sol.sol(tt)[0]
+    return (xx.max() - xx.min()) / 2
+
+B_H = 1 + A_val**2
+eps = np.array([0.0025, 0.005, 0.01, 0.02])
+amps = np.array([cycle_amplitude(B_H + e) for e in eps])
+slope_amp = np.polyfit(np.log(eps), np.log(amps), 1)[0]
+print(f"A = 1, B_H = {B_H}: амплитуда x при B − B_H = {eps.tolist()}: {np.round(amps, 4).tolist()}; "
+      f"наклон в лог-масштабе {slope_amp:.3f}")
+print(f"период у порога {2 * math.pi / A_val:.3f} (ω = √det J = A)")
+```
+
+Тьюринг (1952) заметил, что диффузия, обычно сглаживающая
+неоднородности, может их *порождать*: если ингибитор $Y$ диффундирует
+быстрее активатора $X$, однородное состояние, устойчивое без
+диффузии, неустойчиво к возмущениям с волновым числом около
+$k_c = (A^2/D_xD_y)^{1/4}$ при $B > B_T = (1 + A\sqrt{D_x/D_y})^2$ — порог
+ниже хопфовского, только если $D_y/D_x$ достаточно велико
+[У]{.status} (в рамках модели). Возникает стационарная структура с
+собственной длиной волны $2\pi/k_c$, не заданной ни размером системы,
+ни граничными условиями. Посмотрим на двумерную задачу
+(полуспектральный метод: диффузия — точно в пространстве Фурье,
+реакция — явно):
+
+```{python}
+A_T, Dx_T, Dy_T = 4.5, 2.0, 16.0
+B_T_val = float(B_turing.subs({A: A_T, Dx: Dx_T, Dy: Dy_T}))
+B_H_val = 1 + A_T**2
+B_run = 7.5
+k_c_val = (A_T**2 / (Dx_T * Dy_T))**0.25
+print(f"A = {A_T}, D_x = {Dx_T}, D_y = {Dy_T}: B_T = {B_T_val:.3f}, B_H = {B_H_val:.2f}; "
+      f"k_c = {k_c_val:.3f}, λ_c = {2 * math.pi / k_c_val:.2f}")
+
+def turing_2d(Bv, n=128, L=64.0, dt=0.02, t_end=300.0, seed=5):
+    """Брюсселятор на периодическом квадрате: неявная диффузия в Фурье + явная реакция."""
+    rng = np.random.default_rng(seed)
+    xx = A_T + 0.01 * rng.standard_normal((n, n))
+    yy = Bv / A_T + 0.01 * rng.standard_normal((n, n))
+    kk = 2 * np.pi * np.fft.fftfreq(n, d=L / n)
+    K2 = kk[:, None]**2 + kk[None, :]**2
+    dec_x, dec_y = 1 / (1 + dt * Dx_T * K2), 1 / (1 + dt * Dy_T * K2)
+    for _ in range(int(t_end / dt)):
+        fx = A_T - (Bv + 1) * xx + xx**2 * yy
+        fy = Bv * xx - xx**2 * yy
+        xx = np.real(np.fft.ifft2(np.fft.fft2(xx + dt * fx) * dec_x))
+        yy = np.real(np.fft.ifft2(np.fft.fft2(yy + dt * fy) * dec_y))
+    return xx, K2
+
+pattern, K2_grid = turing_2d(B_run)
+spec = np.abs(np.fft.fft2(pattern - pattern.mean()))**2
+k_dom = math.sqrt(K2_grid.flat[np.argmax(spec)])
+pattern_below, _ = turing_2d(B_T_val - 0.3, t_end=150.0)
+print(f"B = {B_run}: размах x {pattern.max() - pattern.min():.2f}, доминирующее k = {k_dom:.3f} (k_c = {k_c_val:.3f})")
+print(f"B = {B_T_val - 0.3:.2f} (ниже порога): размах x {pattern_below.max() - pattern_below.min():.1e}")
+```
+
+```{python}
+#| label: fig-turing
+#| fig-cap: "Неустойчивость Тьюринга в брюсселяторе (A = 4,5, D_x = 2, D_y = 16; порог B_T = 6,71, порог Хопфа B_H = 21,25). Слева: инкремент роста Re λ(k) однородного состояния ниже порога (B = 6,4), на пороге и выше (B = 7,5) — неустойчива полоса волновых чисел около k_c. Справа: концентрация x на периодическом квадрате 64×64 при B = 7,5 к t = 300 из малого случайного шума — лабиринт полос с периодом около 2π/k_c ≈ 7 (при других параметрах модели возникают пятна)."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.9))
+k_line = np.linspace(0.01, 2.0, 400)
+J_num = sp.lambdify((B, k2), Jk.subs({A: A_T, Dx: Dx_T, Dy: Dy_T}), "numpy")
+for Bv, c in ((6.4, "tab:blue"), (B_T_val, "k"), (B_run, "tab:red")):
+    growth = [np.linalg.eigvals(np.array(J_num(Bv, kv**2), dtype=float)).real.max() for kv in k_line]
+    ax1.plot(k_line, growth, color=c, label=f"B = {Bv:.2f}")
+ax1.axhline(0, color="0.5", lw=0.7)
+ax1.axvline(k_c_val, color="0.5", ls=":", lw=0.8)
+ax1.set(xlabel="k", ylabel="max Re λ", ylim=(-0.6, 0.6))
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.2)
+im = ax2.imshow(pattern, extent=(0, 64, 0, 64), cmap="viridis", origin="lower")
+fig.colorbar(im, ax=ax2, label="x")
+ax2.set(xlabel="координата", ylabel="координата")
+fig.tight_layout()
+```
+
+Экспериментально пятна и полосы Тьюринга получены в реакции
+хлорит–иодид–малоновая кислота в геле, где крахмал-индикатор
+замедляет диффузию активатора (Кастетс и др., 1990; Оуян, Суинни,
+1991) [У]{.status}. Химические часы — реакция Белоусова–Жаботинского
+с её колебаниями и спиральными волнами (Заикин, Жаботинский, 1970)
+[У]{.status}. Роль механизма Тьюринга в морфогенезе живых организмов
+обсуждается [Г]{.status} — эта тема вне пособия.
+
+## Почему структуры — только вдали от равновесия
+
+Во всех трёх примерах есть общая схема [У]{.status}:
+
+- система **открыта**: через неё идёт поток энергии (тепло снизу) или
+  вещества (подпитка $A$, $B$); без потока структура распадается за
+  время релаксации;
+- **нелинейность** (адвекция $\mathbf v\cdot\nabla\theta$, автокатализ
+  $x^2y$) насыщает рост неустойчивой моды и задаёт амплитуду;
+- порог — **конечное** удаление от равновесия (${\rm Ra}_c$, $B_T$, $B_H$).
+  В линейной области (законы Онсагера с постоянными коэффициентами)
+  стационарное состояние единственно и устойчиво — это следствие
+  теоремы о минимальном производстве энтропии, поэтому структур там
+  быть не может.
+
+Производство энтропии в структурном режиме обычно *больше*, чем было
+бы в однородном при тех же внешних условиях: конвекция переносит
+больше тепла (число Нуссельта больше единицы). Но общего вариационного
+принципа, выбирающего режим вдали от равновесия, нет: ни минимум, ни
+максимум производства энтропии в общем случае не работает [У]{.status}
+(обсуждение гипотезы о максимуме — тема «Принцип максимального
+производства энтропии»). Отбор структур (валы или шестиугольники,
+пятна или полосы) определяется нелинейными амплитудными уравнениями
+(Кросс, Хоэнберг, 1993).
+
+## Итоги
+
+- Устойчивость — по знаку ${\rm Re}\,\lambda$ якобиана; бифуркации:
+  седло-узел, вилка, Хопф; амплитуда за порогом $\propto\sqrt{\mu - \mu_c}$.
+- Рэлей–Бенар: $(D^2 - k^2)^3W = -{\rm Ra} k^2W$; ${\rm Ra}_c = 27\pi^4/4 = 657{,}5$ (свободные
+  границы), $1708$ при $k_c = 3{,}12$ (твёрдые); для сантиметра воды
+  $\Delta T_c \approx 0{,}12$ К.
+- Лоренц: конвекция при $r = 1$, потеря устойчивости валов при
+  $r_H = 24{,}74$ ($\sigma = 10$).
+- Брюсселятор: часы при $B > 1 + A^2$; Тьюринг при
+  $B > (1 + A\sqrt{D_x/D_y})^2$ с $k_c = (A^2/D_xD_y)^{1/4}$ — полосы или
+  пятна с собственной длиной волны.
+- Диссипативная структура требует открытости, нелинейности и
+  конечного удаления от равновесия; вариационного принципа отбора
+  нет.
+
+## Упражнения
+
+1. Найдите неподвижные точки и их устойчивость для
+   $\dot x = \mu x + x^3 - x^5$ (субкритическая вилка). Существует ли
+   область гистерезиса? При каких $\mu$?
+2. Проверьте, что ${\rm Ra}(k) = (\pi^2 + k^2)^3/k^2$ минимально при
+   $k^2 = \pi^2/2$. Какая длина волны (в единицах $d$) у валов при
+   свободных границах?
+3. Какая разность температур нужна, чтобы началась конвекция в слое
+   воздуха толщиной 1 см при комнатной температуре ($\alpha = 1/T$,
+   $\nu = 0{,}15$ см²/с, $\kappa = 0{,}21$ см²/с, твёрдые границы)?
+4. Для брюсселятора с $A = 2$ найдите порог Хопфа и минимальное
+   отношение $D_y/D_x$, при котором неустойчивость Тьюринга наступает
+   раньше Хопфа.
+5. Покажите, что в модели Лоренца объём фазового пространства
+   сжимается с постоянной скоростью. Какой?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $x = 0$ и $x^2 = (1 \pm \sqrt{1 + 4\mu})/2$. Ненулевые ветви существуют
+   при $\mu > -1/4$; при $-1/4 < \mu < 0$ одновременно устойчивы $x = 0$ и
+   большие $x^2 = (1 + \sqrt{1 + 4\mu})/2$ — гистерезис: при росте $\mu$
+   скачок при $\mu = 0$, при уменьшении — срыв при $\mu = -1/4$.
+2. $\dd{\rm Ra}/\dd(k^2) = 0$ при $2k^2 = \pi^2$; длина волны
+   $2\pi/k_c = 2\sqrt2\,d \approx 2{,}83\,d$.
+3. $\Delta T_c = {\rm Ra}_c\nu\kappa T/(gd^3) \approx 16$ К при $T = 293$ К — в сто с лишним
+   раз больше, чем для воды: у воздуха велики $\nu$ и $\kappa$. Поэтому
+   тонкие воздушные прослойки (двойные окна) — хорошие теплоизоляторы.
+4. $B_H = 1 + A^2 = 5$; условие $B_T < B_H$:
+   $(1 + 2\sqrt{D_x/D_y})^2 < 5$, т. е. $D_y/D_x > 4/(\sqrt5 - 1)^2 = 2{,}62$.
+5. ${\rm div}\,\mathbf F = -\sigma - 1 - b$; объём убывает как
+   $e^{-(\sigma + 1 + b)t}$ — при $\sigma = 10$, $b = 8/3$ это
+   $e^{-13{,}67t}$.
+:::
+
+## Литература
+
+- Bénard H. Les tourbillons cellulaires dans une nappe liquide.
+  *Rev. Gén. Sci. Pures Appl.* **11**, 1261 (1900).
+- Rayleigh, Lord. On convection currents in a horizontal layer of
+  fluid, when the higher temperature is on the under side. *Phil. Mag.*
+  **32**, 529 (1916).
+- Pellew A., Southwell R. V. On maintained convective motion in a
+  fluid heated from below. *Proc. R. Soc. A* **176**, 312 (1940).
+- Turing A. M. The chemical basis of morphogenesis. *Phil. Trans. R.
+  Soc. B* **237**, 37 (1952).
+- Pearson J. R. A. On convection cells induced by surface tension.
+  *J. Fluid Mech.* **4**, 489 (1958).
+- Chandrasekhar S. *Hydrodynamic and Hydromagnetic Stability.* —
+  Oxford: Clarendon Press, 1961.
+- Lorenz E. N. Deterministic nonperiodic flow. *J. Atmos. Sci.*
+  **20**, 130 (1963).
+- Prigogine I., Lefever R. Symmetry breaking instabilities in
+  dissipative systems. II. *J. Chem. Phys.* **48**, 1695 (1968).
+- Zaikin A. N., Zhabotinsky A. M. Concentration wave propagation in
+  two-dimensional liquid-phase self-oscillating system. *Nature*
+  **225**, 535 (1970).
+- Glansdorff P., Prigogine I. *Thermodynamic Theory of Structure,
+  Stability and Fluctuations.* — London: Wiley, 1971.
+- Nicolis G., Prigogine I. *Self-Organization in Nonequilibrium
+  Systems.* — New York: Wiley, 1977.
+- Castets V., Dulos E., Boissonade J., De Kepper P. Experimental
+  evidence of a sustained standing Turing-type nonequilibrium chemical
+  pattern. *Phys. Rev. Lett.* **64**, 2953 (1990).
+- Ouyang Q., Swinney H. L. Transition from a uniform state to
+  hexagonal and striped Turing patterns. *Nature* **352**, 610 (1991).
+- Cross M. C., Hohenberg P. C. Pattern formation outside of
+  equilibrium. *Rev. Mod. Phys.* **65**, 851 (1993).
+- Strogatz S. H. *Nonlinear Dynamics and Chaos.* — Reading, MA:
+  Addison-Wesley, 1994.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert sp.simplify(Ra_c_free - 27 * sp.pi**4 / 4) == 0 and near(float(Ra_c_free), 657.5, 1)
+assert sp.simplify(k_free**2 - sp.pi**2 / 2) == 0
+assert near(Ra_c_rigid, 1708, 0) and near(k_c_rigid, 3.12, 2) and near(2 * math.pi / k_c_rigid, 2, 0)
+assert near(critical_dT(1.0), 0.12, 2) and critical_dT(100.0) < 1e-6 and near(math.log10(critical_dT(100.0)), -7, 0)
+assert sp.simplify(r_hopf - sig * (sig + b + 3) / (sig - b - 1)) == 0
+assert near(float(r_hopf.subs({sig: 10, b: sp.Rational(8, 3)})), 24.74, 2)
+assert B_hopf == 1 + A**2
+assert abs(slope_amp - 0.5) < 0.05
+assert near(B_T_val, 6.71, 2) and near(B_H_val, 21.25, 2)
+assert abs(k_dom / k_c_val - 1) < 0.15 and pattern.max() - pattern.min() > 1 and pattern_below.max() - pattern_below.min() < 1e-2
+# упражнение 1: субкритическая вилка
+mu1 = sp.Symbol("mu")
+xr = sp.Symbol("x")
+F1 = mu1 * xr + xr**3 - xr**5
+s_ = sp.Symbol("s")                                                # s = x²
+roots_sq = sp.solve(mu1 + s_ - s_**2, s_)
+assert {sp.simplify(rt) for rt in roots_sq} == {sp.simplify((1 + sp.sqrt(1 + 4 * mu1)) / 2), sp.simplify((1 - sp.sqrt(1 + 4 * mu1)) / 2)}
+mu_test = -0.1
+s_big = (1 + math.sqrt(1 + 4 * mu_test)) / 2
+dF = lambda xv, m: m + 3 * xv**2 - 5 * xv**4
+assert dF(0, mu_test) < 0 and dF(math.sqrt(s_big), mu_test) < 0                 # бистабильность
+# упражнение 3: воздух
+dT_air = Ra_c_rigid * 0.15 * 0.21 * 293 / (g * 1.0)
+assert near(dT_air, 16, 0) and dT_air / critical_dT(1.0) > 100
+# упражнение 4
+ratio_min = 4 / (math.sqrt(5) - 1)**2
+assert near(ratio_min, 2.62, 2)
+assert float(B_turing.subs({A: 2, Dx: 1, Dy: ratio_min * 1.01})) < 5 < float(B_turing.subs({A: 2, Dx: 1, Dy: ratio_min * 0.99}))
+# упражнение 5
+assert sp.simplify(sum(sp.diff(F_lor[i], v) for i, v in enumerate((X, Y, Z))) + sig + 1 + b) == 0
+assert near(10 + 1 + 8 / 3, 13.67, 2)
+```
