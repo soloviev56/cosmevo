@@ -148,3 +148,24 @@ def mass_function(M, z=0.0, kind="ps", delta_c=DELTA_C):
     dlns = (np.log(sigma_M(M * (1 + eps), z)) - np.log(sigma_M(M * (1 - eps), z))) / (2 * eps)
     nu = delta_c / s
     return RHO_M / M * multiplicity(nu, kind) * np.abs(dlns)
+
+
+def delta_vir_crit(z):
+    """Вириальный контраст относительно критической плотности при z (Брайан, Норман, 1998)."""
+    x = Planck18.Om(z) - 1
+    return 18 * math.pi**2 + 82 * x - 39 * x**2
+
+
+def halo_virial(M_sun, z, mu=0.59):
+    """Вириальные радиус (кпк), круговая скорость (км/с) и температура (К) гало.
+
+    M_sun — масса в M☉ (без h); mu — средняя масса частицы газа в m_p
+    (0,59 — ионизованный, 1,22 — нейтральный первичный газ).
+    """
+    import astropy.constants as const
+    M_g = M_sun * const.M_sun.cgs.value
+    rho_c = Planck18.critical_density(z).cgs.value
+    r = (3 * M_g / (4 * math.pi * delta_vir_crit(z) * rho_c))**(1 / 3)
+    V = math.sqrt(const.G.cgs.value * M_g / r)
+    T = mu * const.m_p.cgs.value * V**2 / (2 * const.k_B.cgs.value)
+    return r / const.kpc.cgs.value, V / 1e5, T

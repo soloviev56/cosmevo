@@ -37,3 +37,15 @@ def test_multiplicity_normalisation():
     for kind in ("ps", "st"):
         total = quad(lambda nu: st.multiplicity(nu, kind) / nu, 0, np.inf, limit=200)[0]
         assert abs(total - 1) < 2e-3, kind
+
+
+def test_halo_virial():
+    # в эпоху вещества (z ≈ 30, излучение ещё мало) Δ_c ≈ 18π²
+    assert abs(st.delta_vir_crit(30.0) / (18 * math.pi**2) - 1) < 1e-2
+    r, V, T = st.halo_virial(1e12, 0.0)
+    # V² = GM/r и T ∝ μ V²
+    assert abs(V**2 / (4.30091e-6 * 1e12 / r) - 1) < 1e-3     # G в кпк·(км/с)²/M☉
+    assert abs(st.halo_virial(1e12, 0.0, mu=1.22)[2] / T - 1.22 / 0.59) < 1e-12
+    # при той же массе раннее гало плотнее и горячее, T ∝ M^{2/3}
+    assert st.halo_virial(1e12, 3.0)[2] > T
+    assert abs(st.halo_virial(8e12, 0.0)[2] / T - 4) < 1e-9
