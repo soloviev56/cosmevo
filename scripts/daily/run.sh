@@ -18,6 +18,19 @@ if ! flock -n 9; then
     exit 0
 fi
 
+# Не тратить остаток недели, нужный для дневной работы: при загрузке недели
+# 85 % и больше порция пропускается (замер — tools/claude-limits; если замер
+# не удался, порция идёт как обычно).
+WEEK_LIMIT=85
+set +e
+check="$(python3 -I "$HOME/work/claude_prjs/tools/claude-limits/claude_limits.py" check "$WEEK_LIMIT" 2>&1)"
+check_status=$?
+set -e
+if [ "$check_status" -eq 3 ]; then
+    echo "$(date -Is) пропуск: лимит недели — $check" >> "$LOG_DIR/daily.log"
+    exit 0
+fi
+
 LOG="$LOG_DIR/$(date +%F_%H%M).log"
 cd "$REPO"
 echo "$(date -Is) старт, лог $LOG" >> "$LOG_DIR/daily.log"
