@@ -61,3 +61,21 @@ def test_bbn_standard_yields():
     assert 2.2e-5 < f["D/H"] < 2.8e-5
     assert 0.8e-5 < f["He3/H"] < 1.3e-5
     assert 3e-10 < f["Li7/H"] < 7e-10
+
+
+def test_reaclib_helium_burning():
+    """Выборка гелиевого горения: четыре прямые реакции; 3α из REACLIB
+    совпадает с резонансной формулой через состояние Хойла с точностью ~10 %."""
+    from cosmevo.reaclib import REACLIB_HE
+    rates = load_reaclib(REACLIB_HE)
+    assert set(rates) == {(("he4",) * 3, ("c12",)), (("he4", "c12"), ("o16",)),
+                          (("he4", "o16"), ("ne20",)), (("he4", "ne20"), ("mg24",))}
+    assert not any(r.reverse for r in rates.values())
+    # резонансная формула: N_A²⟨ααα⟩ = 3!·3^{3/2}(2πħ²/(m_α kT))³ (Γ_rad/ħ) N_A² e^{−E_R/kT}
+    hbarc, k, hbar_eVs, N_A = 197.3269804e-13, 8.617333262e-11, 6.582119569e-16, 6.02214076e23
+    m_alpha, E_R, G_rad = 3727.379, 0.3794, 3.8e-3
+    for T9 in (0.1, 0.2, 0.3):
+        kT = k * T9 * 1e9
+        lam = 6 * 3**1.5 * (2 * math.pi * hbarc**2 / (m_alpha * kT)) ** 3 * (G_rad / hbar_eVs) * N_A**2 \
+            * math.exp(-E_R / kT)
+        assert abs(lam / rates[(("he4",) * 3, ("c12",))](T9) - 1) < 0.1

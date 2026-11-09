@@ -13,7 +13,9 @@ N_A⟨σv⟩ в см³·моль⁻¹·с⁻¹, с тремя — N_A²⟨σv⟩
 
 Источник: Cyburt R. H. et al., Astrophys. J. Suppl. 189, 240 (2010).
 Файл `data/reaclib_bbn.txt` — выборка для лёгких ядер (скрипт
-`scripts/data/make_reaclib_bbn.py`).
+`scripts/data/make_reaclib_bbn.py`), `data/reaclib_he.txt` — α-захваты
+гелиевого горения 3α → ¹²C → ¹⁶O → ²⁰Ne → ²⁴Mg (скрипт
+`scripts/data/make_reaclib_he.py`).
 """
 
 from collections import Counter
@@ -25,6 +27,7 @@ import numpy as np
 from cosmevo import DATA_DIR
 
 REACLIB_BBN = DATA_DIR / "reaclib_bbn.txt"
+REACLIB_HE = DATA_DIR / "reaclib_he.txt"
 
 # Глава REACLIB → число участников слева (остальные ядра в строке — продукты)
 N_REACTANTS = {1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 2, 8: 3, 9: 3, 10: 4, 11: 1}
