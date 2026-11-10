@@ -371,7 +371,7 @@ def mean_nearest(N_civ):
 
 for N_civ in (1e2, 1e4, 1e6):
     d = mean_nearest(N_civ)
-    flag = "  (больше толщины диска — 3D-формула неприменима)" if d > h_disk / 2 else ""
+    flag = "  (больше полутолщины диска — 3D-формула неприменима)" if d > h_disk / 2 else ""
     print(f"N = {N_civ:.0e}: ⟨d⟩ = {d:.0f} пк{flag}")
 ```
 
