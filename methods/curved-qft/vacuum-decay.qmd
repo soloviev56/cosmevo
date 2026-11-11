@@ -1,0 +1,537 @@
+---
+title: "Распад ложного вакуума"
+topic: vacuum-decay
+order: 3
+description: "Туннелирование в теории поля по Коулмену: евклидово действие, O(4)-симметричный баунс и скорость распада Γ/V = A e^(−B); численный баунс методом стрельбы для модели с двумя минимумами и проверка тождества Деррика B = T/2; приближение тонкой стенки R = 3σ/ε, B = 27π²σ⁴/2ε³ (SymPy) и его точность; масштабирование B ∝ 1/λ; расширение пузыря со скоростью, стремящейся к c; гравитационные поправки Коулмена–де Люччия из формулы Парка (вывод и проверка): ослабление распада в AdS и его запрет при R₀ ≥ 2Λ, усиление из де Ситтера; переход Хокинга–Мосса; 4-объём нашего прошлого светового конуса в Planck18 (0,125 H₀⁻⁴) и требование B ≳ 400"
+---
+
+Если у потенциала поля есть два минимума разной глубины, состояние в
+верхнем из них — **ложный вакуум** — устойчиво в классической теории,
+но квантово метастабильно: поле может протуннелировать в истинный
+вакуум. В квантовой механике частицы скорость туннелирования даёт ВКБ;
+в теории поля туннелирует бесконечное число степеней свободы сразу, и
+распад идёт через рождение **пузыря** истинного вакуума, который затем
+расширяется. Теорию построили Волошин, Кобзарев и Окунь (1974) и
+Коулмен (1977; квантовые поправки — Каллан и Коулмен, 1977), учёт
+гравитации — Коулмен и де Люччия (1980).
+
+В пособии этот аппарат нужен трижды: для вопроса о метастабильности
+электрослабого вакуума Стандартной модели (тема «Метастабильность
+электрослабого вакуума»), для ландшафта вакуумов и меры в
+мультивселенной (тема «Мультивселенная и проблема меры») и как
+сценарий конца Вселенной (тема «Эпохи далёкого будущего»).
+
+Единицы натуральные, $\hbar = c = 1$; приведённая планковская масса
+$\Mpr = (8\pi G)^{-1/2}$, $\kappa \equiv 8\pi G = \Mpr^{-2}$. Лагранжиан
+скалярного поля $\mathcal L = \tfrac12\partial_\mu\phi\,\partial^\mu\phi -
+V(\phi)$ в сигнатуре $(+,-,-,-)$.
+
+## Евклидово действие и баунс
+
+Начнём с частицы единичной массы в потенциале $V(x)$ с метастабильным
+минимумом $x_f$, $V(x_f) = 0$. В ВКБ вероятность прохождения барьера при
+нулевой энергии $\propto e^{-B}$, где
+$B = 2\int\sqrt{2V}\,\dd x$ по области под барьером. Этот же интеграл —
+евклидово действие $S_E = \int\dd\tau\,[\tfrac12\dot x^2 + V(x)]$
+траектории, которая в обращённом потенциале $-V$ выходит из $x_f$ при
+$\tau \to -\infty$, доходит до точки поворота и возвращается: на ней
+$\tfrac12\dot x^2 = V$, так что $S_E = \int\dot x^2\dd\tau = 2\int\sqrt{2V}\,\dd x$.
+Такая траектория называется **баунсом** (bounce).
+
+В теории поля так же. Евклидово действие
+$$
+S_E[\phi] = \int\dd^4x_E\left[\tfrac12(\partial\phi)^2 + V(\phi)\right],
+$$
+ложный вакуум $\phi_f$, истинный $\phi_t$, $V(\phi_f) - V(\phi_t) =
+\varepsilon > 0$.
+
+::: {#def-bounce}
+**Баунс** $\phi_b(x_E)$ — нетривиальное решение евклидовых уравнений
+движения $\partial^2\phi = V'(\phi)$, стремящееся к $\phi_f$ на
+бесконечности. **Показатель распада** —
+$B = S_E[\phi_b] - S_E[\phi_f]$. Вероятность распада на единицу объёма и
+времени
+$$
+\frac{\Gamma}{V} = A\,e^{-B}\,\bigl[1 + O(\hbar)\bigr],
+$$
+где **префактор** $A$ размерности (масса)⁴ определяется отношением
+функциональных детерминантов флуктуаций вокруг баунса и вокруг
+$\phi_f$ (Каллан, Коулмен, 1977).
+:::
+
+Коулмен, Глейзер и Мартен (1978) доказали, что баунс с наименьшим
+действием $O(4)$-симметричен [У]{.status}: $\phi = \phi(\rho)$,
+$\rho = \sqrt{\tau^2 + \mathbf x^2}$, и
+$$
+\phi'' + \frac{3}{\rho}\,\phi' = V'(\phi), \qquad
+\phi'(0) = 0, \quad \phi(\infty) = \phi_f .
+$$
+Это движение частицы в потенциале $-V$ с «трением» $3\phi'/\rho$,
+убывающим со «временем» $\rho$. Частица стартует при $\rho = 0$ из
+некоторой точки $\phi_0$ на склоне со стороны истинного вакуума и
+должна в точности остановиться на вершине $-V(\phi_f)$. Стартуя слишком
+близко к $\phi_t$, она проскакивает (overshoot); слишком далеко —
+не дотягивает (undershoot). Непрерывность даёт решение между ними —
+это и есть метод стрельбы.
+
+**Тождество Деррика.** Подставим $\phi_b(x/\mu)$: кинетический член
+$T = 2\pi^2\!\int\rho^3\tfrac12\phi'^2\dd\rho$ масштабируется как
+$\mu^2$, потенциальный $U = 2\pi^2\!\int\rho^3[V - V(\phi_f)]\dd\rho$ —
+как $\mu^4$. Стационарность при $\mu = 1$ даёт $2T + 4U = 0$, откуда
+$$
+B = T + U = \tfrac12 T = \frac{\pi^2}{2}\int_0^\infty\rho^3\phi'^2\,\dd\rho .
+$$
+Это удобная проверка численного решения.
+
+## Численный баунс
+
+Модель — несимметричный потенциал с двумя минимумами (Коулмен, 1977):
+$$
+V(\phi) = \frac{\lambda}{8}\left(\phi^2 - a^2\right)^2 + \frac{\varepsilon}{2a}(\phi - a).
+$$
+При малом $\varepsilon$ ложный вакуум у $\phi \approx a$, истинный — у
+$\phi \approx -a$, разность энергий $\approx\varepsilon$. Подстановка
+$\phi = a\tilde\phi$, $x = \tilde x/(\sqrt\lambda a)$ показывает, что
+$$
+B = \frac{1}{\lambda}\,f\!\left(\frac{\varepsilon}{\lambda a^4}\right),
+$$
+— квазиклассика работает при слабой связи. Поэтому ниже
+$\lambda = a = 1$, а $\varepsilon$ меняется от 0,3 (почти исчезающий
+барьер: ложный минимум пропадает при $\varepsilon = 2/(3\sqrt3) = 0{,}385$)
+до 0,02.
+
+Вблизи $\phi_t$ уравнение линейно: $\phi - \phi_t \propto
+I_1(m\rho)/(m\rho)$, $m^2 = V''(\phi_t)$. В режиме тонкой стенки старт
+экспоненциально близок к $\phi_t$ ($\delta \sim e^{-mR}$), поэтому
+стреляем по $\ln\delta$ и начинаем интегрирование с линейного решения
+там, где отклонение достигает $10^{-4}$.
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import solve_ivp, trapezoid
+from scipy.optimize import brentq
+from scipy.special import ive
+
+LAM, A_VEV = 1.0, 1.0                 # λ и a модели; B ∝ 1/λ
+
+def V(phi, eps):
+    return LAM / 8 * (phi**2 - A_VEV**2) ** 2 + eps / (2 * A_VEV) * (phi - A_VEV)
+
+def dV(phi, eps):
+    return LAM / 2 * phi * (phi**2 - A_VEV**2) + eps / (2 * A_VEV)
+
+def d2V(phi, eps):
+    return LAM / 2 * (3 * phi**2 - A_VEV**2)
+
+def vacua(eps):
+    """Истинный и ложный минимумы (корни V' по разные стороны от спинодалей ±a/√3)."""
+    s = A_VEV / math.sqrt(3)
+    return brentq(dV, -2 * A_VEV, -s, args=(eps,)), brentq(dV, s, 2 * A_VEV, args=(eps,))
+
+def shoot(log_delta, eps, dense=False):
+    """Интегрировать φ'' + 3φ'/ρ = V'(φ) от линейного решения φ_t + δ·2I₁(mρ)/(mρ).
+    Возвращает +1 при проскоке за φ_f, −1 при развороте, и решение."""
+    phi_t, phi_f = vacua(eps)
+    m = math.sqrt(d2V(phi_t, eps))
+    log_f = lambda x: math.log(2 * ive(1, x) / x) + x            # ln[2I₁(x)/x]
+    x0 = 1e-3
+    if log_delta + log_f(x0) < math.log(1e-4):
+        x0 = brentq(lambda x: log_delta + log_f(x) - math.log(1e-4), 1e-3, 1e4)
+    y0 = [phi_t + math.exp(log_delta + log_f(x0)),
+          math.exp(log_delta + x0) * 2 * ive(2, x0) / x0 * m]     # (2I₁(x)/x)' = 2I₂(x)/x
+    over = lambda r, y: y[0] - phi_f
+    over.terminal, over.direction = True, 1
+    turn = lambda r, y: y[1]
+    turn.terminal, turn.direction = True, -1
+    sol = solve_ivp(lambda r, y: [y[1], dV(y[0], eps) - 3 * y[1] / r], [x0 / m, x0 / m + 500], y0,
+                    events=[over, turn], rtol=1e-9, atol=1e-11, dense_output=dense)
+    return (1 if sol.t_events[0].size else -1), sol
+
+def bounce(eps):
+    """Баунс методом стрельбы по ln δ. Возвращает словарь: профиль, B по Деррику и по полному действию, радиус стенки."""
+    lo, hi = -150.0, 0.0                       # при малом δ — проскок, при большом — разворот
+    while hi - lo > 1e-10 * abs(lo):
+        mid = 0.5 * (lo + hi)
+        if shoot(mid, eps)[0] > 0:
+            lo = mid
+        else:
+            hi = mid
+    _, sol = shoot(lo, eps, dense=True)
+    phi_t, phi_f = vacua(eps)
+    r = np.linspace(sol.t[0], sol.t[-1], 40000)
+    phi, dphi = sol.sol(r)
+    R_wall = r[np.argmax(dphi)]
+    # обрезаем там, где траектория ближе всего к вершине −V(φ_f), до ухода с неё
+    window = r < R_wall + 0.5 * (sol.t[-1] - R_wall)
+    cut = np.argmin(np.abs(phi[window] - phi_f) + np.abs(dphi[window]))
+    r, phi, dphi = r[:cut], phi[:cut], dphi[:cut]
+    B_derrick = math.pi**2 / 2 * trapezoid(r**3 * dphi**2, r)
+    B_full = 2 * math.pi**2 * trapezoid(r**3 * (0.5 * dphi**2 + V(phi, eps) - V(phi_f, eps)), r)
+    B_full += math.pi**2 / 2 * r[0] ** 4 * (V(phi_t, eps) - V(phi_f, eps))   # шар ρ < ρ_старт, где φ ≈ φ_t
+    return dict(r=r, phi=phi, B=B_derrick, B_full=B_full, R=R_wall)
+
+SIGMA = 2 * math.sqrt(LAM) * A_VEV**3 / 3     # натяжение стенки (вычислено ниже)
+EPS_LIST = [0.3, 0.2, 0.1, 0.05, 0.02]
+bounces = {eps: bounce(eps) for eps in EPS_LIST}
+print(" ε     B (Деррик)   B (полное)   B/B_тс   R/R_тс")
+for eps, b in bounces.items():
+    B_tw, R_tw = 27 * math.pi**2 * SIGMA**4 / (2 * eps**3), 3 * SIGMA / eps
+    print(f"{eps:4.2f}  {b['B']:11.4g}  {b['B_full']:11.4g}   {b['B'] / B_tw:.3f}   {b['R'] / R_tw:.3f}")
+```
+
+Обе формулы для $B$ — через кинетический член и через полное действие
+— совпадают, как требует тождество Деррика. При малом $\varepsilon$
+показатель огромен ($3\cdot10^6$ при $\varepsilon = 0{,}02$, т. е. при
+$\varepsilon/\lambda a^4 = 0{,}02$), а радиус пузыря много больше
+толщины стенки $\sim 1/m$ (@fig-bounce, слева).
+
+## Приближение тонкой стенки
+
+Если $\varepsilon$ мало, пузырь — шар радиуса $R$ с истинным вакуумом
+внутри и тонкой стенкой. Действие стенки — площадь трёхмерной сферы
+$2\pi^2R^3$, умноженная на **натяжение**
+$$
+\sigma = \int\dd\rho\left[\tfrac12\phi'^2 + V_0(\phi)\right] = \int_{\phi_t}^{\phi_f}\sqrt{2V_0(\phi)}\,\dd\phi ,
+$$
+где $V_0$ — симметричная часть потенциала (в стенке трение $3\phi'/\rho$ и
+$\varepsilon$ пренебрежимы, и сохраняется «энергия» $\tfrac12\phi'^2 = V_0$).
+Внутренность даёт $-\varepsilon$ на единицу 4-объёма шара $\pi^2R^4/2$:
+$$
+B(R) = -\frac{\pi^2}{2}R^4\varepsilon + 2\pi^2R^3\sigma .
+$$
+
+```{python}
+phi_s, R_s, eps_s, sig_s, lam_s, a_s = sp.symbols("phi R epsilon sigma lambda a", positive=True)
+# натяжение стенки симметричного потенциала λ(φ² − a²)²/8
+sigma_expr = sp.integrate(sp.sqrt(lam_s) / 2 * (a_s**2 - phi_s**2), (phi_s, -a_s, a_s))
+B_R = -sp.pi**2 / 2 * R_s**4 * eps_s + 2 * sp.pi**2 * R_s**3 * sig_s
+R_star = sp.solve(sp.diff(B_R, R_s), R_s)[0]
+B_star = sp.simplify(B_R.subs(R_s, R_star))
+assert sp.simplify(sigma_expr - 2 * sp.sqrt(lam_s) * a_s**3 / 3) == 0
+assert sp.simplify(R_star - 3 * sig_s / eps_s) == 0
+assert sp.simplify(B_star - 27 * sp.pi**2 * sig_s**4 / (2 * eps_s**3)) == 0
+print(f"σ = {sigma_expr},  R = {R_star},  B = {B_star}")
+```
+
+$$
+\sigma = \frac{2}{3}\sqrt\lambda\,a^3, \qquad R_0 = \frac{3\sigma}{\varepsilon}, \qquad
+B_0 = \frac{27\pi^2\sigma^4}{2\varepsilon^3} .
+$$
+Численный баунс сходится к этому пределу: при $\varepsilon = 0{,}1$
+отношение $B/B_0 = 0{,}94$, при $0{,}02$ — $0{,}998$; при $\varepsilon = 0{,}3$
+тонкая стенка завышает $B$ вдвое (@fig-bounce, в центре) [У]{.status}.
+
+**Что происходит после рождения.** Аналитическое продолжение
+$\tau \to it$ превращает сферу $\rho = R$ в гиперболоид
+$r^2 - t^2 = R^2$: стенка рождается в покое и ускоряется. То же из
+сохранения энергии (пузырь возникает из вакуума с нулевой энергией):
+$$
+-\frac{4\pi}{3}r^3\varepsilon + 4\pi r^2\sigma\gamma = 0
+\;\Rightarrow\; \gamma = \frac{r\varepsilon}{3\sigma} = \frac{r}{R_0},
+$$
+т. е. скорость стенки стремится к скорости света [У]{.status} (как
+следствие теории; в вакууме нет трения). Наблюдатель не может
+заметить приближающийся пузырь заранее.
+
+## Гравитация: Коулмен — де Люччия
+
+Если радиус пузыря сравним с радиусом кривизны пространства,
+задаваемым плотностью энергии вакуумов, нужна гравитация.
+Евклидова метрика с $O(4)$-симметрией: $\dd s^2 = \dd\xi^2 +
+r(\xi)^2\dd\Omega_3^2$. Вне стенки поле постоянно, и уравнение Эйнштейна
+сводится к
+$$
+r'^2 = 1 - \frac{\kappa V}{3}\,r^2 ,
+$$
+а действие после интегрирования по частям (с учётом этого
+уравнения) — к $S_E = 4\pi^2\!\int\dd\xi\,(r^3V - 3r/\kappa)$. В области
+постоянного $V$ подынтегральное выражение равно $-(3r/\kappa)\,r'^2$, и
+интеграл берётся: вклад шара радиуса $\bar r$
+$$
+\frac{12\pi^2}{\kappa^2V}\left[\left(1 - \frac{\kappa V\bar r^2}{3}\right)^{3/2} - 1\right].
+$$
+Полный показатель (Парк, 1983) — стенка плюс разность этих вкладов для
+истинного и ложного вакуумов:
+$$
+B(\bar r) = 2\pi^2\bar r^3\sigma + \frac{12\pi^2}{\kappa^2}\left\{
+\frac{1}{V_t}\left[\left(1 - \frac{\kappa V_t\bar r^2}{3}\right)^{3/2} - 1\right]
+- \frac{1}{V_f}\left[\left(1 - \frac{\kappa V_f\bar r^2}{3}\right)^{3/2} - 1\right]\right\}.
+$$
+Проверим, что при $\kappa \to 0$ получается тонкая стенка, и найдём
+экстремум для двух случаев Коулмена–де Люччии. Обозначим $\Lambda^2 =
+3/(\kappa\varepsilon)$ — радиус кривизны, задаваемый разностью энергий.
+
+```{python}
+r_s, kap_s, Vv = sp.symbols("rbar kappa V", positive=True)
+
+def ball(Vval):
+    """Евклидов вклад шара радиуса r̄ с постоянной плотностью энергии V (Парк, 1983)."""
+    if Vval == 0:
+        return sp.limit(ball(Vv), Vv, 0)
+    return 12 * sp.pi**2 / (kap_s**2 * Vval) * ((1 - kap_s * Vval * r_s**2 / 3) ** sp.Rational(3, 2) - 1)
+
+# 1) интеграл: 4π² ∫ dξ (r³V − 3r/κ) с dξ = dr/r', r' = √(1 − κVr²/3)
+rr = sp.symbols("r", positive=True)
+rp = sp.sqrt(1 - kap_s * Vv * rr**2 / 3)
+assert sp.simplify((rr**3 * Vv - 3 * rr / kap_s) + 3 * rr / kap_s * rp**2) == 0
+integral = 4 * sp.pi**2 * sp.integrate(-3 * rr / kap_s * rp, (rr, 0, r_s))
+assert sp.simplify(integral - ball(Vv)) == 0
+
+def B_cdl(V_true, V_false):
+    return 2 * sp.pi**2 * r_s**3 * sig_s + ball(V_true) - ball(V_false)
+
+# 2) предел κ → 0
+B_mink_ads = B_cdl(-eps_s, 0)
+assert sp.simplify(sp.series(B_mink_ads, kap_s, 0, 1).removeO() - B_R.subs(R_s, r_s)) == 0
+
+# 3) экстремум численно против формул Коулмена–де Люччии
+def cdl_factor(V_true, V_false, x):
+    """B/B₀ и R/R₀ при (R₀/2Λ)² = x для σ = 2/3, ε = 0,1."""
+    vals = {sig_s: sp.Rational(2, 3), eps_s: sp.Rational(1, 10)}
+    R0 = float(3 * vals[sig_s] / vals[eps_s])
+    B0 = float(27 * sp.pi**2 * vals[sig_s] ** 4 / (2 * vals[eps_s] ** 3))
+    kap_val = 12 * x / (R0**2 * float(vals[eps_s]))             # (R₀/2Λ)² = κεR₀²/12
+    B_num = B_cdl(V_true, V_false).subs(vals).subs(kap_s, kap_val)
+    dB = sp.lambdify(r_s, sp.diff(B_num, r_s))
+    R = brentq(dB, 0.3 * R0, 0.999 * math.sqrt(3 / (kap_val * float(vals[eps_s]))) if V_false != 0 else 100 * R0)
+    return float(B_num.subs(r_s, R)) / B0, R / R0
+
+for x in (0.05, 0.2, 0.5):
+    bm, rm = cdl_factor(-eps_s, 0, x)                # Минковский → AdS
+    bd, rd = cdl_factor(0, eps_s, x)                 # де Ситтер → Минковский
+    assert abs(bm * (1 - x) ** 2 - 1) < 1e-8 and abs(rm * (1 - x) - 1) < 1e-8
+    assert abs(bd * (1 + x) ** 2 - 1) < 1e-8 and abs(rd * (1 + x) - 1) < 1e-8
+    print(f"(R₀/2Λ)² = {x}: Минк.→AdS B/B₀ = {bm:.4f} = 1/(1−x)²;  дС→Минк. B/B₀ = {bd:.4f} = 1/(1+x)²")
+```
+
+Результат Коулмена и де Люччии (1980) с $x \equiv (R_0/2\Lambda)^2$:
+$$
+\text{Минковский}\to\text{AdS}: \;\; R = \frac{R_0}{1 - x},\;\; B = \frac{B_0}{(1-x)^2};
+\qquad
+\text{де Ситтер}\to\text{Минковский}: \;\; R = \frac{R_0}{1 + x},\;\; B = \frac{B_0}{(1+x)^2}
+$$
+[У]{.status} (в приближении тонкой стенки). Гравитация затрудняет распад
+в вакуум с отрицательной энергией, и при $R_0 \ge 2\Lambda$, т. е. при
+$\sigma \ge 2\Mpr\sqrt{\varepsilon/3}$, плоский ложный вакуум
+**устойчив**: пузырь не может родиться ни при каком радиусе. Распад из
+де Ситтера, наоборот, облегчается (@fig-bounce, справа).
+
+**Переход Хокинга–Мосса.** В де Ситтере с широким плоским барьером
+баунса может не быть; тогда доминирует однородное решение, сидящее на
+вершине барьера $V_{\rm top}$, с
+$B_{\rm HM} = 24\pi^2\Mpr^4\,(1/V_f - 1/V_{\rm top})$ (Хокинг, Мосс,
+1982) — разность энтропий горизонтов де Ситтера
+$S = 24\pi^2\Mpr^4/V$ (тема «Термодинамика горизонтов») [У]{.status}
+(как формула; её интерпретация как термической флуктуации внутри
+горизонта обсуждается [Г]{.status}).
+
+**Конечная температура.** В горячей плазме барьер можно перескочить
+термически: $\Gamma/V \sim T^4 e^{-S_3/T}$, где $S_3$ — действие
+трёхмерного $O(3)$-баунса (Линде, 1981, 1983) [У]{.status}. Так идут
+фазовые переходы первого рода в ранней Вселенной.
+
+## Скорость распада и возраст Вселенной
+
+Пузырь, родившийся где угодно в нашем прошлом световом конусе, к
+сегодняшнему дню дошёл бы до нас. Поэтому вероятность того, что мы
+всё ещё в ложном вакууме, $P = \exp(-\Gamma V_4/V)$, где $V_4$ —
+4-объём прошлого светового конуса:
+$$
+V_4 = \int_0^{t_0}\dd t\;a^3(t)\,\frac{4\pi}{3}\bigl[\eta_0 - \eta(t)\bigr]^3 .
+$$
+
+```{python}
+from astropy.cosmology import Planck18
+from cosmevo.units import natural
+
+ln_a = np.linspace(math.log(1e-8), 0.0, 20001)
+a_grid = np.exp(ln_a)
+E = Planck18.efunc(1 / a_grid - 1)
+eta = np.concatenate([[0.0], np.cumsum(0.5 * (1 / (a_grid[1:] * E[1:]) + 1 / (a_grid[:-1] * E[:-1])) * np.diff(ln_a))])
+V4 = trapezoid(a_grid**3 * 4 * math.pi / 3 * (eta[-1] - eta) ** 3 / E, ln_a)   # в единицах H₀⁻⁴
+H0_GeV = natural(Planck18.H0).value
+print(f"V₄ = {V4:.3f} H₀⁻⁴, H₀ = {H0_GeV:.3e} ГэВ")
+
+def B_min(A_GeV4, p_survive=0.5):
+    """Наименьший B, при котором вероятность дожить до сегодня в ложном вакууме ≥ p_survive."""
+    return math.log(A_GeV4 * V4 / H0_GeV**4 / -math.log(p_survive))
+
+for A_root in (1.0, 100.0, 1e3):
+    print(f"A = ({A_root:g} ГэВ)⁴: B > {B_min(A_root**4):.0f}")
+```
+
+$V_4 = 0{,}125\,H_0^{-4}$ в Planck18, $H_0 = 1{,}44\cdot10^{-42}$ ГэВ, и
+при $A \sim (100~\text{ГэВ})^4$ — естественном масштабе для
+электрослабого вакуума — дожить до сегодня с вероятностью больше
+половины можно лишь при $B \gtrsim 400$ [У]{.status} (как расчёт).
+Зависимость от $A$ логарифмическая: множитель 10 в $\sqrt[4]{A}$
+сдвигает границу на $4\ln 10 \approx 9$. Именно эта граница разделяет
+«стабильный», «метастабильный» и «нестабильный» вакуумы в теме
+«Метастабильность электрослабого вакуума».
+
+```{python}
+#| label: fig-bounce
+#| fig-cap: "Слева: профили баунса φ(ρ) модели λ(φ² − a²)²/8 + ε(φ − a)/2a (λ = a = 1) при трёх значениях ε; по оси абсцисс ρ в единицах радиуса тонкой стенки R₀ = 3σ/ε; точечные линии того же цвета — истинный φ_t и ложный φ_f вакуумы. При ε = 0,3 поле в центре пузыря заметно не доходит до φ_t (толстая стенка), при ε = 0,02 — тонкая стенка у ρ = R₀ с истинным вакуумом внутри. В центре: отношение численного показателя B к приближению тонкой стенки B₀ = 27π²σ⁴/2ε³ (точки; заполненные — B по тождеству Деррика, полые — по полному действию). Справа: гравитационный множитель B/B₀ по Коулмену–де Люччии; точки — численный экстремум формулы Парка; при R₀ → 2Λ распад плоского вакуума в AdS запрещён."
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 3.7))
+for eps, col in ((0.3, "tab:red"), (0.1, "tab:orange"), (0.02, "tab:blue")):
+    b = bounces[eps]
+    R_tw = 3 * SIGMA / eps
+    phi_t, phi_f = vacua(eps)
+    ax1.plot(np.concatenate([[0.0], b["r"] / R_tw, [2.0]]), np.concatenate([[b["phi"][0]], b["phi"], [phi_f]]),
+             color=col, label=f"ε = {eps}")
+    for level in (phi_t, phi_f):
+        ax1.axhline(level, color=col, lw=0.7, ls=":")
+ax1.set(xlabel="ρ / R₀", ylabel="φ / a", xlim=(0, 2), ylim=(-1.2, 1.1))
+ax1.legend(fontsize=8, loc="lower right")
+ax1.grid(alpha=0.2)
+
+eps_arr = np.array(EPS_LIST)
+B0_arr = 27 * math.pi**2 * SIGMA**4 / (2 * eps_arr**3)
+ax2.plot(eps_arr, [bounces[e]["B"] for e in EPS_LIST] / B0_arr, "o", color="tab:blue", label="B (Деррик)")
+ax2.plot(eps_arr, [bounces[e]["B_full"] for e in EPS_LIST] / B0_arr, "o", mfc="none", ms=9, color="tab:green", label="B (полное действие)")
+ax2.axhline(1, color="0.5", lw=0.8, ls="--")
+ax2.set(xlabel="ε / λa⁴", ylabel="B / B₀ (тонкая стенка)", xscale="log", ylim=(0, 1.1))
+ax2.set_xticks(EPS_LIST, [f"{e:g}".replace(".", ",") for e in EPS_LIST])
+ax2.minorticks_off()
+ax2.legend(fontsize=8, loc="lower left")
+ax2.grid(alpha=0.2)
+
+x = np.linspace(0, 0.9, 200)
+ax3.semilogy(x, 1 / (1 - x) ** 2, color="tab:red", label="Минковский → AdS")
+ax3.semilogy(x, 1 / (1 + x) ** 2, color="tab:blue", label="де Ситтер → Минковский")
+for xv in (0.05, 0.2, 0.5):
+    ax3.plot(xv, cdl_factor(-eps_s, 0, xv)[0], "o", color="tab:red", ms=4)
+    ax3.plot(xv, cdl_factor(0, eps_s, xv)[0], "o", color="tab:blue", ms=4)
+ax3.set(xlabel="(R₀ / 2Λ)²", ylabel="B / B₀")
+ax3.legend(fontsize=8, loc="upper left")
+ax3.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+## Физика и статус
+
+| Утверждение | Статус |
+|---|:-:|
+| Ложный вакуум распадается через рождение пузырей, $\Gamma/V = Ae^{-B}$ | [У]{.status} (теория; распад вакуума в космологии не наблюдался) |
+| Баунс с наименьшим действием $O(4)$-симметричен | [У]{.status} (теорема) |
+| Тонкая стенка: $B_0 = 27\pi^2\sigma^4/2\varepsilon^3$ | [У]{.status} |
+| Гравитационные поправки Коулмена–де Люччии | [У]{.status} (в полуклассике; вопросы о квантовой гравитации открыты) |
+| Интерпретация перехода Хокинга–Мосса | [Г]{.status} |
+| Наш вакуум — ложный | [Г]{.status} (тема «Метастабильность электрослабого вакуума») |
+
+Аналогом распада ложного вакуума служат фазовые переходы первого рода
+в конденсированных средах. Рождение пузырей «истинного вакуума» в
+ферромагнитной сверхтекучей жидкости холодных атомов наблюдалось
+напрямую (Дзенезини и др., 2024), но это аналог, а не космологический
+вакуум [У]{.status} (по данным на 2025 г.).
+
+## Итоги
+
+- Распад ложного вакуума: $\Gamma/V = Ae^{-B}$, $B$ — евклидово действие
+  $O(4)$-симметричного баунса $\phi'' + 3\phi'/\rho = V'$.
+- Тождество Деррика: $B = \tfrac{\pi^2}{2}\int\rho^3\phi'^2\dd\rho$;
+  масштабирование $B = f(\varepsilon/\lambda a^4)/\lambda$.
+- Тонкая стенка: $R_0 = 3\sigma/\varepsilon$, $B_0 = 27\pi^2\sigma^4/2\varepsilon^3$;
+  численно $B/B_0 = 0{,}94$ при $\varepsilon/\lambda a^4 = 0{,}1$.
+- Стенка рождается в покое и разгоняется до $\gamma = r/R_0$.
+- Гравитация: $B_0/(1 \mp x)^2$, $x = (R_0/2\Lambda)^2$; распад плоского
+  вакуума в AdS запрещён при $R_0 \ge 2\Lambda$.
+- Прошлый световой конус: $V_4 = 0{,}125\,H_0^{-4}$; выживание требует
+  $B \gtrsim 400$ при $A \sim (100~\text{ГэВ})^4$.
+
+## Упражнения
+
+1. Частица единичной массы в потенциале $V = x^2/2 - gx^3$
+   ($\hbar = 1$). Найдите показатель $B$ распада метастабильного
+   состояния у $x = 0$.
+2. Каков показатель распада модели статьи при $\lambda = 0{,}1$, $a = 1$,
+   $\varepsilon = 0{,}005$ в приближении тонкой стенки? Какое значение
+   даёт численный расчёт (используйте масштабирование)?
+3. Пузырь рождается с радиусом $R_0 = 3\sigma/\varepsilon$. На каком
+   радиусе его стенка движется с $\gamma = 100$? Какая доля энергии,
+   выделившейся в объёме, приходится на стенку?
+4. При каком $R_0/2\Lambda$ гравитация вдвое увеличивает $B$ при распаде
+   Минковский → AdS? Во сколько раз она уменьшает $B$ при том же $x$ для
+   де Ситтер → Минковский?
+5. Насколько должен вырасти $B$, чтобы ложный вакуум с
+   $A = (100~\text{ГэВ})^4$ имел вероятность дожить до сегодня 99 %
+   вместо 50 %?
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $B = 2\int_0^{1/2g}\sqrt{x^2 - 2gx^3}\,\dd x = \dfrac{2}{15g^2}$.
+2. $\varepsilon/\lambda a^4 = 0{,}05$, $B_0 = 2{,}1\cdot10^5/\lambda = 2{,}1\cdot10^6$;
+   численно $B/B_0 = 0{,}985$, $B = 2{,}07\cdot10^6$.
+3. $\gamma = r/R_0 \Rightarrow r = 100R_0$; энергия стенки
+   $4\pi r^2\sigma\gamma$ равна всей энергии $\tfrac{4\pi}{3}r^3\varepsilon$
+   — пузырь не нагревает внутренность, вся энергия уходит в
+   кинетическую энергию стенки.
+4. $(1 - x)^2 = 1/2 \Rightarrow x = 1 - 1/\sqrt2 = 0{,}293$,
+   $R_0/2\Lambda = 0{,}541$; для де Ситтера $B/B_0 = 1/(1{,}293)^2 = 0{,}60$.
+5. $P = e^{-\Gamma V_4}$: нужно $\Gamma V_4 \le -\ln 0{,}99 = 0{,}01005$
+   вместо $\ln 2$, т. е. $\Delta B = \ln(\ln 2/0{,}01005) = 4{,}2$
+   ($B > 406$ вместо 402).
+:::
+
+## Литература
+
+- Волошин М. Б., Кобзарев И. Ю., Окунь Л. Б. О пузырях в
+  метастабильном вакууме. *ЯФ* **20**, 1229 (1974) [*Sov. J. Nucl.
+  Phys.* **20**, 644 (1975)].
+- Coleman S. Fate of the false vacuum: semiclassical theory. *Phys.
+  Rev. D* **15**, 2929 (1977); Erratum: *Phys. Rev. D* **16**, 1248
+  (1977).
+- Callan C. G., Coleman S. Fate of the false vacuum. II. First quantum
+  corrections. *Phys. Rev. D* **16**, 1762 (1977).
+- Coleman S., Glaser V., Martin A. Action minima among solutions to a
+  class of Euclidean scalar field equations. *Commun. Math. Phys.*
+  **58**, 211 (1978).
+- Coleman S., De Luccia F. Gravitational effects on and of vacuum
+  decay. *Phys. Rev. D* **21**, 3305 (1980).
+- Linde A. D. Fate of the false vacuum at finite temperature: theory
+  and applications. *Phys. Lett. B* **100**, 37 (1981).
+- Hawking S. W., Moss I. G. Supercooled phase transitions in the very
+  early universe. *Phys. Lett. B* **110**, 35 (1982).
+- Parke S. Gravity and the decay of the false vacuum. *Phys. Lett. B*
+  **121**, 313 (1983).
+- Linde A. D. Decay of the false vacuum at finite temperature. *Nucl.
+  Phys. B* **216**, 421 (1983).
+- Coleman S. *Aspects of Symmetry*, гл. 7 «The uses of instantons». —
+  Cambridge: Cambridge University Press, 1985.
+- Zenesini A. et al. False vacuum decay via bubble formation in
+  ferromagnetic superfluids. *Nature Phys.* **20**, 558 (2024).
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+ratio = {e: bounces[e]["B"] / (27 * math.pi**2 * SIGMA**4 / (2 * e**3)) for e in EPS_LIST}
+assert all(abs(b["B"] / b["B_full"] - 1) < 2e-3 for b in bounces.values())      # тождество Деррика
+assert near(2 / (3 * math.sqrt(3)), 0.385, 3)
+assert near(bounces[0.02]["B"] / 1e6, 3, 0)
+assert near(ratio[0.1], 0.94, 2) and near(ratio[0.02], 0.998, 3) and near(1 / ratio[0.3], 2, 0)
+assert all(abs(bounces[e]["R"] / (3 * SIGMA / e) - 1) < 0.05 for e in (0.1, 0.05, 0.02))
+assert near(V4, 0.125, 3) and near(H0_GeV * 1e42, 1.44, 2)
+assert near(B_min(100.0**4), 400, -1) and near(B_min(100.0**4), 402, 0)
+assert near(B_min(1e3**4) - B_min(100.0**4), 9, 0) and near(4 * math.log(10), 9, 0)
+# упражнения
+g = sp.symbols("g", positive=True)
+xq = sp.symbols("x", positive=True)
+B_cubic = 2 * sp.integrate(xq * sp.sqrt(1 - 2 * g * xq), (xq, 0, 1 / (2 * g)))
+assert sp.simplify(B_cubic - sp.Rational(2, 15) / g**2) == 0
+B0_05 = 27 * math.pi**2 * SIGMA**4 / (2 * 0.05**3)
+assert near(B0_05 / 1e5, 2.1, 1) and near(B0_05 / 0.1 / 1e6, 2.1, 1)
+assert near(ratio[0.05], 0.985, 3) and near(bounces[0.05]["B"] / 0.1 / 1e6, 2.07, 2)
+xx = 1 - 1 / math.sqrt(2)
+assert near(xx, 0.293, 3) and near(math.sqrt(xx), 0.541, 3) and near(1 / (1 + xx) ** 2, 0.60, 2)
+assert near(-math.log(0.99), 0.01005, 5) and near(math.log(math.log(2) / -math.log(0.99)), 4.2, 1)
+assert near(B_min(100.0**4, 0.99), 406, 0)
+```
