@@ -1,0 +1,538 @@
+---
+title: "Квантовые флуктуации на инфляционной стадии"
+topic: inflation-perturbations
+order: 8
+description: "Квантование поля в пространстве де Ситтера: моды Банча–Дэвиса, выход за горизонт и замораживание, спектр (H/2π)²; массивное поле и наклон 3 − 2ν; переменная Муханова–Сасаки и сохраняющаяся кривизна ζ; P_ζ = H²/(8π²ε M_Pr²), P_t = 2H²/(π² M_Pr²), n_s − 1 = 2η − 6ε, r = 16ε, n_t = −r/8; численное решение уравнений мод для потенциалов m²φ² и Старобинского и проверка поправок второго порядка; сжатие и классичность; порог вечной инфляции; сравнение с Planck и BICEP/Keck"
+---
+
+Тема «Инфляция — проблемы и предсказания» использовала готовые
+формулы для амплитуды и наклона спектра первичных возмущений. Здесь
+мы их выводим: квантуем скалярное поле и метрику на фоне
+почти де-ситтеровского расширения, следим, как моды выходят за
+хаббловский радиус и «замерзают», и получаем спектры скалярных и
+тензорных возмущений. Затем решаем уравнения мод численно для двух
+потенциалов — без приближения медленного скатывания — и проверяем,
+насколько точны аналитические формулы.
+
+Статус темы — **гипотеза** [Г]{.status}: сам механизм (квантовые
+флуктуации, растянутые инфляцией) — лучшее из имеющихся объяснений
+наблюдаемого спектра, но прямо он не проверен; первичные гравитационные
+волны, его самое характерное предсказание, не найдены. Вычисления
+ниже — строгие следствия квантовой теории поля в искривлённом
+пространстве-времени [У]{.status} (в рамках модели).
+
+Единицы — $\hbar = c = 1$, $\Mpr = (8\pi G)^{-1/2}$; штрих —
+производная по конформному времени $\eta$ (в разделах с численным
+решением — по числу e-фолдов $N$, это оговорено).
+
+## Поле в пространстве де Ситтера
+
+Возьмём безмассовое поле $\delta\phi$ на фоне $a(\eta) = -1/(H\eta)$,
+$\eta \in (-\infty, 0)$. Фурье-компоненты $v_k = a\,\delta\phi_k$ подчиняются
+$$
+v_k'' + \Bigl(k^2 - \frac{a''}{a}\Bigr)v_k = 0,\qquad \frac{a''}{a} = \frac{2}{\eta^2},
+$$
+т. е. каждая мода — осциллятор с зависящей от времени частотой. При
+$k|\eta| \gg 1$ (длина волны много меньше хаббловского радиуса)
+частота $\approx k$, и пространство локально плоское.
+
+::: {#def-bunch-davies}
+**Вакуум Банча–Дэвиса** — состояние, в котором каждая мода при
+$k\eta \to -\infty$ совпадает с положительно-частотной модой вакуума
+Минковского, $v_k \to e^{-ik\eta}/\sqrt{2k}$. Нормировка фиксируется
+вронскианом $v_kv_k^{*\prime} - v_k^*v_k' = i$ (каноническая
+коммутация).
+:::
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import solve_ivp
+from scipy.optimize import brentq
+from scipy.special import hankel1
+
+eta, k, H = sp.symbols("eta k H", real=True)
+kp, Hp = sp.symbols("k H", positive=True)
+a_dS = -1 / (H * eta)
+print("a''/a =", sp.simplify(sp.diff(a_dS, eta, 2) / a_dS))
+
+v_BD = sp.exp(-sp.I * k * eta) / sp.sqrt(2 * k) * (1 - sp.I / (k * eta))
+mode_eq = sp.simplify(sp.diff(v_BD, eta, 2) + (k**2 - 2 / eta**2) * v_BD)
+wronskian = sp.simplify(v_BD * sp.diff(sp.conjugate(v_BD), eta) - sp.conjugate(v_BD) * sp.diff(v_BD, eta))
+print("уравнение моды:", mode_eq, ";  вронскиан:", wronskian.subs(k, kp))
+
+# спектр δφ = v/a вне горизонта
+dphi2 = sp.simplify((v_BD * sp.conjugate(v_BD) / a_dS**2).subs({k: kp, H: Hp}))
+P_dphi = sp.simplify(kp**3 / (2 * sp.pi**2) * sp.limit(dphi2, eta, 0))
+print("|δφ_k|² =", dphi2, ";  P_δφ(η → 0) =", P_dphi)
+```
+
+Мода Банча–Дэвиса
+$$
+v_k = \frac{e^{-ik\eta}}{\sqrt{2k}}\Bigl(1 - \frac{i}{k\eta}\Bigr),\qquad
+|\delta\phi_k|^2 = \frac{H^2}{2k^3}\bigl(1 + k^2\eta^2\bigr)
+$$
+внутри горизонта осциллирует с убывающей как $1/a$ амплитудой, а после
+выхода ($k|\eta| = k/(aH) < 1$) **замораживается**. Безразмерный спектр
+мощности $\mathcal P_{\delta\phi} = k^3|\delta\phi_k|^2/(2\pi^2) \to (H/2\pi)^2$ не
+зависит от $k$ [У]{.status} (в рамках модели): это масштабно-инвариантный
+спектр, и $H/2\pi$ — характерная амплитуда квантового «скачка» поля за
+хаббловское время.
+
+**Массивное поле.** При массе $m < 3H/2$ в уравнении появляется
+$a^2m^2$, и решение — функция Ганкеля:
+$v_k = \frac{\sqrt{\pi}}{2}e^{i\pi(\nu + 1/2)/2}\sqrt{-\eta}\,H^{(1)}_\nu(-k\eta)$,
+$\nu = \sqrt{9/4 - m^2/H^2}$. Вне горизонта $|v_k| \propto (-k\eta)^{1/2 - \nu}$, откуда
+$\mathcal P_{\delta\phi} \propto k^{3 - 2\nu}$, т. е. наклон $n - 1 = 3 - 2\nu \approx 2m^2/(3H^2)$:
+
+```{python}
+nu, x = sp.symbols("nu x", positive=True)
+eta_n = sp.symbols("eta", negative=True)
+m_s = sp.symbols("m", positive=True)
+# проверка: √(−η)·H_ν(−kη) решает v'' + (k² − (ν² − 1/4)/η²)v = 0, и (ν² − 1/4)/η² = a''/a − a²m²
+w = sp.sqrt(-eta_n) * sp.hankel1(nu, -kp * eta_n)
+res = sp.diff(w, eta_n, 2) + (kp**2 - (nu**2 - sp.Rational(1, 4)) / eta_n**2) * w
+print("остаток уравнения (численно, ν = 1,3, k = 1, η = −0,7):",
+      complex(res.subs({nu: 1.3, kp: 1, eta_n: -0.7}).evalf()))
+a_eta = -1 / (Hp * eta_n)
+nu_sq = sp.simplify(2 + sp.Rational(1, 4) - a_eta**2 * m_s**2 * eta_n**2)
+print("ν² =", nu_sq, ";  наклон 3 − 2ν ≈", sp.series(3 - 2 * sp.sqrt(nu_sq), m_s, 0, 3).removeO())
+
+def tilt_numeric(m_over_H, k1=1e-4, k2=2e-4, eta0=-1.0):
+    """Наклон d ln P/d ln k по точным функциям Ганкеля в момент eta0 (H = 1)."""
+    n_ = math.sqrt(2.25 - m_over_H**2)
+    P = lambda kk: kk**3 * abs(math.sqrt(math.pi) / 2 * math.sqrt(-eta0) * hankel1(n_, -kk * eta0))**2 / eta0**2
+    return math.log(P(k2) / P(k1)) / math.log(k2 / k1)
+
+for mh in (0.1, 0.3, 0.6):
+    print(f"m/H = {mh}: 3 − 2ν = {3 - 2 * math.sqrt(2.25 - mh**2):+.4f}, "
+          f"по модам вне горизонта {tilt_numeric(mh):+.4f}, 2m²/3H² = {2 * mh**2 / 3:.4f}")
+```
+
+Лёгкое поле даёт слабо «синий» спектр, тяжёлое ($m \gtrsim H$) —
+почти не возбуждается. Наклон наблюдаемого спектра, однако,
+определяется не массой поля, а тем, что $H$ и $\dot\phi$ медленно
+меняются во время инфляции.
+
+## Кривизна и переменная Муханова–Сасаки
+
+Флуктуация инфлатона не наблюдаема сама по себе: она смешивается с
+возмущениями метрики. Калибровочно-инвариантная величина —
+возмущение кривизны на сопутствующих гиперповерхностях $\zeta$; в
+калибровке $\delta\phi = 0$ оно стоит в пространственной метрике,
+$g_{ij} = -a^2e^{2\zeta}\delta_{ij}$ (только скалярная часть).
+
+::: {#def-mukhanov-sasaki}
+**Переменная Муханова–Сасаки** $v = z\zeta$, $z = a\dot\phi/H =
+a\sqrt{2\varepsilon}\,\Mpr$, где $\varepsilon = -\dot H/H^2$. Квадратичное действие для
+скалярных возмущений (Муханов, 1988; Сасаки, 1986) сводится к
+действию свободного поля с зависящей от времени массой:
+$$
+S^{(2)} = \frac12\int\dd\eta\,\dd^3x\,\Bigl[v'^2 - (\nabla v)^2 + \frac{z''}{z}v^2\Bigr],
+\qquad v_k'' + \Bigl(k^2 - \frac{z''}{z}\Bigr)v_k = 0 .
+$$
+:::
+
+Это то же уравнение, что для $a\,\delta\phi$, с заменой $a \to z$. Пока
+$\varepsilon$ почти постоянен, $z \propto a$ и $z''/z \approx 2/\eta^2$; вне горизонта
+решение $\zeta = v/z \to \mathrm{const}$ — **кривизна сохраняется** [У]{.status}
+(для адиабатических возмущений, что верно в однополевой инфляции).
+Поэтому её значение «на выходе» можно перенести через неизвестный
+нам разогрев прямо к эпохе, когда мода вернётся под горизонт.
+
+Подставляя $\zeta = H\delta\phi/\dot\phi$ на выходе ($k = aH$), получаем
+$$
+\mathcal P_\zeta = \frac{H^2}{8\pi^2\varepsilon\Mpr^2}\bigg|_{k = aH}
+= \frac{V}{24\pi^2\Mpr^4\varepsilon_V} .
+$$
+
+**Тензорные моды.** Каждая из двух поляризаций гравитационной волны
+$h_{ij}$ — безмассовое поле с нормировкой $\frac{\Mpr}{2}h$ (из действия
+Эйнштейна–Гильберта), поэтому $\mathcal P_t = 2\cdot(2/\Mpr)^2(H/2\pi)^2 =
+2H^2/(\pi^2\Mpr^2)$. Отношение
+$$
+r = \frac{\mathcal P_t}{\mathcal P_\zeta} = 16\varepsilon .
+$$
+
+**Наклоны.** Амплитуды берутся при $k = aH$, и
+$\dd\ln k = (1 - \varepsilon)\dd N$. Проверим SymPy, что отсюда в медленном
+скатывании ($H^2 = V/3\Mpr^2$, $\dd\phi/\dd N = -\Mpr^2V'/V$) следуют
+$n_s - 1 = 2\eta_V - 6\varepsilon_V$, $n_t = -2\varepsilon_V$ и, значит, **соотношение
+согласованности** $r = -8n_t$:
+
+```{python}
+phi = sp.symbols("phi", real=True)
+Vf = sp.Function("V")(phi)
+eps_V = sp.diff(Vf, phi)**2 / Vf**2 / 2                    # M_Pr = 1
+eta_V = sp.diff(Vf, phi, 2) / Vf
+P_zeta_SR = Vf / (24 * sp.pi**2 * eps_V)
+P_t_SR = 2 * Vf / (3 * sp.pi**2)                           # 2H²/π² при H² = V/3
+dphi_dN = -sp.diff(Vf, phi) / Vf                           # N растёт к концу инфляции
+# в ведущем порядке d ln k ≈ dN
+ns_minus_1 = sp.simplify(sp.diff(sp.log(P_zeta_SR), phi) * dphi_dN)
+n_t = sp.simplify(sp.diff(sp.log(P_t_SR), phi) * dphi_dN)
+print("n_s − 1 − (2η − 6ε) =", sp.simplify(ns_minus_1 - (2 * eta_V - 6 * eps_V)))
+print("n_t + 2ε =", sp.simplify(n_t + 2 * eps_V),
+      ";  r + 8 n_t =", sp.simplify(P_t_SR / P_zeta_SR + 8 * n_t))
+```
+
+## Численное решение без медленного скатывания
+
+Формулы выше — ведущий порядок по $\varepsilon$ и $\eta$. Проверим их, решив
+точные уравнения. Фон — в e-фолдах $N$ (здесь штрих — $\dd/\dd N$, $\Mpr = 1$):
+$$
+\phi'' = -(3 - \varepsilon)\Bigl(\phi' + \frac{V'}{V}\Bigr),\qquad
+\varepsilon = \frac{\phi'^2}{2},\qquad H^2 = \frac{V}{3 - \varepsilon} .
+$$
+Уравнение для $\zeta_k$ следует из действия $\int a^3\varepsilon[\dot\zeta^2 - (\nabla\zeta)^2/a^2]$:
+$$
+\zeta_k'' + (3 - \varepsilon + \varepsilon_2)\,\zeta_k' + \Bigl(\frac{k}{aH}\Bigr)^2\zeta_k = 0,
+\qquad \varepsilon_2 = \frac{\dd\ln\varepsilon}{\dd N},
+$$
+для тензорных мод — то же с $\varepsilon_2 = 0$. Начальные условия —
+Банча–Дэвиса при $k/(aH) = 200$, интегрируем до $k/(aH) = 10^{-3}$.
+
+```{python}
+SQ = math.sqrt(2 / 3)
+MODELS = {   # V(φ), V'(φ) с V₀ = 1 (амплитуда спектра ∝ V₀ и нормируется потом), начальное φ
+    "Старобинский": (lambda p: (1 - math.exp(-SQ * p))**2,
+                     lambda p: 2 * SQ * math.exp(-SQ * p) * (1 - math.exp(-SQ * p)), 6.0),
+    "m²φ²/2": (lambda p: 0.5 * p**2, lambda p: p, 17.0),
+}
+
+class Background:
+    """Однородное поле в e-фолдах N до ε = 1 (M_Pr = 1, V₀ = 1)."""
+
+    def __init__(self, name):
+        self.V, self.dV, phi0 = MODELS[name]
+        end = lambda N, y: y[1]**2 / 2 - 1
+        end.terminal = True
+        sol = solve_ivp(self._rhs, (0, 300), [phi0, -self.dV(phi0) / self.V(phi0)],
+                        events=end, dense_output=True, rtol=1e-11, atol=1e-13)
+        self.sol, self.N_end = sol.sol, sol.t_events[0][0]
+
+    def _rhs(self, N, y):
+        phi, p = y
+        return [p, -(3 - p**2 / 2) * (p + self.dV(phi) / self.V(phi))]
+
+    def at(self, N):
+        """ε, H, ε₂ = d ln ε/dN в момент N."""
+        phi, p = self.sol(N)
+        eps = p**2 / 2
+        dp = self._rhs(N, (phi, p))[1]
+        return eps, math.sqrt(self.V(phi) / (3 - eps)), 2 * dp / p
+
+def mode_power(bg, N_star, tensor=False, start=200.0, stop=1e-3):
+    """P_ζ (или P_t), ln k и решение для моды, вышедшей за горизонт за N_star e-фолдов до конца."""
+    N_k = bg.N_end - N_star
+    # нормировка a(N_k) = 1, т. е. a = e^{N − N_k} (P_ζ от неё не зависит, а числа
+    # остаются порядка единицы); k = aH на выходе; ln k в «абсолютной» нормировке a = e^N
+    k = bg.at(N_k)[1]
+    ln_k = N_k + math.log(k)
+    log_ratio = lambda N, target: math.log(k / (math.exp(N - N_k) * bg.at(N)[1]) / target)
+    N0 = brentq(log_ratio, N_k - 12, N_k, args=(start,))
+    N1 = brentq(log_ratio, N_k, N_k + 15, args=(stop,))
+    eps, Hh, e2 = bg.at(N0)
+    e2 = 0.0 if tensor else e2
+    z = math.exp(N0 - N_k) * (1.0 if tensor else math.sqrt(2 * eps))
+    zeta0 = 1 / (math.sqrt(2 * k) * z)                     # v = e^{−ikη}/√(2k), фаза не важна
+    dzeta0 = zeta0 * (-1j * k / (math.exp(N0 - N_k) * Hh) - 1 - e2 / 2)
+
+    def rhs(N, y):
+        eps, Hh, e2 = bg.at(N)
+        e2 = 0.0 if tensor else e2
+        return [y[1], -(3 - eps + e2) * y[1] - (k / (math.exp(N - N_k) * Hh))**2 * y[0]]
+
+    s = solve_ivp(rhs, (N0, N1), [complex(zeta0), complex(dzeta0)], method="DOP853",
+                  rtol=1e-9, atol=1e-30, dense_output=True)
+    P = k**3 * abs(s.y[0, -1])**2 / (2 * math.pi**2) * (8 if tensor else 1)
+    return P, ln_k, s
+
+C_SL = np.euler_gamma + math.log(2) - 2                    # константа Стюарта–Лайта
+backgrounds = {name: Background(name) for name in MODELS}
+results = {}
+for name, bg in backgrounds.items():
+    N_star = 55
+    P_s, k_s, _ = mode_power(bg, N_star)
+    P_t, _, _ = mode_power(bg, N_star, tensor=True)
+    eps1, Hk, eps2 = bg.at(bg.N_end - N_star)
+    P_s0, P_t0 = Hk**2 / (8 * math.pi**2 * eps1), 2 * Hk**2 / math.pi**2
+    P_s1 = P_s0 * (1 - 2 * (C_SL + 1) * eps1 - C_SL * eps2)   # второй порядок
+    P_t1 = P_t0 * (1 - 2 * (C_SL + 1) * eps1)
+    results[name] = dict(P_s=P_s, P_t=P_t, eps1=eps1, eps2=eps2, H=Hk, ratio0=P_s / P_s0,
+                         ratio1=P_s / P_s1, ratio_t0=P_t / P_t0, ratio_t1=P_t / P_t1)
+    print(f"{name}: N_end = {bg.N_end:.1f}; на N* = 55: ε = {eps1:.2e}, ε₂ = {eps2:.4f}")
+    print(f"   P_ζ(точно)/P_ζ(1-й порядок) = {P_s / P_s0:.4f},  /P_ζ(2-й порядок) = {P_s / P_s1:.5f}")
+    print(f"   P_t(точно)/P_t(1-й порядок) = {P_t / P_t0:.4f},  /P_t(2-й порядок) = {P_t / P_t1:.5f}")
+    print(f"   r = {P_t / P_s:.5f};  16ε = {16 * eps1:.5f}")
+```
+
+Ведущий порядок ошибается на 2,6 % (Старобинский) и 0,9 % ($m^2\phi^2$) в
+амплитуде; поправка второго порядка (Стюарт, Лайт, 1993; в форме
+параметров потока Хаббла — Шварц и др., 2001)
+$$
+\mathcal P_\zeta = \frac{H^2}{8\pi^2\varepsilon\Mpr^2}\bigl[1 - 2(C+1)\varepsilon - C\varepsilon_2\bigr],\qquad
+C = \gamma_E + \ln2 - 2 \approx -0{,}73,
+$$
+сводит расхождение к сотым долям процента. Отношение $r$ отличается
+от $16\varepsilon$ на 2,6 % (Старобинский) и 1,3 % ($m^2\phi^2$) — почти целиком из-за
+поправки к $\mathcal P_\zeta$: тензорный спектр и в первом порядке точен до 0,5 %.
+
+Теперь спектр как функция $k$ — для мод, вышедших за 45–65 e-фолдов до
+конца; наклон $n_s$ найдём по точным амплитудам:
+
+```{python}
+N_grid = np.arange(45, 66, 2.0)
+spectra = {}
+for name, bg in backgrounds.items():
+    rows = []
+    for Ns in N_grid:
+        P, lnk, _ = mode_power(bg, Ns)
+        eps1, Hk, _ = bg.at(bg.N_end - Ns)
+        rows.append((lnk, P, Hk**2 / (8 * math.pi**2 * eps1)))
+    spectra[name] = np.array(rows)
+
+def tilt(name, N_star, dN=0.5):
+    """n_s по точным амплитудам при N_star (центральная разность по ln k)."""
+    bg = backgrounds[name]
+    (P1, lnk1, _), (P2, lnk2, _) = mode_power(bg, N_star + dN), mode_power(bg, N_star - dN)
+    return 1 + math.log(P2 / P1) / (lnk2 - lnk1)
+
+def ns_slow_roll(name, N_star):
+    phi = backgrounds[name].sol(backgrounds[name].N_end - N_star)[0]
+    V, dV = MODELS[name][:2]
+    h = 1e-4
+    d2V = (dV(phi + h) - dV(phi - h)) / (2 * h)
+    return 1 + 2 * d2V / V(phi) - 3 * (dV(phi) / V(phi))**2
+
+for name in backgrounds:
+    print(f"{name}, N* = 55: n_s (точно) = {tilt(name, 55):.4f};  "
+          f"2η_V − 6ε_V = {ns_slow_roll(name, 55):.4f}")
+
+# нормировка на наблюдаемую амплитуду: V₀ = A_s / P_ζ(V₀ = 1)
+A_s = math.exp(3.044) * 1e-10                              # Planck 2018
+M_PR_GEV = 2.435e18
+for name, rec in results.items():
+    V0 = A_s / rec["P_s"]
+    rec["V0"] = V0
+    print(f"{name}: V₀ = {V0:.2e} M_Pr⁴, V₀^(1/4) = {V0**0.25 * M_PR_GEV:.1e} ГэВ;  "
+          f"H_* = {rec['H'] * math.sqrt(V0) * M_PR_GEV:.1e} ГэВ")
+m_exact = math.sqrt(results["m²φ²/2"]["V0"])             # V = V₀·φ²/2, т. е. m² = V₀
+print(f"m²φ²: m = {m_exact:.2e} M_Pr = {m_exact * M_PR_GEV:.1e} ГэВ")
+```
+
+```{python}
+#| label: fig-modes
+#| fig-cap: "Слева: эволюция моды ζ_k (модуль и модуль вещественной части, в единицах конечного значения) для потенциала Старобинского при N* = 55 как функция числа e-фолдов после выхода за горизонт; пока k > aH, мода осциллирует и её амплитуда убывает как 1/a, после выхода (вертикаль) — замораживается. Справа: спектр P_ζ(k), полученный численным решением уравнения моды для N* = 45–65 (точки), и формула первого порядка H²/(8π²ε) в момент k = aH (линии); обе нормированы на точное значение при N* = 55. Оба спектра красные (n_s < 1), и при N* = 55 их наклоны почти одинаковы (0,965 и 0,963): потенциалы различает не n_s, а r. Точки лежат выше линий на 2–3 % (Старобинский) и ≈ 1 % (m²φ²) — это поправка второго порядка."
+bg = backgrounds["Старобинский"]
+P, _, s = mode_power(bg, 55)
+N_k = bg.N_end - 55
+NN = np.linspace(s.t[0], s.t[-1], 2000)
+zz = s.sol(NN)[0] / s.y[0, -1]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.5, 3.8))
+ax1.semilogy(NN - N_k, np.abs(zz.real), color="tab:blue", lw=0.6, label="|Re ζ_k|")
+ax1.semilogy(NN - N_k, np.abs(zz), color="k", lw=1.4, label="|ζ_k|")
+ax1.axvline(0, color="0.5", ls=":", lw=1)
+ax1.text(0.15, 30, "k = aH", fontsize=8)
+ax1.set(xlabel="$N - N_k$ (e-фолды после выхода)", ylabel="$|\\zeta_k| / |\\zeta_k(\\mathrm{конец})|$", ylim=(1e-2, 5e2))
+ax1.legend(fontsize=8)
+for (name, arr), col in zip(spectra.items(), ("tab:red", "tab:blue")):
+    i55 = int(np.argmin(np.abs(N_grid - 55)))
+    norm = arr[i55, 1]
+    kn = np.exp(arr[:, 0] - arr[i55, 0])
+    ax2.loglog(kn, arr[:, 1] / norm, "o", color=col, ms=4, label=f"{name}: точно")
+    ax2.loglog(kn, arr[:, 2] / norm, "-", color=col, lw=1, label=f"{name}: H²/8π²ε")
+ax2.set(xlabel="$k / k(N_* = 55)$", ylabel="$\\mathcal{P}_\\zeta / \\mathcal{P}_\\zeta(N_* = 55)$")
+ax2.legend(fontsize=7)
+for ax in (ax1, ax2):
+    ax.grid(alpha=0.2, which="both")
+fig.tight_layout()
+```
+
+## Сжатие и классичность
+
+Мода вне горизонта находится в сильно **сжатом** состоянии: растущее
+решение $v \propto a$ доминирует, а сопряжённый импульс почти
+полностью определяется полем. В терминах коэффициентов Боголюбова
+относительно мгновенного вакуума число «рождённых» квантов
+$|\beta_k|^2 = 1/(4k^2\eta^2) = (aH/k)^2/4$. Для моды, вышедшей за 55 e-фолдов
+до конца инфляции:
+
+```{python}
+beta2 = sp.Rational(1, 4) * sp.exp(2 * 55)
+print(f"|β|² к концу инфляции = e^110/4 = {float(beta2):.1e}")
+```
+
+$|\beta_k|^2 \sim 10^{47}$: квантовое состояние неотличимо от
+классического стохастического ансамбля для любых измерений,
+доступных через поле $\zeta$ [У]{.status} (в рамках модели); почему
+реализуется одна конкретная классическая конфигурация — вопрос
+интерпретации квантовой механики и декогеренции (тема «Декогеренция
+и открытые квантовые системы») [Г]{.status}. Прямой наблюдательной
+проверки квантовой природы первичных флуктуаций нет [Г]{.status}.
+
+## Сравнение с данными
+
+**Данные** (по состоянию на 2025 г.):
+
+- Planck 2018: $\ln(10^{10}A_s) = 3{,}044 \pm 0{,}014$,
+  $n_s = 0{,}9649 \pm 0{,}0042$ [У]{.status};
+- Planck + ACT DR6 + DESI: $n_s = 0{,}9743 \pm 0{,}0034$ [У]{.status} (как
+  измерение; сдвиг относительно Planck обсуждается);
+- BICEP/Keck 2018 + Planck: $r < 0{,}036$ (95 %) [У]{.status}.
+
+Модель Старобинского при $N_* = 55$ даёт $n_s \approx 0{,}965$, $r \approx 0{,}0036$, а
+$m^2\phi^2$ — $r \approx 0{,}14$, что исключено в 4 раза [У]{.status} (при стандартных
+предположениях о разогреве; см. тему «Инфляция — проблемы и
+предсказания»). Нормировка $A_s$ фиксирует высоту потенциала: для
+Старобинского $V_0^{1/4} \sim 10^{16}$ ГэВ, а $H_* \sim 10^{13}$ ГэВ.
+Соотношение согласованности $r = -8n_t$ — проверяемое в принципе
+предсказание однополевой медленно-скатывающейся инфляции [Г]{.status};
+при $r < 0{,}036$ наклон $|n_t| < 0{,}0045$, и измерить его — задача
+далёкого будущего.
+
+**Вечная инфляция.** Квантовый скачок поля за хаббловское время
+$H/2\pi$ сравнивается с классическим смещением $|\dot\phi|/H$ при
+$H/(2\pi|\dot\phi|/H) = \mathcal P_\zeta^{1/2} \sim 1$. При больших значениях поля
+(для $m^2\phi^2$ — при $\phi \gtrsim (96\pi^2)^{1/4}(\Mpr^3/m)^{1/2}$) квантовые
+скачки вверх по потенциалу в части объёма побеждают скатывание, и
+инфляция в целом не кончается никогда [С]{.status} (тема
+«Мультивселенная и проблема меры»). Такие значения поля — далеко за
+пределами наблюдаемых 60 e-фолдов.
+
+## Физика и наблюдательный статус
+
+- Спектр $(H/2\pi)^2$ безмассового поля в де Ситтере, сохранение $\zeta$ вне
+  горизонта, формулы $\mathcal P_\zeta$, $\mathcal P_t$, $n_s$, $r$, $n_t$ — строгие
+  следствия модели [У]{.status}.
+- Почти масштабно-инвариантный красный спектр, гауссовость и
+  адиабатичность возмущений наблюдаются [У]{.status}; их квантовое
+  инфляционное происхождение — [Г]{.status}.
+- Первичные гравитационные волны не найдены; $r < 0{,}036$ [У]{.status}.
+- Вечная инфляция — [С]{.status}.
+
+## Итоги
+
+- Мода Банча–Дэвиса $v_k = e^{-ik\eta}(1 - i/k\eta)/\sqrt{2k}$; вне горизонта
+  $\mathcal P_{\delta\phi} = (H/2\pi)^2$; массивное поле — наклон $3 - 2\nu \approx 2m^2/3H^2$.
+- $v = z\zeta$, $z = a\sqrt{2\varepsilon}\Mpr$: $\mathcal P_\zeta = H^2/(8\pi^2\varepsilon\Mpr^2)$; $\mathcal P_t =
+  2H^2/(\pi^2\Mpr^2)$; $n_s - 1 = 2\eta_V - 6\varepsilon_V$; $r = 16\varepsilon = -8n_t$.
+- Точное решение уравнений мод: ведущий порядок ошибается на 1–3 % в
+  амплитуде; второй порядок — на сотые доли процента.
+- $|\beta_k|^2 \sim 10^{47}$: сжатое, эффективно классическое состояние.
+- Старобинский при $N_* = 55$: $n_s \approx 0{,}965$, $r \approx 0{,}0036$; $m^2\phi^2$: $r \approx 0{,}14$
+  — исключён.
+
+## Упражнения
+
+1. Проверьте, что $|v_k|^2 \to 1/(2k)$ при $k\eta \to -\infty$ и что вронскиан
+   моды Ганкеля равен $i$ при любом $\nu$.
+2. Каков наклон спектра лёгкого поля с $m = 0{,}3H$? Сравните с
+   приближением $2m^2/3H^2$.
+3. Для $V = m^2\phi^2/2$ при $N_* = 55$ найдите $m$ (в ГэВ) по нормировке
+   $A_s$ в ведущем порядке медленного скатывания. Сравните с точным
+   численным результатом.
+4. Найдите для $m^2\phi^2$ значение поля, выше которого инфляция вечная
+   ($\mathcal P_\zeta = 1$), при $m$ из упр. 3. Сколько e-фолдов от него до конца?
+5. При $r = 0{,}036$ найдите $\varepsilon$, $n_t$ и $H_*$ (в ГэВ) по амплитуде $A_s$.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $|v_k|^2 = (1 + 1/k^2\eta^2)/(2k) \to 1/2k$. Вронскиан от
+   $\frac{\pi}{4}(-\eta)H^{(1)}_\nu H^{(1)*}_\nu$ сводится к вронскиану функций
+   Ганкеля $W[H^{(1)}_\nu, H^{(2)}_\nu](x) = -4i/(\pi x)$ и равен $i$.
+2. $\nu = \sqrt{2{,}25 - 0{,}09} = 1{,}470$, $3 - 2\nu = 0{,}061$; приближение — $0{,}060$.
+3. В ведущем порядке $\phi_*^2 = 4N_* + 2$, $\mathcal P_\zeta = m^2\phi_*^4/(96\pi^2)$, откуда
+   $m = 6{,}3\cdot10^{-6}\,\Mpr = 1{,}5\cdot10^{13}$ ГэВ; точный счёт даёт
+   на 1 % больше.
+4. $\phi_e = (96\pi^2)^{1/4}m^{-1/2} = 2{,}2\cdot10^3\,\Mpr$; $N = \phi_e^2/4 \approx 1{,}2\cdot10^6$
+   e-фолдов.
+5. $\varepsilon = r/16 = 2{,}3\cdot10^{-3}$, $n_t = -0{,}0045$,
+   $H_* = \pi\Mpr\sqrt{A_sr/2} = 4{,}7\cdot10^{13}$ ГэВ.
+:::
+
+## Литература
+
+- Bunch T. S., Davies P. C. W. Quantum field theory in de Sitter space:
+  renormalization by point-splitting. *Proc. R. Soc. Lond. A* **360**,
+  117 (1978).
+- Муханов В. Ф., Чибисов Г. В. Квантовые флуктуации и
+  «несингулярная» Вселенная. *Письма в ЖЭТФ* **33**, 549 (1981).
+- Hawking S. W. The development of irregularities in a single bubble
+  inflationary universe. *Phys. Lett. B* **115**, 295 (1982).
+- Starobinsky A. A. Dynamics of phase transition in the new
+  inflationary universe scenario and generation of perturbations.
+  *Phys. Lett. B* **117**, 175 (1982).
+- Guth A. H., Pi S.-Y. Fluctuations in the new inflationary universe.
+  *Phys. Rev. Lett.* **49**, 1110 (1982).
+- Bardeen J. M., Steinhardt P. J., Turner M. S. Spontaneous creation
+  of almost scale-free density perturbations in an inflationary
+  universe. *Phys. Rev. D* **28**, 679 (1983).
+- Sasaki M. Large scale quantum fluctuations in the inflationary
+  universe. *Prog. Theor. Phys.* **76**, 1036 (1986).
+- Mukhanov V. F., Feldman H. A., Brandenberger R. H. Theory of
+  cosmological perturbations. *Phys. Rep.* **215**, 203 (1992).
+- Stewart E. D., Lyth D. H. A more accurate analytic calculation of
+  the spectrum of cosmological perturbations produced during
+  inflation. *Phys. Lett. B* **302**, 171 (1993).
+- Schwarz D. J., Terrero-Escalante C. A., García A. A. Higher order
+  corrections to primordial spectra from cosmological inflation.
+  *Phys. Lett. B* **517**, 243 (2001).
+- Planck Collaboration. Planck 2018 results. X. Constraints on
+  inflation. *Astron. Astrophys.* **641**, A10 (2020), arXiv:1807.06211.
+- BICEP/Keck Collaboration (Ade P. A. R. et al.). Improved constraints
+  on primordial gravitational waves using Planck, WMAP, and BICEP/Keck
+  observations through the 2018 observing season. *Phys. Rev. Lett.*
+  **127**, 151301 (2021), arXiv:2110.00483.
+- Louis T. et al. (ACT Collaboration). The Atacama Cosmology Telescope:
+  DR6 power spectra, likelihoods and ΛCDM parameters (2025),
+  arXiv:2503.14452.
+- Горбунов Д. С., Рубаков В. А. Введение в теорию ранней Вселенной:
+  Космологические возмущения. Инфляционная теория. М.: URSS, 2010.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert sp.simplify(mode_eq) == 0 and sp.simplify(wronskian.subs(k, kp) - sp.I) == 0
+assert sp.simplify(P_dphi - Hp**2 / (4 * sp.pi**2)) == 0
+assert abs(complex(res.subs({nu: 1.3, kp: 1, eta_n: -0.7}).evalf())) < 1e-10
+assert sp.simplify(nu_sq - (sp.Rational(9, 4) - m_s**2 / Hp**2)) == 0
+for mh in (0.1, 0.3, 0.6):
+    assert abs(tilt_numeric(mh) - (3 - 2 * math.sqrt(2.25 - mh**2))) < 1e-3
+assert sp.simplify(ns_minus_1 - (2 * eta_V - 6 * eps_V)) == 0
+assert sp.simplify(n_t + 2 * eps_V) == 0 and sp.simplify(P_t_SR / P_zeta_SR + 8 * n_t) == 0
+S, Q = results["Старобинский"], results["m²φ²/2"]
+assert near((S["ratio0"] - 1) * 100, 2.6, 1) and near((Q["ratio0"] - 1) * 100, 0.9, 1)
+assert abs(S["ratio1"] - 1) < 1e-3 and abs(Q["ratio1"] - 1) < 1e-3
+assert abs(S["ratio_t1"] - 1) < 1e-3 and abs(Q["ratio_t1"] - 1) < 1e-3
+assert near(C_SL, -0.73, 2)
+assert near((1 - S["P_t"] / S["P_s"] / (16 * S["eps1"])) * 100, 2.6, 1)
+assert near((1 - Q["P_t"] / Q["P_s"] / (16 * Q["eps1"])) * 100, 1.3, 1)
+assert abs(S["ratio_t0"] - 1) < 0.005 and abs(Q["ratio_t0"] - 1) < 0.006
+assert near(tilt("m²φ²/2", 55), 0.963, 3) and near(tilt("Старобинский", 55), 0.965, 3) and near(S["P_t"] / S["P_s"], 0.0036, 4)
+assert near(Q["P_t"] / Q["P_s"], 0.14, 2) and near(Q["P_t"] / Q["P_s"] / 0.036, 4, 0)
+assert near(math.log10(S["V0"]**0.25 * M_PR_GEV), 16, 0)
+assert near(math.log10(S["H"] * math.sqrt(S["V0"]) * M_PR_GEV), 13, 0)
+assert near(math.log10(float(beta2)), 47, 0)
+# упражнения
+nu2 = math.sqrt(2.25 - 0.09)
+assert near(nu2, 1.470, 3) and near(3 - 2 * nu2, 0.061, 3) and near(2 * 0.09 / 3, 0.060, 3)
+phi_s2 = 4 * 55 + 2
+m_SR = math.sqrt(A_s * 96 * math.pi**2 / phi_s2**2)
+m_ex = m_exact
+assert near(m_SR * 1e6, 6.3, 1) and near(m_SR * M_PR_GEV / 1e13, 1.5, 1)
+assert near((m_ex / m_SR - 1) * 100, 1, 0)
+phi_e = (96 * math.pi**2)**0.25 / math.sqrt(m_ex)
+assert near(phi_e / 1e3, 2.2, 1) and near(phi_e**2 / 4 / 1e6, 1.2, 1)
+assert near(0.036 / 16 * 1e3, 2.3, 1) and near(-0.036 / 8, -0.0045, 4)
+assert near(math.pi * M_PR_GEV * math.sqrt(A_s * 0.036 / 2) / 1e13, 4.7, 1)
+```
