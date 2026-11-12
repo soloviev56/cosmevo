@@ -1,0 +1,410 @@
+---
+title: "Разогрев после инфляции"
+topic: reheating
+order: 3
+description: "Колебания инфлатона как холодное вещество; пертурбативный распад: уравнения Больцмана для ρ_φ и ρ_r, решение ρ_r = (2/5)(Γ/H)ρ_φ и T ∝ a^(−3/8), максимальная температура и температура разогрева T_rh = (90/π²g*)^(1/4)√(Γ M_Pr) ≈ 0,54√(Γ M_Pr) (численная проверка); распад через юкавскую связь; преразогрев: уравнение Матьё, зоны неустойчивости и показатель Флоке (узкий резонанс μ ≈ q/2, широкий — до ln(1+√2)/π); роль расширения; ограничения на T_rh снизу (нуклеосинтез, Planck: > 4–5 МэВ) и сверху; зависимость N_* от истории разогрева"
+---
+
+Инфляция оставляет Вселенную холодной и пустой: вся энергия сосредоточена
+в однородном поле инфлатона, а плотность всех остальных частиц
+разбавлена в $e^{3N}$ раз. Горячий Большой взрыв, о котором говорят
+нуклеосинтез и реликтовое излучение (тема «Горячая Вселенная — наблюдательные
+основания»), начинается позже — когда энергия инфлатона
+переходит в частицы Стандартной модели и они термализуются. Этот
+переход называют **разогревом**. Его физика почти не ограничена
+наблюдениями, но от неё зависит, к каким масштабам относятся
+измеренные $n_s$ и $r$ (тема «Инфляция — проблемы и предсказания»), а
+также возможность бариогенезиса, рождения тёмной материи и
+гравитино.
+
+Статус темы — **гипотеза** [Г]{.status}: механизмы разогрева
+теоретически хорошо поняты [У]{.status} (в рамках моделей), но какой из
+них реализовался и при какой температуре, неизвестно; надёжно
+известна лишь нижняя граница $T_{\rm rh} \gtrsim 4$ МэВ.
+
+Единицы — $\hbar = c = k_B = 1$, $\Mpr = (8\pi G)^{-1/2} = 2{,}435\cdot10^{18}$ ГэВ.
+
+## Колебания инфлатона
+
+После конца медленного скатывания поле колеблется около минимума.
+Для $V = \frac12m^2\phi^2$ и $m \gg H$ решение
+$\phi \approx \Phi(t)\cos mt$, $\Phi \propto a^{-3/2}$: усреднённое по периоду давление
+равно нулю, и $\rho_\phi \propto a^{-3}$, как у холодного вещества (это видно и
+в численном решении в теме «Динамика скалярного поля во
+Вселенной») [У]{.status}. В квантовом языке — конденсат частиц
+инфлатона с нулевым импульсом. Он распадается двумя путями:
+пертурбативно, частица за частицей, и коллективно, через
+параметрический резонанс.
+
+## Пертурбативный разогрев
+
+::: {#def-reheating-temperature}
+**Температура разогрева** $T_{\rm rh}$ — температура плазмы в момент,
+когда темп распада инфлатона $\Gamma$ сравнивается с темпом расширения:
+$H(T_{\rm rh}) = \Gamma$, где $H^2 = \rho_r/(3\Mpr^2)$, $\rho_r = \frac{\pi^2}{30}g_*T^4$. Отсюда
+$$
+T_{\rm rh} = \Bigl(\frac{90}{\pi^2g_*}\Bigr)^{1/4}\sqrt{\Gamma\Mpr} .
+$$
+:::
+
+Распад описывается кинетическими уравнениями (тема «Кинетическое
+уравнение в расширяющейся Вселенной») для усреднённых плотностей:
+$$
+\dot\rho_\phi + 3H\rho_\phi = -\Gamma\rho_\phi,\qquad
+\dot\rho_r + 4H\rho_r = \Gamma\rho_\phi,\qquad
+H^2 = \frac{\rho_\phi + \rho_r}{3\Mpr^2}
+$$
+(продукты распада считаются мгновенно термализованными). Пока
+$\Gamma \ll H$, доминирует инфлатон, $H \propto a^{-3/2}$, и у уравнения для $\rho_r$
+есть частное решение — «квазиравновесный» хвост:
+
+```{python}
+import math
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sympy as sp
+from scipy.integrate import solve_ivp
+
+M_PR = 2.435e18                                   # ГэВ
+G_STAR = 106.75                                   # все степени свободы СМ
+
+N_s, C_s, S_s, Gam = sp.symbols("N C S Gamma", positive=True)
+# в переменной N = ln a: dρ_r/dN = −4ρ_r + (Γ/H)ρ_φ, источник (Γ/H)ρ_φ ∝ e^{−3N/2} (ρ_φ ∝ e^{−3N}, H ∝ e^{−3N/2})
+rho_r_try = C_s * sp.exp(-sp.Rational(3, 2) * N_s)
+source = S_s * sp.exp(-sp.Rational(3, 2) * N_s)
+C_sol = sp.solve(sp.Eq(sp.diff(rho_r_try, N_s), -4 * rho_r_try + source), C_s)[0]
+print("ρ_r = C·e^{−3N/2}, C =", C_sol, "· (Γ/H)ρ_φ;  T ∝ ρ_r^{1/4} ∝ a^", sp.Rational(-3, 2) / 4)
+
+T_coef = (90 / (math.pi**2 * G_STAR))**0.25
+print(f"T_rh = {T_coef:.3f}·√(Γ M_Pr)  при g* = {G_STAR}")
+```
+
+Пока инфлатон доминирует, $\rho_r = \frac25(\Gamma/H)\rho_\phi$, и температура падает
+медленнее обычного, $T \propto a^{-3/8}$, а не $a^{-1}$: распад непрерывно
+подпитывает плазму [У]{.status} (в рамках модели). Максимальная
+температура достигается вскоре после начала распада и может быть на
+порядки выше $T_{\rm rh}$. Проверим это и определение $T_{\rm rh}$ численным
+решением. Удобно работать в $N = \ln a$ и в единицах $\rho_{\rm end}$, $H_{\rm end}$:
+
+```{python}
+def reheating(gamma_over_H, N_max=None):
+    """ρ_φ, ρ_r (в единицах ρ_end) как функции N = ln(a/a_end) при Γ = gamma_over_H·H_end."""
+    def rhs(N, y):
+        rphi, rr = np.exp(y)                        # логарифмы для устойчивости
+        H = math.sqrt(rphi + rr)                    # в единицах H_end (ρ_end = 3M²H_end²)
+        g = gamma_over_H / H
+        return [-3 - g, -4 + g * rphi / rr]
+    if N_max is None:
+        N_max = (2 / 3) * math.log(1 / gamma_over_H) + 8   # с запасом после H = Γ
+    sol = solve_ivp(rhs, (0, N_max), [0.0, math.log(1e-30)], rtol=1e-9, atol=1e-12, dense_output=True,
+                    method="LSODA")
+    return sol
+
+g_over_H = 1e-8
+sol = reheating(g_over_H)
+NN = np.linspace(0, sol.t[-1], 4000)
+rphi, rr = np.exp(sol.sol(NN))
+H = np.sqrt(rphi + rr)
+i_eq = int(np.argmax(rr > rphi))                    # ρ_r = ρ_φ
+i_H = int(np.argmax(H < g_over_H))                  # H = Γ
+i_max = int(np.argmax(rr * np.exp(4 * NN) * 0 + rr**0.25))
+print(f"Γ/H_end = {g_over_H:.0e}:  ρ_r = ρ_φ при N = {NN[i_eq]:.2f};  H = Γ при N = {NN[i_H]:.2f}")
+# наклон ln T по ln a в середине фазы распада
+mid = (NN > 3) & (NN < NN[i_H] - 3)
+slope = np.polyfit(NN[mid], 0.25 * np.log(rr[mid]), 1)[0]
+ratio_mid = np.median(rr[mid] / (0.4 * g_over_H / H[mid] * rphi[mid]))
+print(f"наклон d ln T/d ln a = {slope:.4f} (−3/8 = {-3 / 8});  ρ_r/[(2/5)(Γ/H)ρ_φ] = {ratio_mid:.4f}")
+print(f"T_max/T(H = Γ) = {(rr[i_max] / rr[i_H])**0.25:.0f} при N_max = {NN[i_max]:.2f}")
+# определение T_rh по H = Γ при ρ = ρ_r против точного момента
+T_rh_def_over_actual = (g_over_H**2 / rr[i_H])**0.25
+print(f"[ρ_r(H = Γ) из определения / фактическое]^(1/4) = {T_rh_def_over_actual:.3f}")
+```
+
+Численное решение подтверждает режим $T \propto a^{-3/8}$ и хвост
+$\rho_r = \frac25(\Gamma/H)\rho_\phi$; при $\Gamma/H_{\rm end} = 10^{-8}$ максимальная
+температура выше температуры в момент $H = \Gamma$ примерно в 80 раз.
+В момент $H = \Gamma$ инфлатон ещё не распался полностью (он доминирует
+до $\rho_r = \rho_\phi$ чуть позже), и фактическая температура в этот момент
+примерно на четверть ниже, чем по определению с $H^2 = \rho_r/3\Mpr^2$; с такой точностью
+и понимают $T_{\rm rh}$ [У]{.status}.
+
+**Пример — юкавская связь.** Для распада $\phi \to \psi\bar\psi$ через
+$y\phi\bar\psi\psi$ (лёгкий дираковский фермион) $\Gamma = y^2m/(8\pi)$:
+
+```{python}
+def T_rh(Gamma, g_star=G_STAR):
+    """Температура разогрева (ГэВ) по определению H(T_rh) = Γ."""
+    return (90 / (math.pi**2 * g_star))**0.25 * math.sqrt(Gamma * M_PR)
+
+m_inf = 1e13                                       # ГэВ, характерная масса инфлатона
+for y in (1e-3, 1e-5, 1e-7):
+    G = y**2 * m_inf / (8 * math.pi)
+    print(f"y = {y:.0e}: Γ = {G:.1e} ГэВ, T_rh = {T_rh(G):.1e} ГэВ")
+# самый ранний возможный разогрев: мгновенное превращение ρ_end в излучение
+rho_end_14 = 5e15                                  # ρ_end^{1/4}, ГэВ (порядок для моделей типа Старобинского)
+T_inst = rho_end_14 / (math.pi**2 * G_STAR / 30)**0.25
+print(f"мгновенный разогрев при ρ_end^(1/4) = {rho_end_14:.0e} ГэВ: T = {T_inst:.1e} ГэВ")
+```
+
+Даже очень слабая связь ($y \sim 10^{-7}$) даёт $T_{\rm rh} \sim 5\cdot10^7$ ГэВ, а
+предельный «мгновенный» разогрев — $\sim 2\cdot10^{15}$ ГэВ.
+
+## Преразогрев: параметрический резонанс
+
+Если инфлатон связан с другим скалярным полем $\chi$ через
+$\frac12g^2\phi^2\chi^2$, моды $\chi_k$ на фоне колеблющегося $\phi = \Phi\cos mt$ (без
+учёта расширения) подчиняются уравнению Матьё:
+$$
+\ddot\chi_k + \bigl(k^2 + g^2\Phi^2\cos^2mt\bigr)\chi_k = 0
+\;\Longrightarrow\;
+\chi_k'' + (A_k - 2q\cos2z)\chi_k = 0,
+$$
+$$
+z = mt,\qquad A_k = \frac{k^2}{m^2} + 2q,\qquad q = \frac{g^2\Phi^2}{4m^2}
+$$
+(Трашен, Бранденбергер, 1990; Кофман, Линде, Старобинский, 1994).
+В зонах неустойчивости решения растут как $e^{\mu z}$, и число частиц
+$n_k \propto e^{2\mu z}$ — это бозе-усиление, невозможное для фермионов.
+Показатель Флоке $\mu$ найдём из матрицы монодромии за период $\pi$:
+если $|\mathrm{tr}\,M| > 2$, то $\mu = \pi^{-1}\ln\bigl(|\mathrm{tr}\,M|/2 + \sqrt{\mathrm{tr}^2M/4 - 1}\bigr)$.
+
+```{python}
+def floquet_mu(A, q, steps=800):
+    """Показатель Флоке уравнения Матьё χ'' + (A − 2q cos 2z)χ = 0 (векторно по массивам A, q)."""
+    A, q = np.asarray(A, float), np.asarray(q, float)
+    h = math.pi / steps
+    y = np.zeros(A.shape + (4,))
+    y[..., 0] = y[..., 3] = 1.0                      # два решения: (χ, χ') = (1, 0) и (0, 1)
+
+    def f(z, y):
+        w = A - 2 * q * math.cos(2 * z)
+        return np.stack([y[..., 1], -w * y[..., 0], y[..., 3], -w * y[..., 2]], axis=-1)
+
+    z = 0.0
+    for _ in range(steps):                          # классический Рунге–Кутта 4-го порядка
+        k1 = f(z, y)
+        k2 = f(z + h / 2, y + h / 2 * k1)
+        k3 = f(z + h / 2, y + h / 2 * k2)
+        k4 = f(z + h, y + h * k3)
+        y = y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        z += h
+    half_tr = np.abs(y[..., 0] + y[..., 3]) / 2      # det M = 1
+    half_tr = np.maximum(half_tr, 1.0)              # |tr M| ≤ 2: устойчиво, μ = 0
+    return np.log(half_tr + np.sqrt(half_tr**2 - 1)) / math.pi
+
+print(f"узкий резонанс, q = 0,1, A = 1: μ = {float(floquet_mu(1.0, 0.1)):.4f} (теория q/2 = 0,05)")
+qs_line = np.linspace(0.5, 200, 3000)
+mu_line = floquet_mu(2 * qs_line, qs_line, steps=6000)      # k = 0: A = 2q
+print(f"на линии A = 2q (k = 0), q ≤ 200: max μ = {mu_line.max():.4f};  ln(1+√2)/π = {math.log(1 + math.sqrt(2)) / math.pi:.4f}")
+print(f"доля q с μ > 0 на этой линии: {np.mean(mu_line > 1e-6):.2f}")
+```
+
+При $q \ll 1$ (**узкий резонанс**) неустойчива узкая полоса около $A = 1$,
+т. е. $k \approx m$: распад двух частиц инфлатона в две частицы $\chi$, и
+$\mu \approx q/2$. При $q \gg 1$ (**широкий резонанс**) неустойчивы широкие
+полосы, и показатель Флоке для $k = 0$ доходит до $\ln(1 + \sqrt2)/\pi \approx 0{,}28$
+[У]{.status}. За время порядка десятков колебаний число частиц $\chi$
+растёт на десятки порядков, и энергия инфлатона переходит в
+неравновесное, далеко не тепловое распределение (Кофман, Линде,
+Старобинский, 1997).
+
+```{python}
+#| label: fig-reheating
+#| fig-cap: "Слева и в центре: пертурбативный разогрев при Γ = 10⁻⁸ H_end — плотности энергии инфлатона ρ_φ ∝ a⁻³e^(−Γt) и излучения ρ_r (в единицах ρ_end) и температура T ∝ ρ_r^(1/4) в единицах максимальной; пунктир и штрих — наклоны a^(−3/8) (фаза распада) и a^(−1) (после разогрева), сдвинутые для наглядности; вертикаль — момент H = Γ. Справа: показатель Флоке μ уравнения Матьё на плоскости (q, A); белая линия — A = 2q (мода k = 0), область A < 2q физически недоступна (A = k²/m² + 2q ≥ 2q) и затенена. Узкие полосы при q ≪ 1 (около A = 1, 4, 9, …) сливаются в широкие при q ≳ 1."
+fig, (ax1, ax1b, ax2) = plt.subplots(1, 3, figsize=(12, 3.8))
+a_rel = np.exp(NN)
+ax1.loglog(a_rel, rphi, color="tab:blue", label="$\\rho_\\phi$")
+ax1.loglog(a_rel, rr, color="tab:red", label="$\\rho_r$")
+ax1.set(xlabel="$a/a_{\\rm end}$", ylabel="$\\rho/\\rho_{\\rm end}$", ylim=(1e-30, 2))
+ax1.legend(fontsize=8, loc="lower left")
+T_rel = (rr / rr[i_max])**0.25
+ax1b.loglog(a_rel, T_rel, color="k", lw=1.4, label="$T/T_{\\max}$")
+ax1b.loglog(a_rel[mid], 2 * T_rel[mid][0] * (a_rel[mid] / a_rel[mid][0])**(-3 / 8), "k:", lw=1,
+            label="$\\propto a^{-3/8}$ (сдвинуто)")
+ax1b.loglog(a_rel[NN > NN[i_eq] + 1], 0.5 * T_rel[i_eq] * (a_rel[NN > NN[i_eq] + 1] / a_rel[i_eq])**-1.0,
+            color="0.5", ls="--", lw=1, label="$\\propto a^{-1}$ (сдвинуто)")
+ax1b.set(xlabel="$a/a_{\\rm end}$", ylabel="$T/T_{\\max}$", ylim=(1e-4, 2))
+ax1b.legend(fontsize=8, loc="lower left")
+for ax in (ax1, ax1b):
+    ax.axvline(a_rel[i_H], color="0.5", ls=":", lw=1)
+    ax.grid(alpha=0.2, which="both")
+
+qg, Ag = np.meshgrid(np.linspace(0, 5, 161), np.linspace(0, 12, 161))
+mu_map = floquet_mu(Ag, qg)
+im = ax2.pcolormesh(qg, Ag, mu_map, cmap="magma", shading="auto", vmin=0, vmax=0.6)
+ax2.plot([0, 5], [0, 10], color="w", lw=1.2)
+ax2.fill_between([0, 5], [0, 0], [0, 10], color="w", alpha=0.35, lw=0)
+ax2.set(xlabel="q", ylabel="A", xlim=(0, 5), ylim=(0, 12))
+fig.colorbar(im, ax=ax2, label="μ")
+fig.tight_layout()
+```
+
+**Расширение** меняет картину: амплитуда $\Phi \propto a^{-3/2}$, поэтому $q$
+убывает, и мода проходит через полосы неустойчивости, а не сидит в
+одной. В широком резонансе усиление становится «стохастическим»
+(Кофман, Линде, Старобинский, 1997), но при достаточно большом
+начальном $q$ остаётся эффективным [У]{.status} (в рамках моделей;
+количественно — по решёточным расчётам). После преразогрева
+система долго термализуется; температура разогрева в таком сценарии
+определяется уже поздними, пертурбативными процессами [Г]{.status}.
+
+## Ограничения на температуру разогрева
+
+- **Снизу.** Нейтрино должны успеть родиться и прийти в равновесие до
+  нуклеосинтеза. По данным нуклеосинтеза и Planck на уровне 95 %
+  $T_{\rm rh} > 4{,}1$–$4{,}7$ МэВ (де Салас и др., 2015) [У]{.status}.
+- **Сверху** — масштаб инфляции: $T_{\rm rh} \lesssim (30\rho_{\rm end}/\pi^2g_*)^{1/4} \sim
+  10^{15}$ ГэВ [У]{.status}. В суперсимметричных моделях более жёсткое
+  ограничение даёт рождение гравитино в плазме и его поздний распад,
+  разрушающий лёгкие ядра (проблема гравитино; Кавасаки, Кохри,
+  Мороя, 2005) [Г]{.status}.
+- **Косвенно** — через число e-фолдов $N_*$. Между концом инфляции и
+  установлением теплового равновесия Вселенная расширяется по закону,
+  отличному от радиационного, и это смещает $N_*$, соответствующее
+  данному масштабу (Лиддл, Лич, 2003):
+
+```{python}
+w_s, L_s = sp.symbols("w L", real=True)
+# L = ln(ρ_end/ρ_rh); a_rh/a_end = e^{L/3(1+w)}; после разогрева a ∝ ρ_rh^{−1/4} (сохранение энтропии)
+# при фиксированных k и H_*: N_* = −ln(a_rh/a_end) + (1/4)·L + const
+dN = sp.simplify(-L_s / (3 * (1 + w_s)) + L_s / 4)
+print("ΔN_* =", sp.factor(dN), ";  w = 0:", dN.subs(w_s, 0), ";  w = 1/3:", dN.subs(w_s, sp.Rational(1, 3)))
+
+def delta_N(T_rh_GeV, rho_end_14=rho_end_14, w=0.0):
+    """Сдвиг N_* относительно мгновенного разогрева для фазы с уравнением состояния w."""
+    rho_rh_14 = T_rh_GeV * (math.pi**2 * G_STAR / 30)**0.25
+    L = 4 * math.log(rho_end_14 / rho_rh_14)
+    return float(dN.subs({w_s: w, L_s: L}))
+
+for T in (1e12, 1e9, 1e5, 4e-3):
+    dn = delta_N(T)
+    print(f"T_rh = {T:.0e} ГэВ: ΔN_* = {dn:+.1f};  Старобинский (n_s ≈ 1 − 2/N): Δn_s ≈ {2 * dn / 55**2:+.4f}")
+```
+
+$$
+\Delta N_* = -\frac{1 - 3w}{12(1 + w)}\ln\frac{\rho_{\rm end}}{\rho_{\rm rh}} ,
+$$
+для вещественноподобной фазы ($w = 0$) — $-\frac1{12}\ln(\rho_{\rm end}/\rho_{\rm rh})$. Поздний
+разогрев при $T_{\rm rh} \sim 10^9$ ГэВ уменьшает $N_*$ примерно на 5, а при
+минимальной $T_{\rm rh}$ — на 14; в моделях типа Старобинского это сдвигает
+$n_s$ вниз на 0,003–0,01, т. е. на величину порядка нынешних
+погрешностей. Поэтому сдвиг $n_s$ вверх в данных ACT DR6 + DESI (по
+состоянию на 2025 г.; тема «Инфляция — проблемы и предсказания»)
+обсуждается вместе с историей разогрева: при заданной модели данные
+ограничивают $w$ и $T_{\rm rh}$ [Г]{.status}.
+
+## Физика и наблюдательный статус
+
+- Колебания инфлатона как холодное вещество, кинетика распада,
+  $T \propto a^{-3/8}$, параметрический резонанс — строгие следствия моделей
+  [У]{.status}.
+- Какой механизм реализовался и чему равна $T_{\rm rh}$ — неизвестно
+  [Г]{.status}; установлена лишь нижняя граница $\approx 4$–5 МэВ [У]{.status}.
+- Прямых наблюдательных следов разогрева нет; косвенные — через $N_*$,
+  возможный фон гравитационных волн от преразогрева (высокие
+  частоты, недоступные сегодняшним детекторам) [Г]{.status}.
+
+## Итоги
+
+- После инфляции $\rho_\phi \propto a^{-3}$; распад: $\dot\rho_\phi + 3H\rho_\phi = -\Gamma\rho_\phi$,
+  $\dot\rho_r + 4H\rho_r = \Gamma\rho_\phi$.
+- Пока доминирует инфлатон, $\rho_r = \frac25(\Gamma/H)\rho_\phi$ и $T \propto a^{-3/8}$;
+  $T_{\max} \gg T_{\rm rh} = (90/\pi^2g_*)^{1/4}\sqrt{\Gamma\Mpr}$.
+- Юкава: $\Gamma = y^2m/8\pi$; $y = 10^{-5}$, $m = 10^{13}$ ГэВ — $T_{\rm rh} \approx 5\cdot10^9$ ГэВ.
+- Преразогрев: уравнение Матьё, $\mu \approx q/2$ (узкий), до
+  $\ln(1+\sqrt2)/\pi \approx 0{,}28$ (широкий); экспоненциальный рост числа бозонов.
+- $T_{\rm rh} > 4$–5 МэВ; $\Delta N_* = -\frac{1-3w}{12(1+w)}\ln(\rho_{\rm end}/\rho_{\rm rh})$.
+
+## Упражнения
+
+1. Найдите частное решение $\rho_r(N)$ для фазы, в которой инфлатон
+   ведёт себя как жидкость с уравнением состояния $w$, и покажите, что
+   $T \propto a^{-3(1+w)/8}$.
+2. Чему равна $T_{\rm rh}$ при $y = 10^{-6}$, $m = 10^{13}$ ГэВ? Во сколько раз она
+   изменится, если $g_* = 10$ вместо 106,75?
+3. Найдите $\mu$ при $q = 1$ для $A = 1$ и $A = 2$ (мода $k = 0$).
+   За сколько колебаний инфлатона число частиц в растущей моде
+   увеличится в $10^{20}$ раз при $\mu = 0{,}2$?
+4. Каков $\Delta N_*$ для разогрева с $w = 1/3$? С $w = 1$ (кинация) при
+   $\rho_{\rm end}/\rho_{\rm rh} = 10^{40}$?
+5. Оцените $T_{\rm rh}$ для распада инфлатона с гравитационной силой связи,
+   $\Gamma \sim m^3/\Mpr^2$, при $m = 3\cdot10^{13}$ ГэВ.
+
+::: {.callout-tip collapse="true"}
+## Ответы
+1. $\rho_\phi \propto e^{-3(1+w)N}$, $H \propto e^{-3(1+w)N/2}$, источник $(\Gamma/H)\rho_\phi \propto e^{-3(1+w)N/2}$;
+   частное решение $\rho_r = \frac{2}{5-3w}(\Gamma/H)\rho_\phi \propto a^{-3(1+w)/2}$, откуда
+   $T \propto a^{-3(1+w)/8}$; при $w = 0$ — $\frac25$ и $a^{-3/8}$.
+2. $\Gamma = 4{,}0\cdot10^{-1}$ ГэВ, $T_{\rm rh} = 5{,}3\cdot10^8$ ГэВ; при $g_* = 10$ — в
+   $(106{,}75/10)^{1/4} = 1{,}81$ раза выше.
+3. $\mu(q{=}1, A{=}1) = 0{,}45$ (первая зона неустойчивости), $\mu(q{=}1, A{=}2) = 0$ —
+   мода $k = 0$ при $q = 1$ лежит между зонами; при $\mu = 0{,}2$:
+   $e^{2\mu z} = 10^{20}$ при $z = 115$, т. е. $z/\pi = 37$ колебаний.
+4. $w = 1/3$: $\Delta N_* = 0$; $w = 1$: $\Delta N_* = +\frac{1}{12}\ln10^{40} = +7{,}7$.
+5. $\Gamma = m^3/\Mpr^2 = 4{,}6\cdot10^3$ ГэВ, $T_{\rm rh} = 5{,}7\cdot10^{10}$ ГэВ (численный множитель
+   в $\Gamma$ зависит от модели и может быть мал).
+:::
+
+## Литература
+
+- Abbott L. F., Farhi E., Wise M. B. Particle production in the new
+  inflationary cosmology. *Phys. Lett. B* **117**, 29 (1982).
+- Dolgov A. D., Linde A. D. Baryon asymmetry in the inflationary
+  universe. *Phys. Lett. B* **116**, 329 (1982).
+- Traschen J. H., Brandenberger R. H. Particle production during
+  out-of-equilibrium phase transitions. *Phys. Rev. D* **42**, 2491
+  (1990).
+- Kofman L., Linde A., Starobinsky A. A. Reheating after inflation.
+  *Phys. Rev. Lett.* **73**, 3195 (1994).
+- Kofman L., Linde A., Starobinsky A. A. Towards the theory of
+  reheating after inflation. *Phys. Rev. D* **56**, 3258 (1997).
+- Liddle A. R., Leach S. M. How long before the end of inflation were
+  observable perturbations produced? *Phys. Rev. D* **68**, 103503
+  (2003), arXiv:astro-ph/0305263.
+- Kawasaki M., Kohri K., Moroi T. Big-bang nucleosynthesis and hadronic
+  decay of long-lived massive particles. *Phys. Rev. D* **71**, 083502
+  (2005).
+- Allahverdi R., Brandenberger R., Cyr-Racine F.-Y., Mazumdar A.
+  Reheating in inflationary cosmology: theory and applications.
+  *Annu. Rev. Nucl. Part. Sci.* **60**, 27 (2010).
+- de Salas P. F., Lattanzi M., Mangano G., Miele G., Pastor S.,
+  Pisanti O. Bounds on very low reheating scenarios after Planck.
+  *Phys. Rev. D* **92**, 123534 (2015), arXiv:1511.00672.
+
+```{python}
+#| echo: false
+#| output: false
+# Проверка чисел текста и ответов (не показывается на странице)
+def near(x, text_value, digits):
+    """Число в тексте text_value — это x, округлённое до digits знаков (с запасом 20 %)."""
+    return abs(x - text_value) <= 0.6 * 10.0**-digits
+
+assert sp.simplify(C_sol - sp.Rational(2, 5) * S_s) == 0
+assert abs(slope + 3 / 8) < 0.01 and abs(ratio_mid - 1) < 0.01
+assert near((rr[i_max] / rr[i_H])**0.25, 80, -1)
+assert 0.2 < 1 - T_rh_def_over_actual**-1 < 0.3
+assert NN[i_eq] > NN[i_H]
+assert near(T_rh(1e-7**2 * m_inf / (8 * math.pi)) / 1e7, 5, 0)
+assert near(T_rh(1e-5**2 * m_inf / (8 * math.pi)) / 1e9, 5, 0) and near(T_coef, 0.54, 2)
+assert near(T_inst / 1e15, 2, 0)
+assert near(float(floquet_mu(1.0, 0.1)), 0.05, 2)
+assert abs(mu_line.max() - math.log(1 + math.sqrt(2)) / math.pi) < 0.01
+assert sp.simplify(dN + (1 - 3 * w_s) / (12 * (1 + w_s)) * L_s) == 0
+assert near(delta_N(1e9), -5, 0) and near(delta_N(4e-3), -14, 0)
+assert near(2 * delta_N(1e9) / 55**2, -0.003, 3) and near(2 * delta_N(4e-3) / 55**2, -0.01, 2)
+# упражнения
+w1 = sp.symbols('w1')
+C1 = sp.solve(sp.Eq(-sp.Rational(3, 2) * (1 + w1) * C_s, -4 * C_s + S_s), C_s)[0]
+assert sp.simplify(C1 - 2 * S_s / (5 - 3 * w1)) == 0
+G2 = 1e-6**2 * m_inf / (8 * math.pi)
+assert near(G2, 0.40, 2) and near(T_rh(G2) / 1e8, 5.3, 1) and near((106.75 / 10)**0.25, 1.81, 2)
+assert float(floquet_mu(2.0, 1.0)) < 1e-6
+z20 = 20 * math.log(10) / 0.4
+assert near(z20, 115, 0) and near(z20 / math.pi, 37, 0)
+assert float(dN.subs({w_s: sp.Rational(1, 3), L_s: 1})) == 0
+assert near(float(dN.subs({w_s: 1, L_s: 40 * math.log(10)})), 7.7, 1)
+G5 = (3e13)**3 / M_PR**2
+assert near(G5 / 1e3, 4.6, 1) and near(T_rh(G5) / 1e10, 5.7, 1)
+assert near(float(floquet_mu(1.0, 1.0)), 0.45, 2)
+```
