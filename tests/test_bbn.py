@@ -79,3 +79,14 @@ def test_reaclib_helium_burning():
         lam = 6 * 3**1.5 * (2 * math.pi * hbarc**2 / (m_alpha * kT)) ** 3 * (G_rad / hbar_eVs) * N_A**2 \
             * math.exp(-E_R / kT)
         assert abs(lam / rates[(("he4",) * 3, ("c12",))](T9) - 1) < 0.1
+
+
+def test_weak_table_scales_with_tau_n():
+    """Таблица слабых скоростей строится один раз; при другом τ_n скорости
+    масштабируются как TAU_N/τ_n — сверка с прямым расчётом."""
+    from cosmevo.bbn import _weak_interp
+    from cosmevo.thermo import neutrino_temperature_ratio
+    for tau in (TAU_N, 100.0, 1e5):
+        for T in (2.0, 0.7, 0.05):
+            direct = weak_rates(T, T * neutrino_temperature_ratio(T * 1e-3), tau_n=tau)
+            assert np.allclose(_weak_interp(T, tau), direct, rtol=2e-3)

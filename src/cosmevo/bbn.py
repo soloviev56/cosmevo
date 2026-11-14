@@ -122,19 +122,21 @@ def network():
     return Network(rates, SPECIES)
 
 
-@lru_cache(maxsize=4)
-def _weak_table(tau_n):
+@lru_cache(maxsize=1)
+def _weak_table():
+    """Таблица ln λ(T) при τ_n = TAU_N; при другом τ_n все слабые скорости
+    умножаются на TAU_N/τ_n (общий множитель K в `weak_rates`)."""
     lnT = np.linspace(math.log(20.0), math.log(1e-3), 300)
-    lam = np.array([weak_rates(math.exp(x), math.exp(x) * neutrino_temperature_ratio(math.exp(x) * 1e-3),
-                               tau_n) for x in lnT])
+    lam = np.array([weak_rates(math.exp(x), math.exp(x) * neutrino_temperature_ratio(math.exp(x) * 1e-3))
+                    for x in lnT])
     lam = np.maximum(lam, 1e-300)                     # λ_{p→n} → 0 при T → 0
     return lnT[::-1], np.log(lam[::-1, 0]), np.log(lam[::-1, 1])
 
 
 def _weak_interp(T, tau_n):
-    lnT, l_np, l_pn = _weak_table(tau_n)
-    x = math.log(T)
-    return math.exp(np.interp(x, lnT, l_np)), math.exp(np.interp(x, lnT, l_pn))
+    lnT, l_np, l_pn = _weak_table()
+    x, scale = math.log(T), TAU_N / tau_n
+    return scale * math.exp(np.interp(x, lnT, l_np)), scale * math.exp(np.interp(x, lnT, l_pn))
 
 
 ZA = dict(zip(SPECIES, ((0, 1), (1, 1), (1, 2), (1, 3), (2, 3), (2, 4), (3, 6), (3, 7), (4, 7))))
