@@ -411,7 +411,7 @@ fig.tight_layout()
   arXiv:1807.06209.
 - LZ Collaboration (Aalbers J. et al.). Dark matter search results from
   4.2 tonne-years of exposure of the LUX-ZEPLIN (LZ) experiment.
-  *Phys. Rev. Lett.* (2025), arXiv:2410.17036.
+  *Phys. Rev. Lett.* **135**, 011802 (2025), arXiv:2410.17036.
 - Bertone G., Hooper D. History of dark matter. *Rev. Mod. Phys.*
   **90**, 045002 (2018), arXiv:1605.04909.
 

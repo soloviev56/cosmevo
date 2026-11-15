@@ -750,7 +750,8 @@ JWST пока надёжно не обнаружил [У]{.status}.
   galaxies at a redshift of 14. *Nature* **633**, 318 (2024),
   arXiv:2405.18485.
 - Naidu R. P. et al. A cosmic miracle: a remarkably luminous galaxy
-  at z_spec = 14.44 confirmed with JWST. arXiv:2505.11263 (2025).
+  at z_spec = 14.44 confirmed with JWST. *Open J. Astrophys.* **9** (2026),
+  doi:10.33232/001c.156033, arXiv:2505.11263.
 - Loeb A., Furlanetto S. R. *The First Galaxies in the Universe.* —
   Princeton: Princeton University Press, 2013.
 

@@ -198,9 +198,11 @@ print(f"Старобинский: n_s ≈ 1 − 2/N = {1 - 2 / 60:.4f}, r ≈ 12
 
 - Planck 2018: $n_s = 0{,}9649 \pm 0{,}0042$, $\ln(10^{10}A_s) = 3{,}044 \pm 0{,}014$
   [У]{.status};
-- Planck + ACT DR6 + DESI (P-ACT-LB, Луис и др., 2025):
-  $n_s = 0{,}9743 \pm 0{,}0034$ — сдвиг вверх примерно на $2\sigma$ от
-  значения Planck, во многом из-за добавления BAO [У]{.status} (как
+- Planck + ACT DR6 + линзирование + DESI DR1 (P-ACT-LB, Луис и др.,
+  2025; по данным на 2025 г.): $n_s = 0{,}9743 \pm 0{,}0034$ — сдвиг
+  вверх примерно на $2\sigma$ от значения Planck; около двух третей
+  сдвига даёт уже сочетание Planck + ACT (P-ACT: $0{,}9709 \pm
+  0{,}0038$), остальное — линзирование и BAO [У]{.status} (как
   измерение; устойчивость сдвига обсуждается);
 - BICEP/Keck 2018 + Planck: $r_{0{,}05} < 0{,}036$ (95 %) [У]{.status}.
 
@@ -381,8 +383,8 @@ $B$-мод поляризации реликтового излучения — 
   observations through the 2018 observing season. *Phys. Rev. Lett.*
   **127**, 151301 (2021), arXiv:2110.00483.
 - Louis T. et al. (ACT Collaboration). The Atacama Cosmology Telescope:
-  DR6 power spectra, likelihoods and ΛCDM parameters (2025),
-  arXiv:2503.14452.
+  DR6 power spectra, likelihoods and ΛCDM parameters. *JCAP* **11**,
+  062 (2025), arXiv:2503.14452.
 
 ```{python}
 #| echo: false

@@ -459,7 +459,7 @@ $A \approx 11$, хотя индексы высоки. «Кристалл» со�
 - Abrahão F. S., Hernández-Orozco S., Kiani N. A., Tegnér J., Zenil H.
   Assembly theory is an approximation to algorithmic complexity based
   on LZ compression that does not explain selection or evolution.
-  (2024); arXiv:2403.06629.
+  *PLOS Complex Syst.* **1**, e0000014 (2024); arXiv:2403.06629.
 - Kempes C. P., Lachmann M., Iannaccone A. et al. Assembly theory and
   its relationship with computational complexity. *npj Complexity*
   **2**, 27 (2025).

@@ -364,7 +364,8 @@ fig.tight_layout()
   (2000), arXiv:astro-ph/9902189.
 - Sandberg A., Armstrong S., Ćirković M. M. That is not dead which can
   eternal lie: the aestivation hypothesis for resolving Fermi's
-  paradox. arXiv:1705.03394 (2017).
+  paradox. *J. Br. Interplanet. Soc.* **69**, 406 (2016),
+  arXiv:1705.03394.
 - Bennett C. H., Hanson R., Riedel C. J. Comment on «The aestivation
   hypothesis for resolving Fermi's paradox». *Found. Phys.* **49**, 820
   (2019), arXiv:1902.06730.

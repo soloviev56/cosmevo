@@ -378,7 +378,8 @@ fig.tight_layout()
 - Gao P., Jafferis D. L., Wall A. C. Traversable wormholes via a double
   trace deformation. *JHEP* **12**, 151 (2017), arXiv:1608.05687.
 - Maldacena J., Milekhin A., Popov F. Traversable wormholes in four
-  dimensions. arXiv:1807.04726 (2018).
+  dimensions. *Class. Quantum Grav.* **40**, 155016 (2023),
+  arXiv:1807.04726.
 
 ```{python}
 #| echo: false

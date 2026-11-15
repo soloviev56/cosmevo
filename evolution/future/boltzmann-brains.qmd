@@ -300,7 +300,7 @@ fig.tight_layout()
 - Albrecht A., Sorbo L. Can the universe afford inflation? *Phys. Rev.
   D* **70**, 063528 (2004), arXiv:hep-th/0405270.
 - Bousso R., Freivogel B. A paradox in the global description of the
-  multiverse. *JHEP* **06**, 018 (2007).
+  multiverse. *JHEP* **06**, 018 (2007), arXiv:hep-th/0610132.
 - Bousso R., Freivogel B., Yang I-S. Boltzmann babies in the proper
   time measure. *Phys. Rev. D* **77**, 103514 (2008), arXiv:0712.3324.
 - Page D. N. Is our Universe likely to decay within 20 billion years?
