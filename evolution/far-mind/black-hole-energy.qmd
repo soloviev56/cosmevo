@@ -495,7 +495,7 @@ $1 - T_{\rm фон}/T_H$, а сегодня реликтовое излучен�
 - Penrose R., Floyd R. M. Extraction of rotational energy from a black
   hole. *Nature Phys. Sci.* **229**, 177 (1971).
 - Зельдович Я. Б. Генерация волн вращающимся телом. *Письма в ЖЭТФ*
-  **14**, 270 (1971).
+  **14**, 270 (1971) [*JETP Lett.* **14**, 180 (1971)].
 - Bardeen J. M., Press W. H., Teukolsky S. A. Rotating black holes:
   locally nonrotating frames, energy extraction, and scalar synchrotron
   radiation. *Astrophys. J.* **178**, 347 (1972).
