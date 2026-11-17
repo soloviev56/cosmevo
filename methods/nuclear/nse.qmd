@@ -501,8 +501,8 @@ print(f"d(1/T₉)/d lg ρ = {slope:.4f}, т. е. E = {E_slope:.1f} МэВ")
 - Hoyle F. The synthesis of the elements from hydrogen. *Mon. Not.
   R. Astron. Soc.* **106**, 343 (1946).
 - Clifford F. E., Tayler R. J. The equilibrium distribution of nuclides
-  in matter at high temperatures. *Mem. R. Astron. Soc.* (1965);
-  аннотация — *Mon. Not. R. Astron. Soc.* **129**, 104 (1965).
+  in matter at high temperatures. *Mem. R. Astron. Soc.* **69**, 21
+  (1965).
 - Woosley S. E., Arnett W. D., Clayton D. D. The explosive burning of
   oxygen and silicon. *Astrophys. J. Suppl.* **26**, 231 (1973).
 - Hix W. R., Thielemann F.-K. Silicon burning. I. Neutronization and

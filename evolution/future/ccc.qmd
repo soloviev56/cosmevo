@@ -315,7 +315,7 @@ fig.tight_layout()
 
 - Penrose R. Singularities and time-asymmetry. In: Hawking S. W.,
   Israel W. (eds.) *General Relativity: An Einstein Centenary Survey.* —
-  Cambridge University Press, 1979.
+  Cambridge University Press, 1979, pp. 581–638.
 - Penrose R. *Cycles of Time: An Extraordinary New View of the
   Universe.* — London: Bodley Head, 2010.
 - Gurzadyan V. G., Penrose R. Concentric circles in WMAP data may

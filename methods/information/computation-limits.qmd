@@ -365,8 +365,9 @@ print(f"время при пределе Марголуса–Левитина �
   time in non-relativistic quantum mechanics. *J. Phys. USSR* **9**,
   249 (1945).
 - Bremermann H. J. Optimization through evolution and recombination.
-  In: Yovits M. C. et al. (eds.) *Self-Organizing Systems*. Spartan
-  Books (1962), p. 93.
+  In: Yovits M. C., Jacobi G. T., Goldstein G. D. (eds.)
+  *Self-Organizing Systems 1962*. — Washington, DC: Spartan Books, 1962,
+  pp. 93–106.
 - Bekenstein J. D. Black holes and entropy. *Phys. Rev. D* **7**, 2333
   (1973).
 - Bekenstein J. D. Universal upper bound on the entropy-to-energy ratio

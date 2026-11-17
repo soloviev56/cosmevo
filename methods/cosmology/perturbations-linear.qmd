@@ -441,7 +441,8 @@ $k_{\rm eq} = a_{\rm eq}H_{\rm eq} \approx 0{,}015\,h$/Мпк (обратный
 - Jeans J. H. The stability of a spherical nebula. *Phil. Trans. R.
   Soc. Lond. A* **199**, 1 (1902).
 - Лифшиц Е. М. О гравитационной устойчивости расширяющегося мира.
-  *ЖЭТФ* **16**, 587 (1946).
+  *ЖЭТФ* **16**, 587 (1946) [Lifshitz E. M. *J. Phys. USSR* **10**,
+  116 (1946)].
 - Mészáros P. The behaviour of point masses in an expanding
   cosmological substratum. *Astron. Astrophys.* **37**, 225 (1974).
 - Heath D. J. The growth of density perturbations in zero pressure

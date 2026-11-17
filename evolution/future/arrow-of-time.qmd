@@ -401,7 +401,7 @@ fig.tight_layout()
   York: Interscience, 1959.
 - Penrose R. Singularities and time-asymmetry. In: Hawking S. W.,
   Israel W. (eds.) *General Relativity: An Einstein Centenary Survey.* —
-  Cambridge University Press, 1979.
+  Cambridge University Press, 1979, pp. 581–638.
 - Frautschi S. Entropy in an expanding universe. *Science* **217**, 593
   (1982).
 - Penrose R. *The Emperor's New Mind.* — Oxford University Press, 1989.
