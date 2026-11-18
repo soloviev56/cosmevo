@@ -256,8 +256,10 @@ ${\approx}\,160$. Пока логика держится на заряде ём�
 Куми и др. (2011) нашли, что число вычислений на джоуль с 1946 по
 2009 г. удваивалось примерно каждые 1,57 года [У]{.status} (кривая по
 историческим машинам). После конца масштабирования Деннарда рост
-замедлился [У]{.status}; оценки темпа для последних лет зависят от
-выбора машин. Сколько осталось до предела?
+замедлился [У]{.status}: по переанализу тех же данных пиковая
+эффективность после 2000 г. удваивалась примерно за 2,6 года (Куми и
+Наффцигер, 2015); оценки темпа для последних лет зависят от выбора
+машин. Сколько осталось до предела?
 
 ```{python}
 def years_to_close(E_now, E_limit, doubling_years):
@@ -413,6 +415,9 @@ $10^{13}$–$10^{15}$ событий в секунду [Г]{.status} (оценк
 - Koomey J., Berard S., Sanchez M., Wong H. Implications of historical
   trends in the electrical efficiency of computing. *IEEE Ann. Hist.
   Comput.* **33**(3), 46 (2011).
+- Koomey J., Naffziger S. Moore's law might be slowing down, but not
+  energy efficiency. *IEEE Spectrum*, 31 марта 2015 г. (в печатном
+  номере — «Efficiency's brief reprieve», апрель 2015).
 - Horowitz M. Computing's energy problem (and what we can do about it).
   In: *2014 IEEE International Solid-State Circuits Conference (ISSCC)*,
   p. 10 (2014).

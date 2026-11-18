@@ -256,7 +256,7 @@ print("граница Лайта за ~5 e-фолдов наблюдаемых �
 Если первичные гравитационные волны будут найдены с $r \sim 10^{-2}$,
 это будет означать энергию $\sim10^{16}$ ГэВ — масштаб великого
 объединения, на 12 порядков выше энергий ускорителей — и смещение
-инфлатона порядка планковской массы (граница Лайта). Поэтому поиск
+инфлатона порядка планковской массы (граница Лайта, 1997). Поэтому поиск
 $B$-мод поляризации реликтового излучения — главный тест [Г]{.status}:
 обнаружение тензорного спектра с $n_t \approx -r/8$ было бы сильнейшим
 аргументом в пользу инфляции; ненаблюдение при $r < 10^{-3}$ не
@@ -361,6 +361,9 @@ $B$-мод поляризации реликтового излучения — 
 - Albrecht A., Steinhardt P. J. Cosmology for grand unified theories
   with radiatively induced symmetry breaking. *Phys. Rev. Lett.*
   **48**, 1220 (1982).
+- Lyth D. H. What would we learn by detecting a gravitational wave
+  signal in the cosmic microwave background anisotropy? *Phys. Rev.
+  Lett.* **78**, 1861 (1997), arXiv:hep-ph/9606387.
 - Khoury J., Ovrut B. A., Steinhardt P. J., Turok N. Ekpyrotic
   universe: colliding branes and the origin of the hot big bang.
   *Phys. Rev. D* **64**, 123522 (2001), arXiv:hep-th/0103239.

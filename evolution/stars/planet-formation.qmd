@@ -236,7 +236,7 @@ MMSN $\dd\ln P/\dd\ln r = -13/4$, а $\eta v_K \propto c_s^2/v_K$ не
 
 Размер, при котором $\mathrm{St} = 1$, зависит от режима
 сопротивления. При радиусе $a$ меньше длины свободного пробега
-молекул $\lambda$ работает закон Эпштейна,
+молекул $\lambda$ работает закон Эпштейна (1924),
 $t_s = \rho_\bullet a/(\rho_{\rm g}v_{\rm th})$; при $a > 9\lambda/4$ —
 закон Стокса, $t_s = 4\rho_\bullet a^2/(9\rho_{\rm g}\lambda v_{\rm th})$
 (оба выражения совпадают на границе; $\rho_\bullet = 1$ г/см³ —
@@ -534,6 +534,8 @@ for feh in (-0.5, 0.0, 0.3, 0.5):
 
 ## Литература
 
+- Epstein P. S. On the resistance experienced by spheres in their
+  motion through gases. *Phys. Rev.* **23**, 710 (1924).
 - Toomre A. On the gravitational stability of a disk of stars.
   *Astrophys. J.* **139**, 1217 (1964).
 - Сафронов В. С. *Эволюция допланетного облака и образование Земли и
