@@ -41,7 +41,7 @@ P = \frac{mc^2}{24\pi^2\lambda^3}\left[x(2x^2 - 3)\sqrt{1 + x^2} +
 \varepsilon = \frac{mc^2}{8\pi^2\lambda^3}\left[x(2x^2 + 1)\sqrt{1 + x^2} -
 \mathrm{arsh}\,x\right],
 $$
-где $\lambda = \hbar/(mc)$ (Чандрасекар, 1939, гл. X).
+где $\lambda = \hbar/(mc)$ (Чандрасекар, 1939).
 :::
 
 Формулы — интегралы $P = \frac{1}{3}\int_0^{p_F} pv\,\frac{2\cdot4\pi p^2\dd p}{(2\pi\hbar)^3}$
