@@ -105,7 +105,12 @@ print(f"расхождение: {tension:.1f}σ")
 моделей ошибок (или ΛCDM, через которую $H_0$ извлекается из реликтового
 излучения) неверна [У]{.status}. Какая именно — данные в этой постановке
 не говорят; это вопрос сравнения моделей (тема «Уравнения Фридмана»,
-раздел о наблюдательном статусе).
+раздел о наблюдательном статусе). Данные здесь — 2022 г.; позже
+независимая калибровка лестницы расстояний по вершине ветви красных
+гигантов, в том числе с данными JWST (Фридман и соавторы, 2025), даёт
+$70{,}4 \pm 1{,}9$ км·с⁻¹·Мпк⁻¹ — между двумя значениями и в пределах
+$1{,}5\sigma$ от каждого. Реальна ли напряжённость, по данным на 2025 г.
+остаётся предметом спора [Г]{.status}.
 
 ## Сравнение моделей: байесовский фактор
 
@@ -409,6 +414,10 @@ for name, prior in [("равномерное по λ", uniform), ("равном�
   Hubble constant with 1 km/s/Mpc uncertainty from the Hubble Space
   Telescope and the SH0ES team. *Astrophys. J. Lett.* **934**, L7 (2022),
   arXiv:2112.04510.
+- Freedman W. L., Madore B. F., Jang I. S. et al. Status report on the
+  Chicago-Carnegie Hubble Program (CCHP): Measurement of the Hubble
+  constant using the Hubble and James Webb Space Telescopes.
+  *Astrophys. J.* **985**, 203 (2025), arXiv:2408.06153.
 - Planck Collaboration. Planck 2018 results. VI. Cosmological parameters.
   *Astron. Astrophys.* **641**, A6 (2020), arXiv:1807.06209.
 
@@ -459,4 +468,9 @@ assert abs(like(1e-9) - 1 / 30) < 1e-6
 p5u, p5l = prob_rare(uniform), prob_rare(log_uniform)
 assert round(p5u, 5) == 0.00006 and round(p5l, 3) == 0.054
 t1 = 0.5
+# CCHP (Фридман и соавторы, 2025): 70,39 ± 1,22 (стат.) ± 1,33 (сист.) ± 0,70 (SN)
+H_trgb, sH_trgb = 70.39, math.sqrt(1.22**2 + 1.33**2 + 0.70**2)
+assert round(H_trgb, 1) == 70.4 and round(sH_trgb, 1) == 1.9
+for H_x, s_x in ((H_loc, sH_loc), (H_cmb, sH_cmb)):
+    assert abs(H_trgb - H_x) / math.hypot(sH_trgb, s_x) < 1.55
 ```

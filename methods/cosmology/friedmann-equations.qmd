@@ -283,7 +283,11 @@ print(f"a = 1 при t = {t_today:.3f} млрд лет (численное ре�
   $67{,}4 \pm 0{,}5$ из реликтового излучения в ΛCDM: расхождение около
   5σ [У]{.status}; его причина — систематика или новая физика —
   не установлена [Г]{.status} (тема «Горячая Вселенная —
-  наблюдательные основания»).
+  наблюдательные основания»). Другая, независимая калибровка лестницы расстояний по вершине ветви красных
+  гигантов, в том числе с данными JWST (Фридман и соавторы, 2025), даёт
+  $70{,}4 \pm 1{,}9$ км·с⁻¹·Мпк⁻¹ — между двумя значениями и в пределах
+  $1{,}5\sigma$ от каждого. Реальна ли напряжённость, по данным на 2025 г.
+  остаётся предметом спора [Г]{.status}.
 
 ## Итоги
 
@@ -356,6 +360,10 @@ print(f"a = 1 при t = {t_today:.3f} млрд лет (численное ре�
   Hubble constant with 1 km/s/Mpc uncertainty from the Hubble Space
   Telescope and the SH0ES team. *Astrophys. J. Lett.* **934**, L7 (2022),
   arXiv:2112.04510.
+- Freedman W. L., Madore B. F., Jang I. S. et al. Status report on the
+  Chicago-Carnegie Hubble Program (CCHP): Measurement of the Hubble
+  constant using the Hubble and James Webb Space Telescopes.
+  *Astrophys. J.* **985**, 203 (2025), arXiv:2408.06153.
 - DESI Collaboration. DESI DR2 results II: measurements of baryon acoustic
   oscillations and cosmological constraints. *Phys. Rev. D* **112**,
   083515 (2025), arXiv:2503.14738.
