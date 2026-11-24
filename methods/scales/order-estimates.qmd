@@ -67,18 +67,20 @@ print("показатели (R, E, t, ρ):", list(pi / pi[0]))
 поэтому $R = \xi\,(Et^2/\rho)^{1/5}$ с числом $\xi$, которое размерный
 анализ не определяет; для воздуха численное решение даёт $\xi \approx 1$
 (Тейлор, 1950). Тейлор применил этот закон к опубликованным фотографиям
-испытания «Тринити». Через $t = 25$ мс после взрыва радиус огненного шара
-был около 140 м:
+испытания «Тринити». По его таблице через $t = 25$ мс после взрыва
+радиус огненного шара был 130 м:
 
 ```{python}
-R, t, rho = 140 * u.m, 25 * u.ms, 1.2 * u.kg / u.m**3
+R, t, rho = 130 * u.m, 25 * u.ms, 1.2 * u.kg / u.m**3
 E = (R**5 * rho / t**2).to(u.J)
 kt = 4.184e12 * u.J                       # килотонна тротила
 print(f"E ≈ {E:.1e} ≈ {float(E / kt):.0f} кт")
 ```
 
-Двадцать с небольшим килотонн — правильный порядок: официальная оценка
-мощности того времени — около 20 кт [У]{.status}. Размерный анализ дал
+Около 17 кт — правильный порядок. Сам Тейлор, с численным множителем
+для воздуха, получил 16,8 кт; официально тогда называли 20 кт, а по
+измерениям продуктов деления в стёклах с места взрыва мощность
+≈ 22 кт (Хэнсон и др., 2016) [У]{.status}. Размерный анализ дал
 энергию взрыва по одной фотографии с масштабной линейкой. Чувствительность
 к ошибкам благоприятна: ошибка в $R$ на 10 % даёт ошибку в $E$ на 60 %, но
 не на порядок.
@@ -414,6 +416,10 @@ $\exp[-(E_G/kT)^{1/3}]$; реакция идёт за счёт туннелир�
 - Taylor G. I. The formation of a blast wave by a very intense explosion.
   I. Theoretical discussion; II. The atomic explosion of 1945.
   *Proc. R. Soc. Lond. A* **201**, 159; 175 (1950).
+- Hanson S. K., Pollington A. D., Waidmann C. R. et al. Measurements of
+  extinct fission products in nuclear bomb debris: Determination of the
+  yield of the Trinity nuclear test 70 y later. *Proc. Natl. Acad. Sci.
+  USA* **113**, 8104 (2016).
 - Landau L. On the theory of stars. *Phys. Z. Sowjetunion* **1**, 285
   (1932).
 - Weisskopf V. F. Of atoms, mountains, and stars: a study in qualitative
@@ -437,7 +443,7 @@ $\exp[-(E_G/kT)^{1/3}]$; реакция идёт за счёт туннелир�
 close = lambda x, y, rel=5e-3: math.isclose(x, y, rel_tol=rel)
 
 # текст
-assert round(float(E / kt)) == 25
+assert round(float(E / kt)) == 17
 assert round(1 / alpha, 3) == 137.036 and close(alpha_G, 5.906e-39, 1e-3)
 assert round(1 / beta, 2) == 1836.15
 assert close(rho_water, 1.0, 0.1)
