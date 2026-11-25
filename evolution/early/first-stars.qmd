@@ -594,8 +594,9 @@ $T_\gamma = 50$ К: либо газ холоднее адиабаты (напр�
 ## Ранние галактики по данным JWST
 
 Телескоп JWST спектроскопически подтвердил галактики при $z > 14$:
-JADES-GS-z14-0 при $z = 14{,}32$ (Карниани и др., 2024) и MoM-z14 при
-$z = 14{,}44$ (Наиду и др., 2025) — меньше 300 млн лет после Большого
+JADES-GS-z14-0 (Карниани и др., 2024; по линии [O III] 88 мкм,
+измеренной на ALMA, $z = 14{,}18$ — Карниани и др., 2025; Схаус и
+др., 2025) и MoM-z14 при $z = 14{,}44$ (Наиду и др., 2025) — меньше 300 млн лет после Большого
 взрыва (по данным на 2025 г.). Эти галактики уже содержат кислород и
 азот, т. е. до них успело смениться не одно поколение звёзд
 [У]{.status}. Ярких галактик при $z > 10$ найдено больше, чем ожидали
@@ -755,6 +756,11 @@ JWST пока надёжно не обнаружил [У]{.status}.
 - Carniani S. et al. Spectroscopic confirmation of two luminous
   galaxies at a redshift of 14. *Nature* **633**, 318 (2024),
   arXiv:2405.18485.
+- Carniani S. et al. The eventful life of a luminous galaxy at z = 14:
+  metal enrichment, feedback, and low gas fraction? *Astron. Astrophys.*
+  **696**, A87 (2025), arXiv:2409.20533.
+- Schouws S. et al. Detection of [O III] 88 μm in JADES-GS-z14-0 at
+  z = 14.1793. *Astrophys. J.* **988**, 19 (2025), arXiv:2409.20549.
 - Naidu R. P. et al. A cosmic miracle: a remarkably luminous galaxy
   at z_spec = 14.44 confirmed with JWST. *Open J. Astrophys.* **9** (2026),
   doi:10.33232/001c.156033, arXiv:2505.11263.
