@@ -377,13 +377,16 @@ $|\beta_k|^2 \sim 10^{47}$: квантовое состояние неотлич
 
 ## Сравнение с данными
 
-**Данные** (по состоянию на 2025 г.):
+**Данные** (по состоянию на 2026 г.):
 
 - Planck 2018: $\ln(10^{10}A_s) = 3{,}044 \pm 0{,}014$,
   $n_s = 0{,}9649 \pm 0{,}0042$ [У]{.status};
 - Planck + ACT DR6 + линзирование + DESI DR1 (P-ACT-LB, по данным на
   2025 г.): $n_s = 0{,}9743 \pm 0{,}0034$ [У]{.status} (как
   измерение; сдвиг относительно Planck обсуждается);
+- Planck + ACT DR6 + SPT-3G D1 (CMB-SPA, по данным на 2026 г.):
+  $n_s = 0{,}9679 \pm 0{,}0033$, с DESI DR2 — $0{,}9726 \pm 0{,}0028$
+  [У]{.status};
 - BICEP/Keck 2018 + Planck: $r < 0{,}036$ (95 %) [У]{.status}.
 
 Модель Старобинского при $N_* = 55$ даёт $n_s \approx 0{,}965$, $r \approx 0{,}0036$, а
@@ -492,6 +495,10 @@ $H/(2\pi|\dot\phi|/H) = \mathcal P_\zeta^{1/2} \sim 1$. При больших з
 - Louis T. et al. (ACT Collaboration). The Atacama Cosmology Telescope:
   DR6 power spectra, likelihoods and ΛCDM parameters. *JCAP* **11**,
   062 (2025), arXiv:2503.14452.
+- Camphuis E. et al. (SPT-3G Collaboration). SPT-3G D1: CMB temperature
+  and polarization power spectra and cosmology from 2019 and 2020
+  observations of the SPT-3G Main field. *Phys. Rev. D* **113**,
+  083504 (2026), arXiv:2506.20707.
 - Горбунов Д. С., Рубаков В. А. Введение в теорию ранней Вселенной:
   Космологические возмущения. Инфляционная теория. М.: URSS, 2010.
 
