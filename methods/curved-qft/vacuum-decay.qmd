@@ -426,8 +426,10 @@ fig.tight_layout()
 Аналогом распада ложного вакуума служат фазовые переходы первого рода
 в конденсированных средах. Рождение пузырей «истинного вакуума» в
 ферромагнитной сверхтекучей жидкости холодных атомов наблюдалось
-напрямую (Дзенезини и др., 2024), но это аналог, а не космологический
-вакуум [У]{.status} (по данным на 2025 г.).
+напрямую (Дзенезини и др., 2024); рождение и взаимодействие пузырей
+в метастабильной цепочке спинов моделировали и на квантовом
+отжигателе из 5564 кубитов (Водеб и др., 2025). Это аналоги, а не
+космологический вакуум [У]{.status} (по данным на 2026 г.).
 
 ## Итоги
 
@@ -504,6 +506,9 @@ fig.tight_layout()
   Cambridge: Cambridge University Press, 1985.
 - Zenesini A. et al. False vacuum decay via bubble formation in
   ferromagnetic superfluids. *Nature Phys.* **20**, 558 (2024).
+- Vodeb J. et al. Stirring the false vacuum via interacting quantized
+  bubbles on a 5,564-qubit quantum annealer. *Nature Phys.* **21**, 386
+  (2025).
 
 ```{python}
 #| echo: false
