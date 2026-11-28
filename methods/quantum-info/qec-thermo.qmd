@@ -284,7 +284,7 @@ def landauer_power(bits_per_s, T=T_c):
 google_bits = 48 / 1.1e-6                         # сброс 48 анцилл за цикл, «вслепую»
 P_google = landauer_power(google_bits)
 print(f"Google d = 7: {google_bits:.1e} бит/с → {P_google:.1e} Вт при 20 мК; "
-      f"с холодильником Карно — {P_google * (carnot + 1):.1e} Вт от розетки (множитель {carnot:.0f})")
+      f"работа холодильника Карно — {P_google * carnot:.1e} Вт (множитель T_h/T_c − 1 = {carnot:.0f})")
 
 # миллион физических кубитов, цикл 1 мкс, p = 10⁻³ на кубит за цикл
 n_phys, cycle, p_noise = 1e6, 1e-6, 1e-3
@@ -292,13 +292,13 @@ naive = n_phys / 2 / cycle                        # половина кубит�
 compressed = n_phys * h2(p_noise) / cycle
 for name, rate in (("по биту на анциллу", naive), ("энтропия шума n·h(p)", compressed)):
     print(f"10⁶ кубитов, {name}: {rate:.1e} бит/с → {landauer_power(rate):.1e} Вт при 20 мК, "
-          f"{landauer_power(rate) * (carnot + 1):.1e} Вт при 300 К")
+          f"работа Карно {landauer_power(rate) * carnot:.1e} Вт")
 print(f"h(10⁻³) = {h2(1e-3):.4f} бит; отношение {0.5 / h2(1e-3):.0f}")
 ```
 
 Ландауэровская цена коррекции ошибок ничтожна: $\sim10^{-17}$ Вт при
-20 мК для сегодняшнего процессора, $\sim10^{-15}$–$10^{-13}$ Вт (с учётом
-холодильника Карно — $\sim10^{-11}$–$10^{-9}$ Вт) для миллиона кубитов.
+20 мК для сегодняшнего процессора, $\sim10^{-15}$–$10^{-13}$ Вт (работа
+холодильника Карно при отводе в 300 К — $\sim10^{-11}$–$10^{-9}$ Вт) для миллиона кубитов.
 Реальные растворные рефрижераторы дают при таких температурах
 мощность охлаждения порядка микроватт, а выделение тепла определяют
 управляющая электроника, провода и потери в линиях — на многие
@@ -427,8 +427,8 @@ for d in (3, 5, 7):
 assert near(h2(1e-3), 0.011, 3) and near(0.5 / h2(1e-3), 44, 0)
 assert near(math.log10(P_google), -17, 0)
 assert near(math.log10(landauer_power(compressed)), -15, 0) and near(math.log10(landauer_power(naive)), -13, 0)
-assert near(math.log10(landauer_power(compressed) * (carnot + 1)), -11, 0)
-assert near(math.log10(landauer_power(naive) * (carnot + 1)), -9, 0)
+assert near(math.log10(landauer_power(compressed) * carnot), -11, 0)
+assert near(math.log10(landauer_power(naive) * carnot), -9, 0)
 # упражнения
 q = 0.01
 P00, P1 = (1 - q)**3 + q**3, q * (1 - q)**2 + q**2 * (1 - q)
