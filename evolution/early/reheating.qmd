@@ -108,7 +108,7 @@ rphi, rr = np.exp(sol.sol(NN))
 H = np.sqrt(rphi + rr)
 i_eq = int(np.argmax(rr > rphi))                    # ρ_r = ρ_φ
 i_H = int(np.argmax(H < g_over_H))                  # H = Γ
-i_max = int(np.argmax(rr * np.exp(4 * NN) * 0 + rr**0.25))
+i_max = int(np.argmax(rr))                          # максимум температуры
 print(f"Γ/H_end = {g_over_H:.0e}:  ρ_r = ρ_φ при N = {NN[i_eq]:.2f};  H = Γ при N = {NN[i_H]:.2f}")
 # наклон ln T по ln a в середине фазы распада
 mid = (NN > 3) & (NN < NN[i_H] - 3)
@@ -340,7 +340,8 @@ $n_s$ вниз на 0,003–0,01, т. е. на величину порядка �
    $(106{,}75/10)^{1/4} = 1{,}81$ раза выше.
 3. $\mu(q{=}1, A{=}1) = 0{,}45$ (первая зона неустойчивости), $\mu(q{=}1, A{=}2) = 0$ —
    мода $k = 0$ при $q = 1$ лежит между зонами; при $\mu = 0{,}2$:
-   $e^{2\mu z} = 10^{20}$ при $z = 115$, т. е. $z/\pi = 37$ колебаний.
+   $e^{2\mu z} = 10^{20}$ при $z = mt = 115$, т. е. за $z/2\pi = 18$ колебаний
+   инфлатона (37 периодов $\pi$ уравнения Матьё — колебаний $\phi^2$).
 4. $w = 1/3$: $\Delta N_* = 0$; $w = 1$: $\Delta N_* = +\frac{1}{12}\ln10^{40} = +7{,}7$.
 5. $\Gamma = m^3/\Mpr^2 = 4{,}6\cdot10^3$ ГэВ, $T_{\rm rh} = 5{,}7\cdot10^{10}$ ГэВ (численный множитель
    в $\Gamma$ зависит от модели и может быть мал).
@@ -401,7 +402,7 @@ G2 = 1e-6**2 * m_inf / (8 * math.pi)
 assert near(G2, 0.40, 2) and near(T_rh(G2) / 1e8, 5.3, 1) and near((106.75 / 10)**0.25, 1.81, 2)
 assert float(floquet_mu(2.0, 1.0)) < 1e-6
 z20 = 20 * math.log(10) / 0.4
-assert near(z20, 115, 0) and near(z20 / math.pi, 37, 0)
+assert near(z20, 115, 0) and near(z20 / (2 * math.pi), 18, 0) and near(z20 / math.pi, 37, 0)
 assert float(dN.subs({w_s: sp.Rational(1, 3), L_s: 1})) == 0
 assert near(float(dN.subs({w_s: 1, L_s: 40 * math.log(10)})), 7.7, 1)
 G5 = (3e13)**3 / M_PR**2
