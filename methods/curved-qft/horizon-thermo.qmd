@@ -225,7 +225,7 @@ print(f"время Пейджа: {page_time():.3f} t_ev (отношение 4/3)
 видит тепловое излучение с $T = H/2\pi$ (Гиббонс, Хокинг, 1977),
 и ему приписывают энтропию
 $$
-S_{\rm dS} = \frac{A}{4G} = \frac{\pi}{GH^2} = \frac{3\pi}{G^2\Lambda}
+S_{\rm dS} = \frac{A}{4G} = \frac{\pi}{GH^2} = \frac{3\pi}{G\Lambda}
 \qquad(H^2 = \Lambda/3 = 8\pi G\rho_\Lambda/3).
 $$
 Первый закон: если через горизонт проходит поток вещества с энергией
@@ -236,6 +236,11 @@ $\dd E$, то $\dd E = -T\,\dd S_{\rm dS}$ — горизонт сжимаетс
 ($H_\infty = H_0\sqrt{\Omega_\Lambda}$):
 
 ```{python}
+H_s, Lam_s = sp.symbols("H Lambda", positive=True)
+S_dS_sym = 4 * sp.pi / H_s**2 / (4 * G_s)                      # A/4G, A = 4π/H²
+assert sp.simplify(S_dS_sym - sp.pi / (G_s * H_s**2)) == 0
+assert sp.simplify(S_dS_sym.subs(H_s, sp.sqrt(Lam_s / 3)) - 3 * sp.pi / (G_s * Lam_s)) == 0   # H² = Λ/3
+
 H_inf = (Planck18.H0 * math.sqrt(Planck18.Ode0)).to(1 / u.s).value
 S_dS = math.pi * c**5 / (G * hbar * H_inf**2)
 T_dS = hbar * H_inf / (2 * math.pi * k_B)
